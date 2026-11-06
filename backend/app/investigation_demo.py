@@ -46,8 +46,18 @@ def build_investigation_bundle(
     max_total_tokens: int = 0,
     max_revisions: int = 1,
     planner: Planner | None = None,
+    backend: str = "fixture",
 ) -> InvestigationBundle:
-    repository = FixtureRepository.load(None, variant=variant)
+    if backend == "fixture":
+        repository = FixtureRepository.load(None, variant=variant)
+    elif backend == "sqlite":
+        if variant is not None:
+            raise ValueError("sqlite 后端暂不支持 fixture 变体（变体仅用于 fixture 对比）")
+        from .db.bootstrap import build_sqlite_repository
+
+        _, repository = build_sqlite_repository()
+    else:
+        raise ValueError(f"未知 backend: {backend!r}（可选 fixture / sqlite）")
 
     tool_registry = ToolRegistry()
     for tool in build_fixture_tools(repository):

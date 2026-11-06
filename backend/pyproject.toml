@@ -17,6 +17,9 @@ dependencies = [
     "langchain-openai>=1.0,<2",
     # Task 009：多 Agent 图编排
     "langgraph>=1.0,<2",
+    # Task 010：只读业务数据层与迁移（本机验证用 SQLite；生产目标 PostgreSQL）
+    "SQLAlchemy>=2.0,<3",
+    "alembic>=1.13,<2",
 ]
 
 [project.optional-dependencies]

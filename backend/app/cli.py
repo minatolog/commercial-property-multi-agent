@@ -141,6 +141,12 @@ def build_parser() -> argparse.ArgumentParser:
     investigate.add_argument("--variant", default=None, help="fixture 数据变体")
     investigate.add_argument("--budget-tool-calls", type=int, default=12, help="工具调用预算")
     investigate.add_argument("--max-revisions", type=int, default=1, help="补查上限（默认 1）")
+    investigate.add_argument(
+        "--backend",
+        default="fixture",
+        choices=("fixture", "sqlite"),
+        help="数据来源：fixture=JSON（默认）；sqlite=SQLAlchemy 只读数据库（本机无 PostgreSQL）",
+    )
     investigate.add_argument("--full", action="store_true", help="输出完整图状态报告")
     return parser
 
@@ -302,6 +308,7 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         variant=args.variant,
         max_tool_calls=args.budget_tool_calls,
         max_revisions=args.max_revisions,
+        backend=args.backend,
     )
     result = asyncio.run(
         run_investigation(bundle, question=args.question, lease_id=args.lease)

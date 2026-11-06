@@ -62,7 +62,7 @@
 | **2** | 007 | 可测试的 Runtime 与 Tool Executor | **DeepSeek 自检通过** | [Task 007 自检报告](../reviews/2026-11-06_task007_deepseek_selfcheck.md) |
 | **3** | 008 | LangChain + DeepSeek 真实工具调用闭环 | **DeepSeek 自检通过**（离线闭环；真实调用受凭据限制） | [Task 008 Prompt](../prompts/04_agents/2026-11-06_008_langchain_deepseek_tool_calling.md) |
 | **4** | 009 | 三类能力 + LangGraph 调查工作流 | **DeepSeek 自检通过** | [Task 009 Prompt](../prompts/04_agents/2026-11-06_009_langgraph_multi_agent_workflow.md) |
-| **5** | 010 | 精简 PostgreSQL 与只读业务工具 | 未开始 | 待实施 |
+| **5** | 010 | 精简 PostgreSQL 与只读业务工具 | **DeepSeek 自检通过**（SQLite 验证；PostgreSQL 未验证） | [Task 010 Prompt](../prompts/02_database/2026-11-06_010_postgresql_readonly_tools.md) |
 | **6** | 011 | 合同 PDF 检索、引用与验证 | 未开始 | 待实施 |
 | **7** | 012 | 持久 checkpoint、人工审批、故障恢复 | 未开始 | 待实施 |
 | **8** | 013 | 40 题、三基线与真实对照评测 | 未开始 | 待实施 |
@@ -71,7 +71,7 @@
 
 \* 007–015 已按 README 编号表分配；若插入其他独立任务则顺延，正式 Prompt 的顺序不变。任务 006 的返修和 Review 不新占一个开发编号。
 
-**当前：Prompt 1/10 已验收；Prompt 2–4（Task 007–009）DeepSeek 自检通过。** 这不是“代码完成 20%”：各步骤工作量不同，不用步骤比例冒充整体工程完成度。独立 Python 环境、历史骨架和数据库设计属于此前基础，继续复用。
+**当前：Prompt 1/10 已验收；Prompt 2–5（Task 007–010）DeepSeek 自检通过。** 这不是“代码完成 20%”：各步骤工作量不同，不用步骤比例冒充整体工程完成度。独立 Python 环境、历史骨架和数据库设计属于此前基础，继续复用。
 
 ## 4. 每一步的内容与验收
 

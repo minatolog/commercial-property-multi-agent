@@ -420,6 +420,63 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 010 - PostgreSQL 只读业务工具与数据访问边界
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 2' - 数据底座
+- **对应 Prompt 归档**：`docs/prompts/02_database/2026-11-06_010_postgresql_readonly_tools.md`（正式 Prompt 5）
+- **状态**：**DeepSeek 自检通过（SQLite 验证）；PostgreSQL 未验证**
+
+### 本次完成的功能
+
+- 新增 SQLAlchemy 2.0 只读数据层：12 张表的 P0 子集模型、`Money` 精确金额类型、`DatabaseRepository`（与 fixture 仓库同形契约）。
+- 只读由**连接层**强制：SQLite `PRAGMA query_only`、PostgreSQL `SET TRANSACTION READ ONLY`；仓库 `add/delete/commit` 直接抛 `ReadOnlyViolation`。
+- 新增 Alembic 脚手架与初始迁移，`upgrade` / `downgrade` 均在临时库验证可重建。
+- 新增种子导入（来源仍是同一个 fixture，不产生第二份事实源）。
+- `investigate` CLI 新增 `--backend fixture|sqlite`，业务工具**零修改**即切换到数据库。
+- 新增 12 项数据库测试（迁移、种子、等价性、只读、跨项目、图在 DB 后端运行）。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 金额在 SQLite 的表达 | `Money` TypeDecorator：SQLite→TEXT，PG→`NUMERIC(14,2)` | SQLite 无十进制类型，NUMERIC 会退化为 REAL，浮点误差不可接受 |
+| 只读实现 | 连接级只读 + 仓库拒绝写方法 | "代码里没写 UPDATE"不是保证；两层都挡住才可验证 |
+| 模型范围 | 只建当前查询用到的 12 张表 | 不为未使用的表制造维护负担；14 表设计仍保留为长期参考 |
+| 初始迁移 | `Base.metadata.create_all` | 避免手写 12 张表造成与模型漂移；已注明后续必须显式 `op.` |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/db/*`（6 个模块） | 新增 |
+| `backend/alembic.ini`、`backend/migrations/*` | 新增 |
+| `backend/tests/test_database_layer.py` | 新增（12 项） |
+| `backend/app/investigation_demo.py`、`cli.py` | 新增 `backend` 参数 |
+| `backend/pyproject.toml` | 声明 SQLAlchemy / Alembic |
+
+### 测试和验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| Alembic upgrade / downgrade（SQLite） | ✅ 12 表可建可删 |
+| 数据库测试 | ✅ 12 项通过 |
+| 全量单测 | ✅ `Ran 106 tests ... OK` |
+| fixture vs 数据库等价 | ✅ 应收/已收/未收/差额/工单/缺失文档全部一致 |
+| 只读闸门 | ✅ PRAGMA=1、写语句失败、仓库写方法被拒 |
+| CLI 双后端 | ✅ 两个后端均为 `conflicting` / `756.00` |
+
+### 当前项目状态
+
+同一套工具与工作流可在 fixture 与关系数据库之间切换，结果一致。**PostgreSQL 本身未验证**（本机无服务），需在有 PG 的环境补测。
+
+### 下一步开发计划
+
+- [ ] Task 011：合同 PDF 导入、RAG 检索与可追溯证据
+- [ ] 在有 PostgreSQL 的环境执行迁移与等价性验证
+
+---
+
 ## [2026-11-06] 任务 009 - LangGraph 多 Agent 工作流与条件路由
 
 - **日期**：2026-11-06

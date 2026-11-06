@@ -74,6 +74,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 007 | 2026-11-06 | 04_agents | Agent Runtime 与受控工具执行（Prompt 2；DeepSeek 自检通过） | [2026-11-06_007_agent_runtime_controlled_tools.md](./prompts/04_agents/2026-11-06_007_agent_runtime_controlled_tools.md) |
 | 008 | 2026-11-06 | 04_agents | LangChain、DeepSeek 适配与真实工具调用闭环（Prompt 3；DeepSeek 自检通过，真实调用受凭据限制） | [2026-11-06_008_langchain_deepseek_tool_calling.md](./prompts/04_agents/2026-11-06_008_langchain_deepseek_tool_calling.md) |
 | 009 | 2026-11-06 | 04_agents | LangGraph 多 Agent 工作流与条件路由（Prompt 4；DeepSeek 自检通过） | [2026-11-06_009_langgraph_multi_agent_workflow.md](./prompts/04_agents/2026-11-06_009_langgraph_multi_agent_workflow.md) |
+| 010 | 2026-11-06 | 02_database | PostgreSQL 只读业务工具与数据访问边界（Prompt 5；SQLite 验证通过，PostgreSQL 未验证） | [2026-11-06_010_postgresql_readonly_tools.md](./prompts/02_database/2026-11-06_010_postgresql_readonly_tools.md) |
 
 ---
 

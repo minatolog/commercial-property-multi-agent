@@ -1079,11 +1079,12 @@ class TestSecurityScan(unittest.TestCase):
         )
         self.assertIn("pydantic", text)
         self.assertIn("PyYAML", text)
-        # Task 008/009 明确引入的依赖：LangChain 适配层与 LangGraph 编排
+        # Task 008/009/010 明确引入的依赖
         self.assertIn("langchain-core", text)
         self.assertIn("langgraph", text)
+        self.assertIn("sqlalchemy", text.lower())
         # 仍未引入的重型/业务依赖：出现即说明越界
-        for forbidden in ("sqlalchemy", "fastapi", "chromadb", "psycopg", "torch"):
+        for forbidden in ("fastapi", "chromadb", "psycopg", "torch"):
             self.assertNotIn(forbidden, text.lower())
 
     def test_declared_dependencies_match_imports(self) -> None:
