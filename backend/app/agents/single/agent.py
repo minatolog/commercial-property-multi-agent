@@ -19,7 +19,7 @@ from ...agents.base import AgentContext, AgentOutput, AgentRequest, BaseAgent
 from ...agents.base.contracts import TokenUsage
 from ...agents.base.errors import AgentError, ErrorCode
 from ...agents.base.facts import facts_of_executions, outputs_of_executions
-from ...agents.base.narrative import check_answer_consistency
+from ...agents.base.narrative import amounts_in_payload, check_answer_consistency
 from ...config.schema import AgentConfig
 from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
 from ...runtime.budget import Budget
@@ -130,7 +130,10 @@ class SingleToolAgent(BaseAgent):
         facts, per_tool = facts_of_executions(outcome.tool_executions)
         outputs = outputs_of_executions(outcome.tool_executions)
         # N6：单 Agent 路径同样要核对"用户看到的金额"与"工具事实"，不能只看 facts。
-        answer_check = check_answer_consistency(outcome.answer, facts)
+        verified_amounts = amounts_in_payload(outputs)
+        answer_check = check_answer_consistency(
+            outcome.answer, facts, extra_amounts=verified_amounts
+        )
         warnings = list(outcome.warnings)
         if not answer_check.ok:
             warnings.append(
@@ -163,6 +166,7 @@ class SingleToolAgent(BaseAgent):
                     "name": self._model_client.model_name,
                 },
                 "answer_check": answer_check.as_dict(),
+                "verified_amounts": sorted(f"{item:.2f}" for item in verified_amounts),
             },
             warnings=tuple(warnings),
             token_usage=_usage_or_none(outcome.usage),

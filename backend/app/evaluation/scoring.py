@@ -32,6 +32,13 @@ v2 改为按字段类型化比较，并让拒绝语义由用例显式声明。
 
 `answer` 断言答的是"用户看到的东西对不对"，`facts` 断言答的是"内部取数对不对"，
 两者在汇总里分开统计，不允许用前者代替后者或反之。
+
+**变更记录（scoring-v3.1，Task 021 收尾）**：v3 把可信金额集合限定在 `facts`，
+于是模型照实列账单明细（每期租金、已核销金额）时会被误判为"编造金额"——真实 DeepSeek
+首测就出现了一次这种误报。v3.1 把可信集合扩展到**工具输出里出现过的全部金额**
+（运行时 `amounts_in_payload(工具输出)`，评测用 `BaselineResult.verified_amounts`），
+并新增 `ungrounded` 状态：答案写了钱数却没有任何一个经核验的合计金额，视为失败。
+`mismatch`/`ungrounded` 判失败，`not_mentioned`/`incomplete` 转人工。
 """
 
 from __future__ import annotations
@@ -47,7 +54,7 @@ from .cases import EvalCase
 __all__ = ["CaseScore", "score_case", "SCORING_VERSION", "MONEY_FACT_KEYS"]
 
 #: 评分规则版本。任何判定逻辑变更都必须提升该版本，并新建报告（不覆盖历史）。
-SCORING_VERSION = "scoring-v3"
+SCORING_VERSION = "scoring-v3.1"
 
 #: 金额类事实键：按 Decimal 比到分（`0.01`）。浮点或字符串近似一律不接受。
 MONEY_FACT_KEYS: frozenset[str] = frozenset(
@@ -305,14 +312,19 @@ def score_case(case: EvalCase, result: BaselineResult) -> CaseScore:
         record(f"{case.case_id}-F:{key}", "facts", passed, detail)
 
     # 1b) 最终答案准确性（N6）：用户看到的金额必须来自可信事实。
+    # 成立条件只看三件事：答案里的金额都能在事实/工具输出里找到、至少落在一个
+    # 核验过的合计金额上、没有编造金额。`not_mentioned` / `incomplete` 转人工，
+    # 因为"回答范围更窄"与"算错"在机械规则下无法区分。
     # 只有用例本身声明了可判定的内容断言（事实或证据）时才登记——
     # 只用例声明"路由"的题仍必须保持 denominator=0（路由只算效率）。
     if _declares_content_expectation(case):
-        answer_check = check_answer_consistency(result.answer, result.facts)
+        answer_check = check_answer_consistency(
+            result.answer, result.facts, extra_amounts=result.verified_amounts
+        )
         score.answer_check = answer_check.as_dict()
-        if answer_check.status == "mismatch":
+        if answer_check.status in {"mismatch", "ungrounded"}:
             record(f"{case.case_id}-AN", "answer", False, answer_check.detail)
-        elif answer_check.status == "not_mentioned":
+        elif answer_check.status in {"not_mentioned", "incomplete"}:
             record(f"{case.case_id}-AN", "answer", None, answer_check.detail)
         elif answer_check.status == "consistent":
             record(f"{case.case_id}-AN", "answer", True, answer_check.detail)

@@ -6,19 +6,26 @@
 
 判定规则（纯机械、可复核，不做语义理解）：
 
-- **可信金额集合**：`facts` 中金额类键的取值（与评分器同一份事实契约）；
+- **可信金额集合**：`facts` 中金额类键的取值（与评分器同一份事实契约）
+  **加上工具输出里出现过的所有金额**（账单明细、付款、规则金额等）；
 - **答案金额**：答案文本中**带两位小数的金额字形**（`18036.00`、`18,036.00`）
   或与某个可信金额完全相等的整数；
 - 出现可信集合之外的正则金额 → `mismatch`（用户读到了工具没给过的钱数）；
-- 可信金额没出现在答案里 → 记为 `not_mentioned`（是完整性问题，不是错误：回答
-  可以只答被问的那一项）。
+- 答案写了金额但**一个经核验的合计金额都没写** → `ungrounded`（同样视为问题）；
+- 可信金额没出现在答案里 → 记为 `not_mentioned` / `incomplete`（完整性问题，转人工）。
+
+为什么可信集合要包含工具输出的全部金额：模型在答案里列出账单明细（每期租金、物业费、
+已核销金额）是正常且可核验的，它们不在 11 键事实契约里，但确实来自工具。只拿 `facts`
+判定会把"照实列明细"误报成编造。反过来，只要某个金额**从未出现在任何工具输出里**，
+它就是模型自己算或编的，必须被标出来。
 
 边界（必须如实记录，不要当成"已验证"）：
 
 - 只校验金额，不校验叙述里的因果与建议；
 - 答案若用"1.8 万"这类改写表达，会被视为未提及该金额；
 - 整数形式的金额（`18036`）只有恰好等于可信金额时才被识别为金额，因此
-  "合同月租 21600 元"这种来自其他工具的整数不会被误判，也不会被核验。
+  "合同月租 21600 元"这种整数引用既不会被误判，也不会被核验；
+- 模型自己做的四则运算结果（例如"合计应付 3 万元"）不在工具输出里，会被标为不可信。
 """
 
 from __future__ import annotations
@@ -26,9 +33,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
-__all__ = ["AnswerCheck", "check_answer_consistency", "MONEY_FACT_KEYS"]
+__all__ = [
+    "AnswerCheck",
+    "amounts_in_payload",
+    "check_answer_consistency",
+    "MONEY_FACT_KEYS",
+]
 
 #: 参与核对的金额事实键（与评分器 `MONEY_FACT_KEYS` 同一口径的超集，
 #: 这里只取"会直接展示给用户的资金口径"）。
@@ -47,6 +59,8 @@ MONEY_FACT_KEYS: tuple[str, ...] = (
 _MONEY_TOKEN = re.compile(r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)\.\d{2}(?![\d])")
 #: 裸整数（只在与可信金额完全相等时才会计入）
 _INT_TOKEN = re.compile(r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?![\d.,])")
+#: 整体是一个数字的字符串（工具输出里的金额字段常是字符串）
+_NUMERIC_TEXT = re.compile(r"-?\d+(?:\.\d+)?")
 
 
 @dataclass(frozen=True)
@@ -63,7 +77,7 @@ class AnswerCheck:
     def ok(self) -> bool:
         """是否存在"用户看到了不可信金额"的问题。"""
 
-        return self.status != "mismatch"
+        return self.status not in {"mismatch", "ungrounded"}
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -76,12 +90,36 @@ class AnswerCheck:
 
 
 def check_answer_consistency(
-    answer: str, facts: Mapping[str, Any] | None
+    answer: str,
+    facts: Mapping[str, Any] | None,
+    *,
+    extra_amounts: Iterable[Any] = (),
 ) -> AnswerCheck:
-    """比对模型叙述里的金额与工具事实。"""
+    """比对模型叙述里的金额与工具事实。
 
-    trusted = _trusted_amounts(facts)
-    if not trusted:
+    `extra_amounts` 是工具输出里出现过的其他金额（账单明细等）。评分器从
+    `BaselineResult.verified_amounts` 传入，运行时由 `amounts_in_payload(工具输出)`
+    计算——两边用**同一个**可信集合口径。
+
+    判定优先级（越靠前越严重）：
+
+    1. `mismatch`：答案出现**任何工具都没给过**的金额（编造或模型自算）；
+    2. `ungrounded`：答案有钱数，但**一个经事实核验的合计金额都没写**
+       （"未收 0.00，已经结清"属于这一类——0.00 可能来自某张已结清明细，
+       但用户读到的结论没有落到 18036.00 上）；
+    3. `not_mentioned`：答案完全没写金额（只说"已核对"），完整性存疑，转人工；
+    4. `incomplete`：写了部分事实金额、漏了另一些（可能是只答了被问的那一项）；
+    5. `consistent`：事实金额齐全且没有编造金额。
+    """
+
+    fact_amounts = _trusted_amounts(facts)
+    trusted = set(fact_amounts)
+    trusted |= {
+        amount
+        for amount in (_as_decimal(item) for item in extra_amounts)
+        if amount is not None
+    }
+    if not fact_amounts:
         return AnswerCheck(
             status="not_checkable",
             detail="本次没有可核对的金额事实（例如工单类结论）",
@@ -90,7 +128,8 @@ def check_answer_consistency(
     text = str(answer or "")
     mentioned = _answer_amounts(text, set(trusted))
     unverified = sorted(mentioned - trusted)
-    missing = sorted(trusted - mentioned)
+    missing = sorted(fact_amounts - mentioned)
+    grounded = sorted(fact_amounts & mentioned)
 
     if unverified:
         return AnswerCheck(
@@ -103,9 +142,27 @@ def check_answer_consistency(
                 + ", ".join(_fmt(item) for item in unverified)
             ),
         )
-    if missing:
+    if not mentioned:
         return AnswerCheck(
             status="not_mentioned",
+            trusted_amounts=_fmt_all(trusted),
+            missing_amounts=_fmt_all(missing),
+            detail=("答案未提及任何金额: " + ", ".join(_fmt(item) for item in missing)),
+        )
+    if not grounded:
+        return AnswerCheck(
+            status="ungrounded",
+            trusted_amounts=_fmt_all(trusted),
+            missing_amounts=_fmt_all(missing),
+            detail=(
+                "答案写了金额但没有一个是经核验的合计金额（应为 "
+                + ", ".join(_fmt(item) for item in sorted(fact_amounts))
+                + "）"
+            ),
+        )
+    if missing:
+        return AnswerCheck(
+            status="incomplete",
             trusted_amounts=_fmt_all(trusted),
             missing_amounts=_fmt_all(missing),
             detail=(
@@ -129,6 +186,41 @@ def _trusted_amounts(facts: Mapping[str, Any] | None) -> set[Decimal]:
         amount = _as_decimal(value)
         if amount is not None:
             amounts.add(amount)
+    return amounts
+
+
+def amounts_in_payload(value: Any, *, _depth: int = 0) -> set[Decimal]:
+    """递归收集工具输出里出现过的金额。
+
+    用于把"账单明细/付款/规则金额"这类不在事实契约内、但确实来自工具的数字
+    加入可信集合。只认 `Decimal`/`int`/`float` 与**整体为数字的字符串**，
+    不在自由文本里猜金额。
+    """
+
+    if _depth > 6:
+        return set()
+    amounts: set[Decimal] = set()
+    if isinstance(value, Mapping):
+        for item in value.values():
+            amounts |= amounts_in_payload(item, _depth=_depth + 1)
+        return amounts
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            amounts |= amounts_in_payload(item, _depth=_depth + 1)
+        return amounts
+    if isinstance(value, bool) or value is None:
+        return amounts
+    if isinstance(value, (int, float, Decimal)):
+        amount = _as_decimal(value)
+        if amount is not None:
+            amounts.add(amount)
+        return amounts
+    if isinstance(value, str):
+        text = value.strip().replace(",", "")
+        if _NUMERIC_TEXT.fullmatch(text):
+            amount = _as_decimal(text)
+            if amount is not None:
+                amounts.add(amount)
     return amounts
 
 

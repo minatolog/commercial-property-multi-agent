@@ -574,6 +574,7 @@ def build_investigation_graph(
         )
         # N6：模型叙述与工具事实冲突时必须单列，不能让"内部事实正确"掩盖
         # "用户读到的金额是错的"。这类运行一律要求人工复核。
+        _discrepancy_statuses = {"mismatch", "ungrounded"}
         narrative_discrepancies = [
             {
                 "subtask_id": item["subtask_id"],
@@ -583,7 +584,7 @@ def build_investigation_graph(
             }
             for item in results
             if isinstance(check := (item.get("output") or {}).get("answer_check"), dict)
-            and check.get("status") == "mismatch"
+            and check.get("status") in _discrepancy_statuses
         ]
         report = {
             "question": state.get("question"),

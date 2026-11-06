@@ -270,6 +270,29 @@ class TestN6AnswerAccuracy(unittest.TestCase):
         self.assertEqual(check.status, "mismatch")
         self.assertIn("0.00", check.unverified_amounts)
 
+    def test_amounts_from_tool_details_are_trusted(self) -> None:
+        """账单明细金额来自工具输出，不能因为不在事实契约里就被判成编造。"""
+
+        check = check_answer_consistency(
+            "应收 52,596.00、已收 34,560.00、未收 18,036.00；本期租金 17,280.00。",
+            {
+                "invoiced_total": "52596.00",
+                "paid_total": "34560.00",
+                "outstanding_total": "18036.00",
+            },
+            extra_amounts=["17280.00", "2160.00"],
+        )
+        self.assertEqual(check.status, "consistent")
+
+    def test_money_without_any_verified_total_is_ungrounded(self) -> None:
+        """回归 N6 的真实形态：答案写了一堆钱，但没有一个经核验的合计金额。"""
+
+        check = check_answer_consistency(
+            CLEARED_ANSWER, {"outstanding_total": "18036.00"}, extra_amounts=["0.00"]
+        )
+        self.assertEqual(check.status, "ungrounded")
+        self.assertFalse(check.ok)
+
     def test_narrative_check_accepts_matching_amounts(self) -> None:
         check = check_answer_consistency(
             CORRECT_ANSWER,
@@ -301,7 +324,7 @@ class TestN6AnswerAccuracy(unittest.TestCase):
         agent = _agent("billing", "billing.statement", client)
         result = _run(agent, {"lease_id": LEASE_A301, "question": "欠多少"}, "billing.statement")
         self.assertEqual(result.output["facts"]["outstanding_total"], "18036.00")
-        self.assertEqual(result.output["answer_check"]["status"], "mismatch")
+        self.assertIn(result.output["answer_check"]["status"], {"mismatch", "ungrounded"})
         self.assertIsNot(result.status, TaskStatus.SUCCESS)
         self.assertTrue(
             any("不一致" in warning for warning in result.warnings), result.warnings

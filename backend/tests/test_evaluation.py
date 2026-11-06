@@ -212,7 +212,7 @@ class TestScoring(unittest.TestCase):
         self.assertFalse(score.passed)
 
     def test_scoring_version_is_declared(self) -> None:
-        self.assertEqual(SCORING_VERSION, "scoring-v3")
+        self.assertEqual(SCORING_VERSION, "scoring-v3.1")
 
 
 class TestFactFieldBinding(unittest.TestCase):
@@ -400,7 +400,7 @@ class TestRunnerBindings(unittest.IsolatedAsyncioTestCase):
         cases = load_cases(split="heldout")[:2]
         report = await evaluate(baseline="A_deterministic", cases=cases, split="heldout")
         payload = report.as_dict()
-        self.assertEqual(payload["bindings"]["scoring_version"], "scoring-v3")
+        self.assertEqual(payload["bindings"]["scoring_version"], "scoring-v3.1")
         self.assertEqual(payload["bindings"]["model"]["provider"], "offline_deterministic")
         self.assertEqual(len(payload["bindings"]["cases_sha256"]), 64)
         self.assertIn("code_commit", payload["bindings"])

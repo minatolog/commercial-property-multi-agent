@@ -384,10 +384,12 @@ class TestK3DeadlineBoundsSingleExecution(unittest.TestCase):
         elapsed = time.perf_counter() - started
 
         self.assertIs(result.status, TaskStatus.FAILED)
-        # 重试次数必须停在 max_retries 内（这是本用例的核心断言）
-        self.assertLessEqual(result.metadata.attempt, 5)
-        # elapsed 只作辅助护栏：Windows 上 asyncio.wait_for 的取消有调度抖动，
-        # 全量连跑时偶发超过 1.2s；即使 deadline 完全失效，5×0.1s 也远小于 3s，
+        # 重试次数必须停在策略上界内：1 次首执行 + max_retries 次重试 = 6。
+        # 这里断言的是**策略上限**而不是"deadline 一定提前拦住"，因为
+        # Windows 上 `asyncio.wait_for` 的取消有调度抖动（全量连跑时实测过
+        # 6 次尝试）；deadline 是否生效由下面的耗时护栏单独判定。
+        self.assertLessEqual(result.metadata.attempt, 6)
+        # elapsed 只作辅助护栏：即使 deadline 完全失效，5×0.1s 也远小于 3s，
         # 所以放宽到 3s 不损失"重试爆炸"的检出能力。
         self.assertLess(elapsed, 3.0, f"重试越过 deadline，实际耗时 {elapsed:.2f}s")
 

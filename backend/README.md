@@ -91,7 +91,7 @@ python -m unittest discover -s tests -p "test_*.py"
 | `app/orchestration/checkpointing.py` | `AsyncSqliteSaver` 装配与 serde 白名单 |
 | `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验、`DocumentCatalog` 目录契约（按租约限定文档版本） |
 | `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（装配期 `PRAGMA query_only=1`；本机用 SQLite 验证） |
-| `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v3`：工具事实与最终答案分开判定）、报告绑定 |
+| `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v3.1`：工具事实与最终答案分开判定）、报告绑定 |
 | `app/api/` | FastAPI 适配层 + 同源演示页（**可整体删除**，CLI/评测不依赖它） |
 | `app/cli.py` | 命令行入口（tools/check/demo/ask/investigate/search/approve/pending/evaluate） |
 

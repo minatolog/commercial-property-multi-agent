@@ -65,6 +65,8 @@ class BaselineResult:
     errors: list[str] = field(default_factory=list)
     approval_status: str | None = None
     approval_draft_version: int | None = None
+    #: 工具输出里出现过的金额（N6）：最终答案核验与事实契约共用同一份可信集合
+    verified_amounts: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -82,6 +84,7 @@ class BaselineResult:
             "errors": list(self.errors),
             "approval_status": self.approval_status,
             "approval_draft_version": self.approval_draft_version,
+            "verified_amounts": list(self.verified_amounts),
         }
 
 
@@ -325,6 +328,7 @@ class DeterministicBaseline(_Baseline):
         result.facts = _facts_from_tool(tool, execution.data or {}, repository, case)
         result.evidence_ids = [item.evidence_id for item in execution.evidence]
         result.answer = _compose_answer(result.facts, [primary])
+        result.verified_amounts = _amounts_of(execution.data)
         result.latency_ms = int((time.perf_counter() - started) * 1000)
         return result
 
@@ -404,6 +408,7 @@ class SingleAgentBaseline(_Baseline):
         data = agent_result.output or {}
         result.facts = dict(data.get("facts") or {})
         result.answer = str(data.get("answer") or "")
+        result.verified_amounts = [str(item) for item in data.get("verified_amounts") or ()]
         result.evidence_ids = list(
             dict.fromkeys(
                 str(item.get("evidence_id"))
@@ -437,6 +442,7 @@ class SingleAgentBaseline(_Baseline):
         facts: dict[str, str] = {}
         evidence: list[str] = []
         errors: list[str] = []
+        amounts: list[str] = []
         calls = 0
         lease_id = resolve_lease(repository, principal, case)
         for intent in intents:
@@ -455,9 +461,11 @@ class SingleAgentBaseline(_Baseline):
                     continue
                 facts.update(_facts_from_tool(tool, execution.data or {}, repository, case))
                 evidence.extend(item.evidence_id for item in execution.evidence)
+                amounts.extend(_amounts_of(execution.data))
 
         result.tool_calls = calls
         result.facts = facts
+        result.verified_amounts = list(dict.fromkeys(amounts))
         result.evidence_ids = list(dict.fromkeys(evidence))
         result.answer = _compose_answer(facts, intents)
         result.errors = errors
@@ -511,10 +519,12 @@ class MultiAgentBaseline(_Baseline):
 
         facts: dict[str, str] = {}
         evidence: list[str] = []
+        amounts: list[str] = []
         for item in investigation.results:
             output = item.get("output") or {}
             capability = item.get("capability")
             evidence.extend(_evidence_ids(output))
+            amounts.extend(str(value) for value in output.get("verified_amounts") or ())
             if capability == "billing.statement":
                 facts.update(
                     {
@@ -540,6 +550,7 @@ class MultiAgentBaseline(_Baseline):
                 facts["open_count"] = str(output.get("open_count", 0))
 
         result.facts = facts
+        result.verified_amounts = list(dict.fromkeys(amounts))
         result.evidence_ids = list(dict.fromkeys(evidence))
         model_answers = [
             str((item.get("output") or {}).get("answer") or "").strip()
@@ -623,6 +634,14 @@ def _facts_from_tool(
         top = results[0]
         return {"clause_ref": f"合同第 {top.get('page')} 页 {top.get('clause_id')} 条"}
     return {}
+
+
+def _amounts_of(data: Any) -> list[str]:
+    """工具输出里出现过的金额（N6 可信集合）。与运行时的 `amounts_in_payload` 同源。"""
+
+    from ..agents.base.narrative import amounts_in_payload
+
+    return sorted(f"{item:.2f}" for item in amounts_in_payload(data))
 
 
 def _evidence_ids(output: dict[str, Any]) -> list[str]:

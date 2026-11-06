@@ -38,7 +38,7 @@ python -m app.cli tools
 python -m app.cli check
 python tests/smoke_agent_contracts.py
 
-# 4) 跑一遍完整回归（343 项）
+# 4) 跑一遍完整回归（345 项）
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -213,7 +213,7 @@ python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁
 python -m app.cli evaluate --split heldout
 ```
 
-保留集 v3（离线，`scoring-v3`，代码提交 `45af0cb`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
+保留集 v3（离线，`scoring-v3.1`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
 
 | 基线 | 架构 | 计分题通过 | 自动断言通过率 | 工具事实断言 | 最终答案断言 | 工具调用 | token | 成本 |
 |---|---|---|---|---|---|---|---|---|
@@ -248,7 +248,7 @@ python -m app.cli evaluate --split heldout
 | [docs/prompts/](docs/prompts/) | 每个任务的完整存档（原始 Prompt + 实施 + 验证 + 问题） |
 | [docs/development_logs/development_log.md](docs/development_logs/development_log.md) | 逐任务开发日志 |
 | [docs/issues/issue_log.md](docs/issues/issue_log.md) | 问题、根因、修法、如何避免复发 |
-| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（28 篇） |
+| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（29 篇） |
 | [docs/checkpoints/git_history.md](docs/checkpoints/git_history.md) | 里程碑与回滚参考 |
 | [docs/evaluation/](docs/evaluation/) | 评测规则、数据集、报告 |
 | [docs/demo/demo_script.md](docs/demo/demo_script.md) | 演示脚本与失败示例 |
@@ -261,12 +261,13 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **343 项通过**（1 项因本机已配置密钥而 skip） |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **345 项通过**（1 项因本机已配置密钥而 skip） |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | 模型预算按物理请求记账 | `tests/test_model_budget.py`（6 项） | `max_model_calls=1` 时只发出 1 次请求；重试/补查逐次记账 |
 | 模型不能换目标/丢筛选 | `tests/test_task_scope.py`（15 项） | 越界租约被拒、省略即注入、文档范围取交集、受控调用双省略默认拒绝 |
 | 零取证不算完成 | `tests/test_evidence_and_answer.py`（N4 部分） | 不调工具 / 调无关工具 / 工具全失败 → `insufficient_evidence` |
 | 答案金额必须来自事实 | `tests/test_evidence_and_answer.py`（N6 部分） | facts 全对但回答写 0.00 → 答案断言失败；报告列出 `narrative_discrepancies` |
+| 真实模型记账与叙述核验 | `docs/evaluation/reports/real_model_v2/`（30k token 上限、单题） | 物理请求 7 = 账本 7；13,714 tokens；修正后可核验答案为 `consistent` |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
 | Agent 可禁用/替换 | `tests/test_graph_workflow.py::test_disabled_capability_degrades_explicitly`、`tests/test_runtime.py::test_replace_success_swaps_capabilities_atomically` | 禁用后明确报能力不可用；替换原子生效 |

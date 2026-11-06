@@ -27,7 +27,7 @@ from .contracts import AgentContext, AgentOutput, AgentRequest, TokenUsage
 from .errors import AgentError, ErrorCode
 from .evidence import check_capability_output
 from .facts import facts_of_executions, outputs_of_executions
-from .narrative import check_answer_consistency
+from .narrative import amounts_in_payload, check_answer_consistency
 from .scope import TaskScope
 from ...config.schema import AgentConfig
 from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
@@ -179,7 +179,11 @@ class LLMToolAgent(BaseAgent):
                 },
             )
         # N6：内部事实正确 ≠ 用户看到的金额正确。
-        answer_check = check_answer_consistency(outcome.answer, facts)
+        # 可信金额集合 = 事实契约里的金额 + 工具输出里出现过的金额（账单明细等）。
+        verified_amounts = amounts_in_payload(outputs)
+        answer_check = check_answer_consistency(
+            outcome.answer, facts, extra_amounts=verified_amounts
+        )
         warnings = list(outcome.warnings) + list(rejected)
         if not answer_check.ok:
             warnings.append(
@@ -211,6 +215,7 @@ class LLMToolAgent(BaseAgent):
                 "task_scope": scope.describe(),
                 "rejected_outputs": rejected,
                 "answer_check": answer_check.as_dict(),
+                "verified_amounts": sorted(f"{item:.2f}" for item in verified_amounts),
             },
             warnings=tuple(warnings),
             token_usage=_usage_or_none(outcome.usage),
