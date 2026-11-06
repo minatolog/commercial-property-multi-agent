@@ -77,6 +77,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 010 | 2026-11-06 | 02_database | PostgreSQL 只读业务工具与数据访问边界（Prompt 5；SQLite 验证通过，PostgreSQL 未验证） | [2026-11-06_010_postgresql_readonly_tools.md](./prompts/02_database/2026-11-06_010_postgresql_readonly_tools.md) |
 | 011 | 2026-11-06 | 03_rag | 合同 PDF 导入、BM25 条款检索与可追溯证据（Prompt 6；离线验证通过，向量检索属 P1） | [2026-11-06_011_contract_pdf_rag.md](./prompts/03_rag/2026-11-06_011_contract_pdf_rag.md) |
 | 012 | 2026-11-06 | 04_agents | 持久检查点、人工审批与暂停恢复（Prompt 7；本地 SQLite 控制面验证通过） | [2026-11-06_012_durable_checkpoint_and_approval.md](./prompts/04_agents/2026-11-06_012_durable_checkpoint_and_approval.md) |
+| 013 | 2026-11-06 | 06_testing | 三基线与 40 题正式评测（Prompt 8；离线三基线完成，真实模型测量受凭据限制） | [2026-11-06_013_three_baselines_evaluation.md](./prompts/06_testing/2026-11-06_013_three_baselines_evaluation.md) |
 
 ---
 

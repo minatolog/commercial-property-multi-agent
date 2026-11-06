@@ -420,6 +420,68 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 013 - 三基线与 40 题正式评测
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 5' - 评测与量化
+- **执行者**：DeepSeek（DeepSeek Harness 会话）
+- **对应 Prompt 归档**：`docs/prompts/06_testing/2026-11-06_013_three_baselines_evaluation.md`
+- **状态**：**DeepSeek 自检通过**（离线三基线；真实模型测量受凭据限制，未执行）
+
+### 本次完成的功能
+
+- **冻结评分规则**：`docs/evaluation/scoring_v1.md` 在生成保留集之前定稿。
+- **数据集**：8 道开发题（Task 006 冻结）+ 32 道保留题（由脚本从 fixture 计算期望事实生成，`heldout_v2.jsonl`）；v1 因生成缺陷作废存档。
+- **三基线**：`A_deterministic`（意图表 → 单次工具）、`B_single_agent`（单 Agent 汇总全部工具）、`C_multi_agent`（LangGraph 分解+核验+审批门）；共用 fixture、工具白名单与 `max_tool_calls`。
+- **指标分离**：自动断言（facts/evidence/approval）计入 correctness；路由只作 efficiency；rubric 进人工队列；无可判定断言的题标 `not_scored`。
+- **报告绑定**：代码提交、用例与 fixture 校验和、评分规则版本、模型（`offline_deterministic`）、配置；文件按时间戳命名，不覆盖历史。
+- **CLI**：`evaluate --baseline all --split dev|heldout`。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 期望值来源 | 脚本从 fixture 计算 | 手抄金额必然出错；v1 的 `None 至 None` 就是人工/取值错误的实例 |
+| 保留集版本 | 出问题就发新版文件，不就地改 | 已跑过的保留集一旦修改就不再是"保留"，实验结论失效 |
+| 基线权限 | 构造显式 `AgentConfig` 白名单 | 传 `None` 会绕过工具六道闸，评测将在比生产更宽松的权限下进行 |
+| 路由指标 | 只进 efficiency | 否则"该走确定性路径"会被当成"答案正确"，反之亦然 |
+| 不可判定断言 | 进人工队列 | 评分器不认识的键若静默判败/判胜，等于用评分器作弊 |
+| 离线成本 | `cost=null`、`tokens=0` 且显式标注 | 不用 Fake 结果冒充真实模型的质量或成本 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `docs/evaluation/scoring_v1.md`、`cases/heldout_v1.jsonl`、`cases/heldout_v2.jsonl`、`reports/*` | 新增 |
+| `backend/scripts/generate_heldout_cases.py` | 新增 |
+| `backend/app/evaluation/{__init__,cases,baselines,scoring,runner}.py` | 新增 |
+| `backend/tests/test_evaluation.py` | 新增（23 项） |
+| `backend/app/cli.py`、`paths.py` | 修改：`evaluate`、`CASES_DIR`/`REPORT_DIR` |
+
+### 测试和验证结果
+
+| 验证项 | 命令 / 方式 | 结果 |
+|---|---|---|
+| 本任务测试 | `python -m unittest tests.test_evaluation` | `Ran 23 tests ... OK` |
+| 全量回归 | `python -m unittest discover -s tests -p "test_*.py"` | `Ran 179 tests ... OK` |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| 数据集生成 | `python scripts/generate_heldout_cases.py` | 32 题，sha256 `acc384b4…` |
+| 三基线（dev） | `python -m app.cli evaluate --split dev` | 生成 3 JSON + 汇总 |
+| 三基线（heldout v2） | `python -m app.cli evaluate --split heldout` | A 0.5556 / B 0.5926 / C 0.8519（27 计分题） |
+
+### 当前项目状态
+
+具备可复跑的评测入口与历史报告，能回答"哪种架构在这 32 题上更合适、代价多少"。
+**未验证**：真实模型的质量/成本/token（无 API Key）；人工量表尚未实际评分；5 题无机械断言。
+
+### 下一步开发计划
+
+- [ ] 任务 014：FastAPI 与轻量任务/Trace 演示页
+- [ ] 数据集 v3：为空断言题补 `forbidden_substrings`/`required_evidence_ids`
+- [ ] 有凭据后按冻结配置重复测量真实模型
+
+---
+
 ## [2026-11-06] 任务 012 - 持久检查点、人工审批与暂停恢复
 
 - **日期**：2026-11-06

@@ -26,6 +26,12 @@ SQLITE_DB_PATH: Path = DATA_DIR / "business" / "business.sqlite"
 #: 保证"索引内容"可复现，而不是每次运行时随机生成。
 DOCUMENT_DIR: Path = REPO_ROOT / "docs" / "evaluation" / "documents"
 
+#: 评测用例目录（Task 013）。
+CASES_DIR: Path = REPO_ROOT / "docs" / "evaluation" / "cases"
+
+#: 评测报告目录（Task 013）。报告纳入仓库，作为可复查的实验记录。
+REPORT_DIR: Path = REPO_ROOT / "docs" / "evaluation" / "reports"
+
 #: fixture `documents` 中的 document_id → 实际 PDF 文件。
 DOCUMENT_FILES: dict[str, str] = {
     "doc_xh_a301_contract": "lease_xh_a301_contract_v1.pdf",

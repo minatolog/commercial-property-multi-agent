@@ -210,6 +210,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     pending = sub.add_parser("pending", help="列出待审批请求与已记录的决定")
     pending.add_argument("--control-dir", default=None, help="控制面数据目录")
+
+    evaluate_parser = sub.add_parser(
+        "evaluate",
+        help="三基线评测（A_deterministic / B_single_agent / C_multi_agent），输出逐题结果与汇总",
+    )
+    evaluate_parser.add_argument(
+        "--baseline",
+        default="all",
+        choices=("all", "A_deterministic", "B_single_agent", "C_multi_agent"),
+        help="要运行的基线（默认全部）",
+    )
+    evaluate_parser.add_argument(
+        "--split",
+        default="dev",
+        choices=("dev", "heldout"),
+        help="数据切分：dev=8 道开发题；heldout=32 道保留题",
+    )
+    evaluate_parser.add_argument(
+        "--max-tool-calls", type=int, default=12, help="全任务工具调用预算（三基线一致）"
+    )
+    evaluate_parser.add_argument(
+        "--out", default=None, help="报告输出目录（默认 docs/evaluation/reports）"
+    )
+    evaluate_parser.add_argument(
+        "--quiet", action="store_true", help="只输出汇总表，不打印逐题 JSON"
+    )
     return parser
 
 
@@ -558,6 +584,41 @@ def _cmd_pending(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_evaluate(args: argparse.Namespace) -> int:
+    from .evaluation import evaluate, render_markdown, write_report
+    from .evaluation.baselines import BASELINES
+    from .paths import REPORT_DIR
+
+    names = list(BASELINES) if args.baseline == "all" else [args.baseline]
+    reports = []
+    written: list[str] = []
+    for name in names:
+        report = asyncio.run(
+            evaluate(
+                baseline=name,
+                split=args.split,
+                max_tool_calls=args.max_tool_calls,
+            )
+        )
+        reports.append(report)
+        path = write_report(report, out_dir=args.out)
+        written.append(str(path))
+
+    markdown = render_markdown(reports)
+    stamp = reports[0].started_at.replace(":", "").replace("-", "")[:15]
+    summary_dir = Path(args.out) if args.out else REPORT_DIR
+    summary_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = summary_dir / f"{stamp}_{args.split}_summary.md"
+    summary_path.write_text(markdown, encoding="utf-8")
+    written.append(str(summary_path))
+
+    if not args.quiet:
+        print(markdown)
+    for path in written:
+        print(f"[report] {path}")
+    return 0
+
+
 def _cmd_search(args: argparse.Namespace) -> int:
     from .rag.library import build_knowledge_library
 
@@ -637,6 +698,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_approve(args)
         if args.command == "pending":
             return _cmd_pending(args)
+        if args.command == "evaluate":
+            return _cmd_evaluate(args)
         if args.command == "search":
             return _cmd_search(args)
     except (ConfigError, AgentError, FileNotFoundError, ValueError) as exc:

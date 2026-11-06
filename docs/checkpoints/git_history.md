@@ -321,13 +321,46 @@ git show <hash> --stat
 
 ---
 
-## [2026-11-06] 里程碑 3：Task 012 持久检查点与人工审批（待提交）
+## [2026-11-06] 里程碑 4：Task 013 三基线与 40 题评测（待提交）
+
+- **开发阶段**：阶段 5' 评测与量化
+- **对应任务**：013（Prompt 8）
+- **Git 分支**：`main`
+- **Commit Hash**：`Pending`
+- **推送状态**：`Pending`
+
+### 本次变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `docs/evaluation/scoring_v1.md`、`cases/heldout_v1.jsonl`、`cases/heldout_v2.jsonl`、`reports/*` | 新增 |
+| `backend/app/evaluation/*`、`backend/scripts/generate_heldout_cases.py` | 新增 |
+| `backend/tests/test_evaluation.py` | 新增（23 项） |
+| `backend/app/cli.py`、`paths.py` | 修改 |
+
+### 验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests -p "test_*.py"` | `Ran 179 tests ... OK` |
+| `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| `python -m app.cli evaluate --split heldout` | A 0.5556 / B 0.5926 / C 0.8519（27 计分题，离线） |
+
+### 回滚参考命令
+
+```bash
+git revert <hash>
+```
+
+---
+
+## [2026-11-06] 里程碑 3：Task 012 持久检查点与人工审批（已提交并推送）
 
 - **开发阶段**：阶段 4' 可靠性与人机协同
 - **对应任务**：012（Prompt 7）
 - **Git 分支**：`main`
-- **Commit Hash**：`Pending`
-- **推送状态**：`Pending`
+- **Commit Hash**：`dd517b4`（父提交 `87027e6`）
+- **推送状态**：✅ `main -> origin/main`（`87027e6..dd517b4`）
 
 ### 本次变更
 

@@ -67,6 +67,42 @@ UnicodeEncodeError: 'ascii' codec can't encode characters in position ...
 
 ---
 
+## [2026-11-06] 保留集 v1 的期望租期为 "None 至 None"（生成脚本取值错误）
+
+- **关联任务**：013
+- **严重程度**：中（数据集缺陷；会让正确实现被判为错误）
+- **状态**：已解决（发布 v2 数据集，v1 存档不再使用）
+
+### 现象
+
+保留集 v1 中 H09 / H10（租期事实）的期望值为 `lease_period=None 至 None`，
+基线实际给出 `2025-01-01 至 2027-12-31` 却被判失败。
+
+### 错误信息
+
+```
+期望 lease_period=None 至 None，实际 facts=2025-01-01 至 2027-12-31
+```
+
+### 原因分析
+
+生成脚本写的是 `lease = repository.lease_facts(...)`，但该方法返回的是
+`{"lease": {...}, "unit": {...}, "rules": [...], ...}`，真正的租约字段在 `facts["lease"]` 内。
+于是在外层 dict 上取 `start_date` 得到 `None`，期望值被写坏。
+
+### 解决方案
+
+修正为 `lease = facts.get("lease", {})`，重新生成 **`heldout_v2.jsonl`** 并更新装载器指向 v2。
+`heldout_v1.jsonl` 保留在仓库中作为历史存档，报告里也能看到它对应的实验结果；不就地修改 v1。
+
+### 如何避免再次出现
+
+- 生成脚本必须先在**少量样例**上打印期望值人工过目，再批量产出；
+- 测试里加一条守卫：期望值中不允许出现 `"None"`（`test_no_placeholder_expectations`）；
+- 只要数据集已参与过实验，就**发新版本**而不是就地修改，否则实验间的对比失去意义。
+
+---
+
 ## [2026-11-06] 恢复图时从 START 重跑，报 KeyError 'question'
 
 - **关联任务**：012
