@@ -499,8 +499,10 @@ class MultiAgentBaseline(_Baseline):
             max_model_calls=(
                 0 if self.model_client is None else max(4, self.max_tool_calls * 2)
             ),
+            # 离线路径不需要 token 闸门（`None` = 未配置上限）；
+            # 有模型客户端时必须给出真实上限（Task 024 / Q1）。
             max_total_tokens=(
-                0 if self.model_client is None else self.max_total_tokens
+                None if self.model_client is None else self.max_total_tokens
             ),
         )
         result = BaselineResult(

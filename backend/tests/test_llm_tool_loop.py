@@ -432,7 +432,9 @@ class TestToolLoop(unittest.TestCase):
         self.assertTrue(any("模型调用失败" in w for w in outcome.warnings))
 
     def test_model_budget_exhaustion_stops(self) -> None:
-        budget = Budget(max_tool_calls=5, max_model_calls=1, max_total_tokens=0)
+        # 这里要验的是**模型调用次数**上限：token 预算给足，否则 Q1 的 token 闸门
+        # 会先拦住第一次请求（零额度语义见 `test_token_budget_gate.py`）。
+        budget = Budget(max_tool_calls=5, max_model_calls=1, max_total_tokens=1000)
         # 第一轮要求工具调用 -> 需要第二次模型调用 -> 预算不足必须明确停止
         client = FakeChatModelClient(
             [

@@ -83,7 +83,7 @@ class EvaluationReport:
 
 
 def _kind_stats(scores: list[CaseScore], kind: str) -> dict[str, Any]:
-    """按断言类别分开统计（N6）：工具事实准确性与最终答案准确性不能相互代表。"""
+    """按断言类别分开统计（N6 / Q3）：工具事实、资金结论、金额接地不能相互代表。"""
 
     outcomes = [
         outcome
@@ -97,6 +97,32 @@ def _kind_stats(scores: list[CaseScore], kind: str) -> dict[str, Any]:
         "passed": passed,
         "failed": len(outcomes) - passed,
         "rate": round(passed / len(outcomes), 4) if outcomes else None,
+    }
+
+
+def _fund_summary(scores: list[CaseScore]) -> dict[str, Any]:
+    """资金结论核对的状态分布（Q3）：未验证必须单独可见。"""
+
+    statuses = [
+        (score.fund_check or {}).get("status")
+        for score in scores
+        if score.fund_check is not None
+    ]
+    counts = {
+        status: statuses.count(status)
+        for status in ("verified", "mismatch", "unverified", "not_checkable")
+    }
+    total = sum(counts.values())
+    return {
+        **counts,
+        "cases_checked": total,
+        "verified_rate": (
+            round(counts["verified"] / total, 4) if total else None
+        ),
+        "note": (
+            "verified=字段金额与工具事实一致；mismatch=结论写错；"
+            "unverified=叙述未绑定字段（未验证，不算通过）"
+        ),
     }
 
 
@@ -139,18 +165,20 @@ def _summarise(
             round(sum(correctness) / len(correctness), 4) if correctness else None
         ),
         "correctness_note": "自动断言通过率；不含 rubric（人工量表）与路由效率",
-        # N6：把"内部工具事实对不对"与"用户看到的答案对不对"拆开报告，
-        # 避免用前者替后者背书。
+        # N6 / Q3：把"内部工具事实对不对"、"资金结论对不对"、"金额是否接地"拆开报告，
+        # 避免用任何一项替另一项背书；`unverified` 永远单独计数。
         "by_kind": {
             "tool_facts": _kind_stats(scores, "facts"),
-            "final_answer": _kind_stats(scores, "answer"),
+            "fund_conclusions": _kind_stats(scores, "fund"),
+            "answer_grounding": _kind_stats(scores, "answer"),
             "evidence": _kind_stats(scores, "evidence"),
             "outcome": _kind_stats(scores, "outcome"),
             "approval": _kind_stats(scores, "approval"),
         },
+        "fund_conclusions": _fund_summary(scores),
         "by_kind_note": (
-            "tool_facts=内部事实字段；final_answer=最终答案中的金额是否都来自可信事实；"
-            "两者不可互相代替"
+            "tool_facts=内部事实字段；fund_conclusions=最终答案里应收/已收/未收与可信值是否一致；"
+            "answer_grounding=辅助检查（金额是否都有工具来源）；三者不可互相代替"
         ),
         "routing": {
             "cases_with_expectation": len(route_hits),
@@ -315,27 +343,35 @@ def render_markdown(reports: list[EvaluationReport]) -> str:
     lines.append("> 路由命中只作效率指标；自动断言通过率不含人工量表（rubric）。")
     lines.append("")
 
-    lines.append("## 指标分解（工具事实 vs 最终答案）")
+    lines.append("## 指标分解（工具事实 / 资金结论 / 金额接地）")
     lines.append("")
-    lines.append("| 基线 | 工具事实断言 | 工具事实通过率 | 最终答案断言 | 最终答案通过率 |")
-    lines.append("|---|---|---|---|---|")
+    lines.append(
+        "| 基线 | 工具事实断言 | 工具事实通过率 | 资金结论断言 | 资金结论通过率 | "
+        "未验证题 | 金额接地（辅助） |"
+    )
+    lines.append("|---|---|---|---|---|---|---|")
     for report in reports:
         by_kind = report.summary.get("by_kind") or {}
         facts = by_kind.get("tool_facts") or {}
-        answer = by_kind.get("final_answer") or {}
+        fund = by_kind.get("fund_conclusions") or {}
+        grounding = by_kind.get("answer_grounding") or {}
+        fund_summary = report.summary.get("fund_conclusions") or {}
         lines.append(
-            "| {b} | {fa} | {fr} | {aa} | {ar} |".format(
+            "| {b} | {fa} | {fr} | {ua} | {ur} | {uv} | {ga}/{gt} |".format(
                 b=report.baseline,
                 fa=facts.get("assertions", 0),
                 fr=facts.get("rate"),
-                aa=answer.get("assertions", 0),
-                ar=answer.get("rate"),
+                ua=fund.get("assertions", 0),
+                ur=fund.get("rate"),
+                uv=fund_summary.get("unverified", 0),
+                ga=grounding.get("passed", 0),
+                gt=grounding.get("assertions", 0),
             )
         )
     lines.append("")
     lines.append(
-        "> 工具事实准确率回答\"取数对不对\"；最终答案准确率回答\"用户看到的金额对不对\"。"
-        "两者分开统计，任何一方为 `None` 表示本次没有可判定断言（不是通过）。"
+        "> 工具事实准确率回答\"取数对不对\"；资金结论通过率回答\"用户读到的应收/已收/未收对不对\"；"
+        "未验证题表示叙述没有把金额绑定到字段（**不算通过**）；金额接地是辅助检查，不能单独证明答案准确。"
     )
     lines.append("")
 

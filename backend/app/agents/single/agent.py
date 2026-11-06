@@ -19,7 +19,13 @@ from ...agents.base import AgentContext, AgentOutput, AgentRequest, BaseAgent
 from ...agents.base.contracts import TokenUsage
 from ...agents.base.errors import AgentError, ErrorCode
 from ...agents.base.facts import facts_of_executions, outputs_of_executions
+from ...agents.base.conclusions import (
+    build_fund_conclusion,
+    check_fund_statements,
+    render_fund_conclusion,
+)
 from ...agents.base.narrative import amounts_in_payload, check_answer_consistency
+from ...agents.base.scope import TaskScope, scope_arguments_hook
 from ...config.schema import AgentConfig
 from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
 from ...runtime.budget import Budget
@@ -97,9 +103,25 @@ class SingleToolAgent(BaseAgent):
             self._budget if self._budget is not None else Budget(max_tool_calls=0),
             trace_log=self._trace_log,
         )
+        # Task 024 / Q2：单 Agent 与领域 Agent 共用同一份可信范围策略。
+        # 目标/筛选条件由 payload 决定，在工具边界注入或拒绝；不再让模型自己声明目标。
+        scope = TaskScope.from_payload(request.payload)
         messages = (
             ChatMessage(role="system", content=self.prompt_text),
-            ChatMessage(role="user", content=json.dumps({"question": question}, ensure_ascii=False)),
+            ChatMessage(
+                role="user",
+                content=json.dumps(
+                    {
+                        "question": question,
+                        "lease_id": scope.lease_id,
+                        "unit_id": scope.unit_id,
+                        "filters": dict(scope.filters),
+                        "mode": scope.mode,
+                        "instruction": "只使用给定工具取数；金额与日期必须来自工具输出，不要自行计算",
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
         )
 
         outcome = await run_tool_loop(
@@ -111,6 +133,7 @@ class SingleToolAgent(BaseAgent):
             agent_config=self.config,
             budget=self._budget if self._budget is not None else Budget(max_tool_calls=0),
             max_rounds=self.config.max_tool_rounds,
+            prepare_arguments=scope_arguments_hook(self._tool_registry, scope),
         )
 
         error_code = _STOP_REASON_ERRORS.get(outcome.stop_reason)
@@ -127,17 +150,46 @@ class SingleToolAgent(BaseAgent):
                 },
             )
 
-        facts, per_tool = facts_of_executions(outcome.tool_executions)
-        outputs = outputs_of_executions(outcome.tool_executions)
+        # N2/Q2 纵深防御：工具返回了别的实体的数据时不得并入事实。
+        accepted: list[Any] = []
+        rejected: list[str] = []
+        for execution in outcome.tool_executions:
+            reason = scope.accepts_output(execution.tool_name, execution.data or {})
+            if reason is None:
+                accepted.append(execution)
+            else:
+                rejected.append(reason)
+        facts, per_tool = facts_of_executions(tuple(accepted))
+        outputs = outputs_of_executions(tuple(accepted))
         # N6：单 Agent 路径同样要核对"用户看到的金额"与"工具事实"，不能只看 facts。
         verified_amounts = amounts_in_payload(outputs)
         answer_check = check_answer_consistency(
             outcome.answer, facts, extra_amounts=verified_amounts
         )
-        warnings = list(outcome.warnings)
+        # Q3：结构化资金结论 + 字段级校验（与领域 Agent 共用同一实现）。
+        fund_conclusion = build_fund_conclusion(facts)
+        fund_check = check_fund_statements(outcome.answer, fund_conclusion)
+        warnings = [*outcome.warnings, *rejected]
         if not answer_check.ok:
             warnings.append(
                 "模型叙述与工具事实不一致，已标记为待人工核对: " + answer_check.detail
+            )
+        if fund_check.status == "mismatch":
+            warnings.append(
+                "资金结论与工具事实矛盾，已标记为待人工核对: " + fund_check.detail
+            )
+        # Q2：有目标的业务查询必须取到**本次目标**的数据；纯说明任务不受此限。
+        if scope.requires_evidence and not accepted:
+            raise AgentError(
+                "这是有目标的业务查询，但没有取得任何属于本次目标的工具事实",
+                code=ErrorCode.INSUFFICIENT_EVIDENCE,
+                retryable=False,
+                details={
+                    "task_scope": scope.describe(),
+                    "tool_calls": len(outcome.tool_executions),
+                    "rejected_outputs": rejected,
+                    "warnings": warnings,
+                },
             )
         return AgentOutput(
             data={
@@ -167,6 +219,14 @@ class SingleToolAgent(BaseAgent):
                 },
                 "answer_check": answer_check.as_dict(),
                 "verified_amounts": sorted(f"{item:.2f}" for item in verified_amounts),
+                "task_scope": scope.describe(),
+                "rejected_outputs": rejected,
+                # 结构化资金结论与"用户可见金额"：由可信字段渲染，不经模型
+                "fund_conclusion": (
+                    fund_conclusion.as_dict() if fund_conclusion is not None else None
+                ),
+                "authoritative_answer": render_fund_conclusion(fund_conclusion),
+                "fund_check": fund_check.as_dict(),
             },
             warnings=tuple(warnings),
             token_usage=_usage_or_none(outcome.usage),

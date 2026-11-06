@@ -8,6 +8,12 @@
 
 幂等：`call_id` 是幂等键。同一个 `call_id` 重复预留返回既有预留，
 重复结算不会二次计入——这是重放节点不会把预算翻倍的关键（Runtime contracts §10.1）。
+
+**token 闸门（Task 024 / Q1）**：token 只有响应返回后才知道，所以"这一次会不会超"
+无法事前判断。能判断的是"现在还有没有额度"：预留一次**模型请求**时同时检查 token
+剩余量，额度用尽后连"再发一次请求"都不允许。这样首次响应造成的不可预知超额只发生
+一次，之后的补查/重试/其他子任务都会被拦住，而已经发生的用量仍然如实入账
+（`exceeded_tokens`）。
 """
 
 from __future__ import annotations
@@ -38,9 +44,18 @@ class Budget:
         *,
         max_tool_calls: int = 10,
         max_model_calls: int = 0,
-        max_total_tokens: int = 0,
+        max_total_tokens: int | None = None,
     ) -> None:
-        if max_tool_calls < 0 or max_model_calls < 0 or max_total_tokens < 0:
+        """`max_total_tokens` 三态（Task 024 / Q1）：
+
+        - `None`：**未配置** token 上限，不做 token 闸门（确定性路径/未接模型）；
+        - `0`：零额度，一个 token 都不许用 → 任何模型请求都会被拒绝；
+        - 正数：上限；用尽后拒绝新的模型请求。
+        """
+
+        if max_tool_calls < 0 or max_model_calls < 0:
+            raise ValueError("预算上限不能为负数")
+        if max_total_tokens is not None and max_total_tokens < 0:
             raise ValueError("预算上限不能为负数")
         self._max_tool_calls = max_tool_calls
         self._max_model_calls = max_model_calls
@@ -57,19 +72,43 @@ class Budget:
         await self._reserve(call_id, "tool", 1)
 
     async def reserve_model_call(self, call_id: str) -> None:
-        await self._reserve(call_id, "model", 1)
+        """预留一次**物理**模型请求；token 已用尽时拒绝（Task 024 / Q1）。
+
+        检查与预留发生在同一把锁内，因此并发子任务不会同时挤过闸门：
+        一个任务耗尽 token 后，其余任务的预留会立刻看到"没有剩余额度"。
+        """
+
+        await self._reserve(call_id, "model", 1, require_token_room=True)
 
     async def reserve_tokens(self, call_id: str, tokens: int) -> None:
         if tokens < 0:
             raise ValueError("token 预留不能为负")
         await self._reserve(call_id, "tokens", tokens)
 
-    async def _reserve(self, call_id: str, kind: str, amount: int) -> None:
+    async def _reserve(
+        self,
+        call_id: str,
+        kind: str,
+        amount: int,
+        *,
+        require_token_room: bool = False,
+    ) -> None:
         if not call_id:
             raise ValueError("call_id 不能为空")
         async with self._lock:
             if call_id in self._settled or call_id in self._reserved:
                 return
+            if require_token_room and self._tokens_blocked():
+                raise BudgetExhaustedError(
+                    "token 预算已用尽，拒绝发起新的模型请求",
+                    details={
+                        "kind": "tokens",
+                        "used": self._used["tokens"],
+                        "reserved": self._reserved_amount("tokens"),
+                        "limit": self._max_total_tokens,
+                        "exceeded": self._exceeded_tokens,
+                    },
+                )
             if not self._within_limit(kind, amount):
                 raise BudgetExhaustedError(
                     f"预算不足：{self._describe(kind)} 已用 {self._used[kind]}、"
@@ -100,8 +139,9 @@ class Budget:
                 )
             if reservation.kind == "tokens":
                 actual = reservation.amount if tokens is None else tokens
-                if not self._within_limit("tokens", actual - reservation.amount, include_reserved=False):
-                    actual = max(0, self._max_total_tokens - self._used["tokens"])
+                limit = self._max_total_tokens
+                if limit is not None and actual > reservation.amount:
+                    actual = max(0, limit - self._used["tokens"])
                 self._used["tokens"] += actual
             else:
                 self._used[reservation.kind] += 1
@@ -126,11 +166,20 @@ class Budget:
             return
         async with self._lock:
             limit = self._max_total_tokens
+            if limit is None:
+                self._used["tokens"] += tokens
+                return
             room = max(0, limit - self._used["tokens"])
             self._used["tokens"] += tokens
             self._exceeded_tokens += max(0, tokens - room)
 
     # ---------------- 查询 ----------------
+
+    @property
+    def tokens_exhausted(self) -> bool:
+        """token 额度是否已经用尽（含"零额度"与"已超额"）。"""
+
+        return self._tokens_blocked()
 
     def snapshot(self) -> BudgetUsage:
         return BudgetUsage(
@@ -141,11 +190,25 @@ class Budget:
             used_model_calls=self._used["model"],
             used_total_tokens=self._used["tokens"],
             exceeded_tokens=self._exceeded_tokens,
+            tokens_exhausted=self._tokens_blocked(),
         )
 
     # ---------------- 内部 ----------------
 
-    def _limit(self, kind: str) -> int:
+    def _tokens_blocked(self) -> bool:
+        """还有没有发起下一次模型请求所需的 token 额度。
+
+        - 未配置上限（`None`）→ 不拦；
+        - 上限为 0 → 一个 token 都不许用，直接拦；
+        - 已用 + 在途 >= 上限 → 拦（再发一次只会继续超额）。
+        """
+
+        limit = self._max_total_tokens
+        if limit is None:
+            return False
+        return self._used["tokens"] + self._reserved_amount("tokens") >= limit
+
+    def _limit(self, kind: str) -> int | None:
         return {
             "tool": self._max_tool_calls,
             "model": self._max_model_calls,
@@ -156,9 +219,12 @@ class Budget:
         return sum(r.amount for r in self._reserved.values() if r.kind == kind)
 
     def _within_limit(self, kind: str, amount: int, *, include_reserved: bool = True) -> bool:
+        limit = self._limit(kind)
+        if limit is None:
+            return True
         used = self._used[kind]
         reserved = self._reserved_amount(kind) if include_reserved else 0
-        return used + reserved + amount <= self._limit(kind)
+        return used + reserved + amount <= limit
 
     @staticmethod
     def _describe(kind: str) -> str:

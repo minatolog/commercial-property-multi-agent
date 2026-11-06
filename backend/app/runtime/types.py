@@ -291,7 +291,8 @@ class BudgetUsage(BaseModel):
 
     max_tool_calls: int
     max_model_calls: int
-    max_total_tokens: int
+    #: `None` = 未配置 token 上限（不做 token 闸门）；`0` = 零额度
+    max_total_tokens: int | None = None
     used_tool_calls: int = 0
     used_model_calls: int = 0
     used_total_tokens: int = 0
@@ -299,6 +300,8 @@ class BudgetUsage(BaseModel):
     #: token 只能事后知道，所以上限无法事前拦截；这里如实记录超出量，
     #: 让"账本"与"真实消耗"永远一致，而不是把超出部分悄悄丢掉。
     exceeded_tokens: int = 0
+    #: token 额度是否已用尽（Task 024 / Q1）：为真时不会再发出新的模型请求
+    tokens_exhausted: bool = False
 
 
 class RuntimeResult(BaseModel):

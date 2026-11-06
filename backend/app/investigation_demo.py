@@ -56,7 +56,7 @@ def build_investigation_bundle(
     variant: str | None = None,
     max_tool_calls: int = 12,
     max_model_calls: int = 0,
-    max_total_tokens: int = 0,
+    max_total_tokens: int | None = None,
     max_revisions: int = 1,
     planner: Planner | None = None,
     backend: str = "fixture",

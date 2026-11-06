@@ -572,20 +572,50 @@ def build_investigation_graph(
             set(state.get("missing", []))
             | {f"未获得子任务结果: {item}" for item in expected - completed}
         )
-        # N6：模型叙述与工具事实冲突时必须单列，不能让"内部事实正确"掩盖
-        # "用户读到的金额是错的"。这类运行一律要求人工复核。
+        # N6 / Q3：模型叙述与工具事实冲突时必须单列，不能让"内部事实正确"掩盖
+        # "用户读到的金额是错的"。资金结论（应收/已收/未收）按字段核对，
+        # 优先级高于"金额接地"这类辅助检查。这类运行一律要求人工复核。
         _discrepancy_statuses = {"mismatch", "ungrounded"}
-        narrative_discrepancies = [
-            {
-                "subtask_id": item["subtask_id"],
-                "capability": item["capability"],
-                "agent": item["agent"],
-                **check,
-            }
-            for item in results
-            if isinstance(check := (item.get("output") or {}).get("answer_check"), dict)
-            and check.get("status") in _discrepancy_statuses
-        ]
+        narrative_discrepancies: list[dict[str, Any]] = []
+        authoritative_amounts: list[dict[str, Any]] = []
+        for item in results:
+            output = item.get("output") or {}
+            fund = output.get("fund_check")
+            amount_check = output.get("answer_check")
+            if isinstance(fund, dict) and isinstance(output.get("fund_conclusion"), dict):
+                authoritative_amounts.append(
+                    {
+                        "subtask_id": item["subtask_id"],
+                        "capability": item["capability"],
+                        "conclusion": output["fund_conclusion"],
+                        "rendered": output.get("authoritative_answer"),
+                        "check_status": fund.get("status"),
+                    }
+                )
+            if isinstance(fund, dict) and fund.get("status") == "mismatch":
+                narrative_discrepancies.append(
+                    {
+                        "subtask_id": item["subtask_id"],
+                        "capability": item["capability"],
+                        "agent": item["agent"],
+                        "kind": "fund",
+                        **fund,
+                    }
+                )
+                continue
+            if (
+                isinstance(amount_check, dict)
+                and amount_check.get("status") in _discrepancy_statuses
+            ):
+                narrative_discrepancies.append(
+                    {
+                        "subtask_id": item["subtask_id"],
+                        "capability": item["capability"],
+                        "agent": item["agent"],
+                        "kind": "amounts",
+                        **amount_check,
+                    }
+                )
         report = {
             "question": state.get("question"),
             "lease_id": state.get("lease_id"),
@@ -620,6 +650,8 @@ def build_investigation_graph(
                 }.values()
             ],
             "narrative_discrepancies": narrative_discrepancies,
+            # Q3：用户可见金额由可信字段渲染（模型叙述只作参考，不作为金额来源）
+            "authoritative_amounts": authoritative_amounts,
             "requires_human_review": state.get("verdict") != "supported"
             or bool(narrative_discrepancies),
             "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",

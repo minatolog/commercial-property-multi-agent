@@ -39,6 +39,7 @@ __all__ = [
     "AnswerCheck",
     "amounts_in_payload",
     "check_answer_consistency",
+    "money_tokens",
     "MONEY_FACT_KEYS",
 ]
 
@@ -225,16 +226,30 @@ def amounts_in_payload(value: Any, *, _depth: int = 0) -> set[Decimal]:
 
 
 def _answer_amounts(text: str, trusted: set[Decimal]) -> set[Decimal]:
-    amounts: set[Decimal] = set()
+    return {amount for _, _, amount in money_tokens(text, trusted=trusted)}
+
+
+def money_tokens(
+    text: str, *, trusted: set[Decimal] | None = None
+) -> list[tuple[int, int, Decimal]]:
+    """返回文本中"金钱字形"的 `(start, end, amount)`，按出现顺序。
+
+    两种形态：两位小数的金额（`18036.00`、`18,036.00`），以及与可信金额完全相等的
+    整数（`18036`）。条款号 `5.2`、百分比 `20%`、日期不会被当成金额。
+    """
+
+    found: list[tuple[int, int, Decimal]] = []
     for match in _MONEY_TOKEN.finditer(text):
         amount = _as_decimal(match.group(0))
         if amount is not None:
-            amounts.add(amount)
-    for match in _INT_TOKEN.finditer(text):
-        amount = _as_decimal(match.group(0))
-        if amount is not None and amount in trusted:
-            amounts.add(amount)
-    return amounts
+            found.append((match.start(), match.end(), amount))
+    if trusted:
+        for match in _INT_TOKEN.finditer(text):
+            amount = _as_decimal(match.group(0))
+            if amount is not None and amount in trusted:
+                found.append((match.start(), match.end(), amount))
+    found.sort(key=lambda item: item[0])
+    return found
 
 
 def _as_decimal(value: Any) -> Decimal | None:

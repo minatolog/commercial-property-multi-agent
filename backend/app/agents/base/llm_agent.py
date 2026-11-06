@@ -25,10 +25,15 @@ from typing import Any, ClassVar
 from .base_agent import BaseAgent
 from .contracts import AgentContext, AgentOutput, AgentRequest, TokenUsage
 from .errors import AgentError, ErrorCode
+from .conclusions import (
+    build_fund_conclusion,
+    check_fund_statements,
+    render_fund_conclusion,
+)
 from .evidence import check_capability_output
 from .facts import facts_of_executions, outputs_of_executions
 from .narrative import amounts_in_payload, check_answer_consistency
-from .scope import TaskScope
+from .scope import TaskScope, scope_arguments_hook
 from ...config.schema import AgentConfig
 from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
 from ...runtime.budget import Budget
@@ -184,10 +189,17 @@ class LLMToolAgent(BaseAgent):
         answer_check = check_answer_consistency(
             outcome.answer, facts, extra_amounts=verified_amounts
         )
+        # Q3：资金结论结构化 + 字段级校验（应收/已收/未收不能被写反）。
+        fund_conclusion = build_fund_conclusion(facts)
+        fund_check = check_fund_statements(outcome.answer, fund_conclusion)
         warnings = list(outcome.warnings) + list(rejected)
         if not answer_check.ok:
             warnings.append(
                 "模型叙述与工具事实不一致，已标记为待人工核对: " + answer_check.detail
+            )
+        if fund_check.status == "mismatch":
+            warnings.append(
+                "资金结论与工具事实矛盾，已标记为待人工核对: " + fund_check.detail
             )
         return AgentOutput(
             data={
@@ -216,6 +228,12 @@ class LLMToolAgent(BaseAgent):
                 "rejected_outputs": rejected,
                 "answer_check": answer_check.as_dict(),
                 "verified_amounts": sorted(f"{item:.2f}" for item in verified_amounts),
+                # 结构化资金结论与"用户可见金额"：金额由可信字段渲染，不经模型
+                "fund_conclusion": (
+                    fund_conclusion.as_dict() if fund_conclusion is not None else None
+                ),
+                "authoritative_answer": render_fund_conclusion(fund_conclusion),
+                "fund_check": fund_check.as_dict(),
             },
             warnings=tuple(warnings),
             token_usage=_usage_or_none(outcome.usage),
@@ -229,33 +247,20 @@ class LLMToolAgent(BaseAgent):
             name for name in allowed if name.startswith(self.tool_prefixes)
         )
 
-    # ---------------- 可信约束（Task 021） ----------------
+    # ---------------- 可信约束（Task 021 / Task 024 Q2） ----------------
 
     @staticmethod
     def _task_scope(request: AgentRequest) -> TaskScope:
         """从**可信 payload**（planner 生成）构造本次任务范围。模型无法修改它。"""
 
-        payload = request.payload or {}
-        filters: dict[str, str] = {}
-        for key in ("category", "status"):
-            value = str(payload.get(key) or "").strip()
-            if value:
-                filters[key] = value
-        return TaskScope(
-            lease_id=str(payload.get("lease_id") or "").strip() or None,
-            unit_id=str(payload.get("unit_id") or "").strip() or None,
-            filters=filters,
-            question=str(payload.get("question") or payload.get("query") or "").strip(),
-        )
+        return TaskScope.from_payload(request.payload)
 
     def _scope_arguments(
         self, scope: TaskScope, tool_name: str, arguments: dict[str, Any]
     ) -> tuple[dict[str, Any] | None, str | None]:
-        if self._tool_registry is None or tool_name not in self._tool_registry:
+        if self._tool_registry is None:
             return dict(arguments), None
-        tool = self._tool_registry.get(tool_name)
-        fields = set(tool.input_model.model_fields)
-        return scope.apply_arguments(tool_name, fields, arguments)
+        return scope_arguments_hook(self._tool_registry, scope)(tool_name, arguments)
 
 
 def _domain_view(

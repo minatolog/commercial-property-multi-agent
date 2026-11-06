@@ -469,9 +469,12 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         engine="llm" if model_client is not None else "deterministic",
         model_client=model_client,
         max_model_calls=0 if model_client is None else 32,
-        # 0 表示"一个 token 都不许用"；模型引擎下必须给真实预算，否则第一次
-        # 结算就被判 budget_exhausted（真实调用实测踩到过）
-        max_total_tokens=getattr(args, "budget_tokens", 0) if model_client else 0,
+        # token 预算是"模型请求闸门"（Task 024 / Q1）：None = 未配置上限，
+        # 0 = 一个 token 都不许用。模型引擎下必须给真实预算，否则连第一次请求
+        # 都会被拒绝（这正是 Q1 要求的行为）。
+        max_total_tokens=(
+            getattr(args, "budget_tokens", 0) if model_client is not None else None
+        ),
     )
     result = asyncio.run(
         run_investigation(
@@ -506,7 +509,9 @@ async def _investigate_with_control_plane(args: argparse.Namespace) -> int:
             engine="llm" if model_client is not None else "deterministic",
             model_client=model_client,
             max_model_calls=0 if model_client is None else 32,
-            max_total_tokens=getattr(args, "budget_tokens", 0) if model_client else 0,
+            max_total_tokens=(
+                getattr(args, "budget_tokens", 0) if model_client is not None else None
+            ),
         )
         thread_id = args.thread_id or f"thread_{bundle.context.run_id}"
         result = await run_investigation(

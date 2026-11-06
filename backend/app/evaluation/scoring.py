@@ -39,6 +39,17 @@ v2 改为按字段类型化比较，并让拒绝语义由用例显式声明。
 （运行时 `amounts_in_payload(工具输出)`，评测用 `BaselineResult.verified_amounts`），
 并新增 `ungrounded` 状态：答案写了钱数却没有任何一个经核验的合计金额，视为失败。
 `mismatch`/`ungrounded` 判失败，`not_mentioned`/`incomplete` 转人工。
+**变更记录（scoring-v3.2，Task 024 / Q3）**：v3.1 只检查"答案里的金额是否都在可信集合中"，
+于是**三个金额互换**仍判一致（应收写已收、已收写未收、未收写应收，数字都在集合里 → 4/4）。
+v3.2 把资金结论结构化（`FundConclusion` 只从工具 facts 赋值），按**字段**核对叙述：
+
+| kind | 判定 | 权重 |
+|---|---|---|
+| `fund` | 叙述里"字段↔金额"必须等于可信值；"已结清/未收 0"与未收金额矛盾即失败 | 主判据 |
+| `answer` | 金额接地（编造金额/无接地金额判失败）——**辅助**，不能单独证明答案准确 | 辅助 |
+
+`fund` 的四种状态：`verified` 通过、`mismatch` 失败、`unverified` **未验证**（转人工，
+既不算通过也不算失败，单独统计）、`not_checkable` 不产生断言。
 """
 
 from __future__ import annotations
@@ -47,6 +58,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from ..agents.base.conclusions import build_fund_conclusion, check_fund_statements
 from ..agents.base.narrative import check_answer_consistency
 from .baselines import BaselineResult
 from .cases import EvalCase
@@ -54,7 +66,7 @@ from .cases import EvalCase
 __all__ = ["CaseScore", "score_case", "SCORING_VERSION", "MONEY_FACT_KEYS"]
 
 #: 评分规则版本。任何判定逻辑变更都必须提升该版本，并新建报告（不覆盖历史）。
-SCORING_VERSION = "scoring-v3.1"
+SCORING_VERSION = "scoring-v3.3"
 
 #: 金额类事实键：按 Decimal 比到分（`0.01`）。浮点或字符串近似一律不接受。
 MONEY_FACT_KEYS: frozenset[str] = frozenset(
@@ -212,6 +224,8 @@ class CaseScore:
     manual_queue: list[str] = field(default_factory=list)
     #: 最终答案与工具事实的一致性结论（N6）：status/trusted/unverified/missing
     answer_check: dict[str, Any] | None = None
+    #: 字段级资金结论核对（Q3）：verified / mismatch / unverified / not_checkable
+    fund_check: dict[str, Any] | None = None
 
     @property
     def correctness_rate(self) -> float | None:
@@ -242,6 +256,11 @@ class CaseScore:
             "correctness_total": self.correctness_total,
             "correctness_rate": self.correctness_rate,
             "answer_check": self.answer_check,
+            "fund_check": self.fund_check,
+            #: 最终答案是否**已被验证**（Q3）：未验证时不得当作答案准确性通过
+            "answer_verified": bool(
+                (self.fund_check or {}).get("status") == "verified"
+            ),
             "efficiency": self.efficiency,
             "manual_queue": list(self.manual_queue),
             "assertions": [item.as_dict() for item in self.outcomes],
@@ -311,13 +330,23 @@ def score_case(case: EvalCase, result: BaselineResult) -> CaseScore:
         passed, detail = _compare_fact(key, expected, result.facts.get(key))
         record(f"{case.case_id}-F:{key}", "facts", passed, detail)
 
-    # 1b) 最终答案准确性（N6）：用户看到的金额必须来自可信事实。
-    # 成立条件只看三件事：答案里的金额都能在事实/工具输出里找到、至少落在一个
-    # 核验过的合计金额上、没有编造金额。`not_mentioned` / `incomplete` 转人工，
-    # 因为"回答范围更窄"与"算错"在机械规则下无法区分。
+    # 1b) 最终答案准确性（Q3）：资金结论按**字段**核对，金额接地只作辅助。
+    # - `fund`： narrated 的"应收/已收/未收 ↔ 金额"必须等于可信值；结清结论不能与未收金额矛盾；
+    # - `answer`：金额接地（编造金额/无接地金额判失败），**不能单独证明答案准确**。
     # 只有用例本身声明了可判定的内容断言（事实或证据）时才登记——
     # 只用例声明"路由"的题仍必须保持 denominator=0（路由只算效率）。
     if _declares_content_expectation(case):
+        fund_conclusion = build_fund_conclusion(result.facts)
+        fund_check = check_fund_statements(result.answer, fund_conclusion)
+        score.fund_check = fund_check.as_dict()
+        if fund_check.status == "verified":
+            record(f"{case.case_id}-FN", "fund", True, fund_check.detail)
+        elif fund_check.status == "mismatch":
+            record(f"{case.case_id}-FN", "fund", False, fund_check.detail)
+        elif fund_check.status == "unverified":
+            # 未验证：转人工，不污染分母，也不冒充"答案准确"
+            record(f"{case.case_id}-FN", "fund", None, fund_check.detail)
+
         answer_check = check_answer_consistency(
             result.answer, result.facts, extra_amounts=result.verified_amounts
         )
