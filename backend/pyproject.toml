@@ -25,6 +25,9 @@ dependencies = [
     "reportlab>=4.0,<5",
     # Task 012：LangGraph 持久检查点（本地 SQLite 控制面）
     "langgraph-checkpoint-sqlite>=3.0,<4",
+    # Task 014：演示 API 与轻量页面（展示层，可整体删除而不影响 CLI/评测）
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
 ]
 
 [project.optional-dependencies]

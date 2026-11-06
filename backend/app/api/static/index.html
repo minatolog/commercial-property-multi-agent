@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>商业地产多 Agent 工作流演示</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; margin: 0; padding: 24px; line-height: 1.5; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: #777; font-size: 13px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+    .panel { border: 1px solid #bbb4; border-radius: 10px; padding: 14px; }
+    label { display: block; font-size: 12px; color: #666; margin: 10px 0 4px; }
+    input, textarea, select { width: 100%; box-sizing: border-box; padding: 7px 8px; border: 1px solid #bbb6; border-radius: 6px; font-size: 13px; font-family: inherit; }
+    textarea { min-height: 84px; resize: vertical; }
+    button { margin-top: 12px; padding: 8px 14px; border-radius: 6px; border: 1px solid #3b82f6; background: #3b82f6; color: #fff; font-size: 13px; cursor: pointer; }
+    button.secondary { background: transparent; color: #3b82f6; }
+    button.danger { border-color: #ef4444; background: #ef4444; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li.run { padding: 8px; border-radius: 6px; cursor: pointer; font-size: 13px; border: 1px solid transparent; }
+    li.run:hover { background: #3b82f611; }
+    li.run.active { border-color: #3b82f6; background: #3b82f611; }
+    .badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 11px; margin-left: 6px; }
+    .b-completed { background: #10b98122; color: #047857; }
+    .b-awaiting_approval { background: #f59e0b22; color: #b45309; }
+    .b-failed { background: #ef444422; color: #b91c1c; }
+    .kv { font-size: 13px; }
+    .kv b { display: inline-block; min-width: 108px; color: #555; font-weight: 600; }
+    pre { background: #8881; padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; max-height: 300px; }
+    .finding { border-left: 3px solid #3b82f6; padding: 4px 0 4px 10px; margin: 8px 0; font-size: 13px; }
+    .finding .meta { color: #777; font-size: 11px; }
+    .warn { border-left-color: #f59e0b; }
+    .err { border-left-color: #ef4444; }
+    .row { display: flex; gap: 8px; align-items: end; }
+    #msg { font-size: 12px; color: #b91c1c; margin-top: 10px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>商业地产多 Agent 工作流演示</h1>
+  <div class="sub">
+    身份由服务端注入（<span id="principal">…</span>）；本页只展示事实、证据与审批状态，不执行调账或派单。
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <label>问题</label>
+        <textarea id="question">商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，并要求减免费用。请核对合同、账单、付款和工单。</textarea>
+        <label>租约 ID</label>
+        <input id="lease_id" value="lease_xh_a301_2025" />
+        <label><input type="checkbox" id="with_approval" checked style="width:auto" /> 启用人工审批（暂停 + 恢复）</label>
+        <button id="submit">提交调查</button>
+        <div id="msg"></div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <label style="margin-top:0">最近运行</label>
+        <ul id="runs"></ul>
+      </div>
+    </div>
+
+    <div class="panel" id="detail">
+      <div class="sub" style="margin:0">选择左侧运行查看详情</div>
+    </div>
+  </div>
+
+<script>
+const state = { meta: null, runs: [], current: null };
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const traceId = res.headers.get('X-Trace-Id') || '';
+  let body = null;
+  try { body = await res.json(); } catch (e) { body = null; }
+  if (!res.ok) {
+    const err = (body && body.error) || { code: 'http_' + res.status, message: res.statusText };
+    throw new Error(`${err.code}: ${err.message}${traceId ? ' (trace ' + traceId + ')' : ''}`);
+  }
+  return body;
+}
+
+function esc(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function loadMeta() {
+  state.meta = await api('/api/meta');
+  document.getElementById('principal').textContent = state.meta.trusted_principal;
+}
+
+async function loadRuns() {
+  const data = await api('/api/runs');
+  state.runs = data.runs;
+  const list = document.getElementById('runs');
+  list.innerHTML = state.runs.map(r => `
+    <li class="run ${state.current === r.run_id ? 'active' : ''}" data-run="${esc(r.run_id)}">
+      <div>${esc(r.question.slice(0, 40))}…</div>
+      <div class="meta" style="color:#888;font-size:11px">
+        ${esc(r.run_id)} · ${esc(r.verdict || '-')}
+        <span class="badge b-${esc(r.status)}">${esc(r.status)}</span>
+      </div>
+    </li>`).join('') || '<li class="sub">暂无运行</li>';
+  list.querySelectorAll('li.run').forEach(item => {
+    item.onclick = () => { state.current = item.dataset.run; loadRuns().then(() => loadRun(item.dataset.run)); };
+  });
+}
+
+function renderApproval(run) {
+  const report = run.report || {};
+  const request = report.approval_request;
+  if (!request) return `<div class="kv"><b>审批</b>${esc(report.approval_status || '不适用')}</div>`;
+  const stages = (request.stages || []).map(s =>
+    `<div class="finding ${s.status === 'pending' ? 'warn' : ''}">
+       <div>${esc(s.role)}（seq ${esc(s.seq)}）：${esc(s.status)}${s.decided_by ? ' by ' + esc(s.decided_by) : ''}</div>
+       <div class="meta">${esc(s.reason || '')}</div>
+     </div>`).join('');
+  const options = (state.meta.approver_allowlist || []).map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  const approved = report.approved_draft;
+  return `
+    <div class="kv"><b>审批请求</b>${esc(request.request_id)}</div>
+    <div class="kv"><b>草案</b>v${esc(request.draft_version)} · ${esc(request.amount)} ${esc(request.currency)} · ${esc(request.status)}</div>
+    <div class="kv"><b>有效期至</b>${esc(request.expires_at)}</div>
+    <div style="margin-top:8px">${stages}</div>
+    ${approved ? `<div class="finding"><b>已批准草案</b>（不产生业务副作用）
+        <pre>${esc(JSON.stringify(approved, null, 2))}</pre></div>` : ''}
+    ${request.status === 'pending' ? `
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1"><label style="margin:0 0 4px">审批人（服务端白名单）</label>
+          <select id="actor">${options}</select></div>
+        <button id="approve">批准</button>
+        <button id="reject" class="danger">驳回</button>
+      </div>` : ''}`;
+}
+
+async function loadRun(runId) {
+  const run = await api('/api/runs/' + encodeURIComponent(runId));
+  state.current = runId;
+  const report = run.report || {};
+  const findings = (report.findings || []).map(f => `
+    <div class="finding"><div>${esc(f.statement)}</div>
+      <div class="meta">${esc(f.derivation || '')} · 证据 ${esc((f.evidence_ids || []).join(', '))}</div>
+    </div>`).join('');
+  const conflicts = (report.conflicts || []).map(c => `
+    <div class="finding err"><div>冲突：${esc(c.type)} ${esc(c.amount)}</div>
+      <div class="meta">${esc(c.expected_basis)} vs ${esc(c.observed_basis)}</div></div>`).join('');
+  const missing = (report.missing_information || []).map(m => `<div class="finding warn">${esc(m)}</div>`).join('');
+  const failures = (report.failures || []).map(f => `<div class="finding err">${esc(f.subtask_id)}: ${esc(f.error_code)}</div>`).join('');
+  const traces = (run.traces || []).map(t =>
+    `<div class="meta">${esc(t.subtask_id || '-')} · ${esc(t.tool)} · ${esc(t.status)} · ${esc(t.duration_ms)}ms</div>`).join('');
+
+  document.getElementById('detail').innerHTML = `
+    <div class="kv"><b>运行</b>${esc(run.run_id)}</div>
+    <div class="kv"><b>线程</b>${esc(run.thread_id)}</div>
+    <div class="kv"><b>结论</b>${esc(run.verdict)} · 完成度 ${esc(report.completeness || '-')}
+      <span class="badge b-${esc(run.status)}">${esc(run.status)}</span></div>
+    <div class="kv"><b>预算</b>${esc(JSON.stringify((report.budget || {})))}</div>
+    <h3 style="font-size:14px;margin:16px 0 6px">发现</h3>${findings || '<div class="sub">无</div>'}
+    ${conflicts ? '<h3 style="font-size:14px;margin:16px 0 6px">冲突</h3>' + conflicts : ''}
+    ${missing ? '<h3 style="font-size:14px;margin:16px 0 6px">缺失信息</h3>' + missing : ''}
+    ${failures ? '<h3 style="font-size:14px;margin:16px 0 6px">失败子任务</h3>' + failures : ''}
+    <h3 style="font-size:14px;margin:16px 0 6px">审批</h3>${renderApproval(run)}
+    <h3 style="font-size:14px;margin:16px 0 6px">工具 Trace</h3>${traces || '<div class="sub">无</div>'}
+    <details style="margin-top:14px"><summary class="sub">原始报告 JSON</summary>
+      <pre>${esc(JSON.stringify(report, null, 2))}</pre></details>`;
+
+  const approveBtn = document.getElementById('approve');
+  if (approveBtn) {
+    const send = async (decision) => {
+      const actor = document.getElementById('actor').value;
+      try {
+        await api(`/api/runs/${encodeURIComponent(runId)}/approvals`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Actor-Id': actor },
+          body: JSON.stringify({ decision, draft_version: report.approval_request.draft_version })
+        });
+        await loadRuns();
+        await loadRun(runId);
+      } catch (e) { document.getElementById('msg').textContent = e.message; }
+    };
+    approveBtn.onclick = () => send('approve');
+    document.getElementById('reject').onclick = () => send('reject');
+  }
+}
+
+document.getElementById('submit').onclick = async () => {
+  const msg = document.getElementById('msg');
+  msg.textContent = '';
+  const button = document.getElementById('submit');
+  button.disabled = true;
+  try {
+    const created = await api('/api/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: document.getElementById('question').value,
+        lease_id: document.getElementById('lease_id').value,
+        with_approval: document.getElementById('with_approval').checked
+      })
+    });
+    await loadRuns();
+    await loadRun(created.run_id);
+  } catch (e) { msg.textContent = e.message; }
+  finally { button.disabled = false; }
+};
+
+loadMeta().then(loadRuns).catch(e => { document.getElementById('msg').textContent = e.message; });
+</script>
+</body>
+</html>

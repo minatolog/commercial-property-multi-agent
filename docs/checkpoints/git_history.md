@@ -321,13 +321,45 @@ git show <hash> --stat
 
 ---
 
-## [2026-11-06] 里程碑 4：Task 013 三基线与 40 题评测（待提交）
+## [2026-11-06] 里程碑 5：Task 014 FastAPI 与演示页（待提交）
+
+- **开发阶段**：阶段 6' 演示与交互
+- **对应任务**：014（Prompt 9）
+- **Git 分支**：`main`
+- **Commit Hash**：`Pending`
+- **推送状态**：`Pending`
+
+### 本次变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `backend/app/api/*`（`__init__` / `app` / `service` / `static/index.html`） | 新增 |
+| `backend/tests/test_api.py` | 新增（13 项） |
+| `backend/pyproject.toml`、`backend/tests/test_runtime.py` | 修改 |
+
+### 验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests -p "test_*.py"` | `Ran 192 tests ... OK` |
+| `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| uvicorn 实测（`/api/meta`、`/`、`POST /api/runs`） | 200 / 200 / 201 |
+
+### 回滚参考命令
+
+```bash
+git revert <hash>
+```
+
+---
+
+## [2026-11-06] 里程碑 4：Task 013 三基线与 40 题评测（已提交并推送）
 
 - **开发阶段**：阶段 5' 评测与量化
 - **对应任务**：013（Prompt 8）
 - **Git 分支**：`main`
-- **Commit Hash**：`Pending`
-- **推送状态**：`Pending`
+- **Commit Hash**：`3573e0c`（父提交 `dd517b4`）
+- **推送状态**：✅ `main -> origin/main`（`dd517b4..3573e0c`）
 
 ### 本次变更
 

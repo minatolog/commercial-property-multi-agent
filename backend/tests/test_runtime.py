@@ -1079,12 +1079,16 @@ class TestSecurityScan(unittest.TestCase):
         )
         self.assertIn("pydantic", text)
         self.assertIn("PyYAML", text)
-        # Task 008/009/010 明确引入的依赖
+        # Task 008/009/010/011/012/014 明确引入的依赖
         self.assertIn("langchain-core", text)
         self.assertIn("langgraph", text)
         self.assertIn("sqlalchemy", text.lower())
+        self.assertIn("pypdf", text.lower())
+        self.assertIn("reportlab", text.lower())
+        # Task 014 起 fastapi 是**展示层**依赖（可整体删除，不影响 CLI/评测）
+        self.assertIn("fastapi", text.lower())
         # 仍未引入的重型/业务依赖：出现即说明越界
-        for forbidden in ("fastapi", "chromadb", "psycopg", "torch"):
+        for forbidden in ("chromadb", "psycopg", "torch", "transformers", "sentence-transformers"):
             self.assertNotIn(forbidden, text.lower())
 
     def test_declared_dependencies_match_imports(self) -> None:

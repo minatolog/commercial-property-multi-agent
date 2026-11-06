@@ -420,6 +420,65 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 014 - FastAPI 与轻量演示页
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 6' - 演示与交互
+- **执行者**：DeepSeek（DeepSeek Harness 会话）
+- **对应 Prompt 归档**：`docs/prompts/05_frontend/2026-11-06_014_fastapi_demo_api.md`
+- **状态**：**DeepSeek 自检通过**（本地 uvicorn 实测；未做真实部署/鉴权中间件）
+
+### 本次完成的功能
+
+- **适配层**：`WorkflowService`（提交/查询/Trace/审批）+ `RunIndex`（`data/api/runs.sqlite`，跨进程可见的运行索引；注明只是投影）。
+- **HTTP 接口**：`GET /`、`GET /api/meta`、`POST /api/runs`、`GET /api/runs`、`GET /api/runs/{id}`、`GET /api/runs/{id}/traces`、`POST /api/runs/{id}/approvals`。
+- **身份边界**：请求体出现 `principal_id`/`permissions`/`roles` 一律 400；身份只来自服务端配置；审批人只能从服务端白名单选择。
+- **错误可追踪**：统一错误体 + `X-Trace-Id` 中间件，响应头与错误体 trace 一致。
+- **演示页**：同源单页（原生 JS，无构建），展示问题、发现、冲突、缺失、审批阶段与草案、工具 Trace、原始报告。
+- **可删除性**：子进程断言 `app.cli` / `app.evaluation` 不 import `app.api`。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 前端形态 | FastAPI + 同源静态 HTML/JS | 演示优先，避免引入构建链与 React 管理后台 |
+| 身份注入 | 服务端配置（`DEMO_PRINCIPAL_ID`）+ 审批人白名单 | 让"用户不能自报权限"在演示环境也可验证 |
+| 运行索引 | 独立 SQLite（`data/api/runs.sqlite`） | CLI 与网页是不同进程；内存字典会看不到前一次运行 |
+| 索引定位 | 投影，不是事实源 | 权威状态仍是 checkpoint 与审批台账，避免双写不一致时无从判断 |
+| 依赖守卫 | 允许 fastapi，新增禁止 chromadb/psycopg/torch 等 | 展示层依赖合理，但不能顺手把向量库/驱动/深度学习框架带进来 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/api/{__init__,app,service}.py`、`static/index.html` | 新增 |
+| `backend/tests/test_api.py` | 新增（13 项） |
+| `backend/pyproject.toml` | 修改：`fastapi` / `uvicorn` |
+| `backend/tests/test_runtime.py` | 修改：依赖守卫 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 / 方式 | 结果 |
+|---|---|---|
+| 本任务测试 | `python -m unittest tests.test_api` | `Ran 13 tests ... OK` |
+| 全量回归 | `python -m unittest discover -s tests -p "test_*.py"` | `Ran 192 tests ... OK` |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| 真实服务 | `uvicorn ... --port 8123` + `GET /api/meta`、`GET /` | 均 200 |
+| 真实提交 | `POST /api/runs` | 201，`awaiting_approval` + `apr_…` |
+| 两级审批 | `TestClient` 走 HTTP | `pending_next_stage` → `approved`，无副作用 |
+
+### 当前项目状态
+
+可以从浏览器完成"提交 → 看证据/缺失 → 审批 → 恢复"的完整演示；CLI 与评测不受展示层影响。
+**未验证**：真实鉴权（`X-Actor-Id` 只是白名单选择，不是认证）、并发与部署（无 HTTPS/反代/队列）。
+
+### 下一步开发计划
+
+- [ ] 任务 015：可靠性收尾、使用文档、演示流程、交付材料
+- [ ] 上线前替换演示身份机制（会话/OIDC + CSRF），`RunIndex` 迁到 PostgreSQL
+
+---
+
 ## [2026-11-06] 任务 013 - 三基线与 40 题正式评测
 
 - **日期**：2026-11-06
