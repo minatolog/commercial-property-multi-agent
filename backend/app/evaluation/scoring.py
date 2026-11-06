@@ -120,15 +120,19 @@ def _as_decimal(value: Any) -> Decimal | None:
         return None
 
 
-def _compare_fact(key: str, expected: Any, actual: Any) -> tuple[bool, str]:
+def _compare_fact(key: str, expected: Any, actual: Any) -> tuple[bool | None, str]:
     """按**字段**比较单个期望事实，返回 (是否通过, 说明)。
 
     金额用 `Decimal` 比到 `0.01`；布尔按真值；列表按集合；其余按去空白后的字符串。
     绝不使用"某个数字在文本里出现过"这种判定。
+
+    返回 `None` 表示**评分器无法自动判定**（该键不在基线事实契约内）：既不算通过也
+    不算失败，交人工核对。把"契约里没有这个字段"记成失败，会让开发集这类以自然语言
+    断言为主的旧用例集体清零，从而把评分器的能力边界伪装成实现缺陷。
     """
 
     if key not in BASELINE_FACT_VOCABULARY:
-        return False, f"基线事实契约未定义键 {key}（当前值 {actual!r}），该断言无法通过"
+        return None, f"基线事实契约未定义键 {key}（当前值 {actual!r}），转人工核对"
     if actual is None or actual == "":
         return False, f"期望 {key}={expected!r}，基线未提供该字段"
 
@@ -241,7 +245,8 @@ def score_case(case: EvalCase, result: BaselineResult) -> CaseScore:
         )
         if kind == "route":
             return
-        if kind == "rubric":
+        # `passed is None` = 评分器无法自动判定：只进人工队列，不污染分母。
+        if kind == "rubric" or passed is None:
             score.manual_queue.append(f"{assertion_id}: {detail}")
             return
         score.correctness_total += 1

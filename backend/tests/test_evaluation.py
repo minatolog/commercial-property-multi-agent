@@ -158,7 +158,31 @@ class TestScoring(unittest.TestCase):
         case = _case(expected_facts={"some_unknown_key": "x"})
         score = score_case(case, _result())
         self.assertEqual(score.correctness_total, 0)
+        self.assertIsNone(score.passed)
+        self.assertFalse(score.applicable)
         self.assertTrue(any("不在评分器可判定范围" in item for item in score.manual_queue))
+
+    def test_contract_gap_does_not_count_as_a_failure(self) -> None:
+        """回归：开发集用到的 `verdict` 等键基线不产出，不能把契约缺口记成答错。
+
+        同一题里"可判定断言"与"不可判定断言"混排时，只有前者进分母；
+        否则一道只差契约字段的题会被判成 0/N，报告会读成实现全面失败。
+        """
+
+        case = _case(
+            expected_facts={
+                "outstanding_total": "18036.00",
+                "verdict": "conflicting",
+                "valid_paid_total": "34560.00",
+            }
+        )
+        score = score_case(case, _result(facts={"outstanding_total": "18036.00"}))
+        self.assertEqual(score.correctness_total, 1)
+        self.assertEqual(score.correctness_passed, 1)
+        self.assertTrue(score.passed)
+        self.assertEqual(
+            len([item for item in score.manual_queue if "契约未定义键" in item]), 2
+        )
 
     def test_rubric_is_not_auto_scored(self) -> None:
         case = _case(
@@ -267,11 +291,18 @@ class TestFactFieldBinding(unittest.TestCase):
         self.assertFalse(score.passed)
         self.assertIn("基线未提供该字段", score.outcomes[0].detail)
 
-    def test_unknown_vocabulary_key_is_marked_not_passed(self) -> None:
+    def test_unknown_vocabulary_key_is_not_scored_either_way(self) -> None:
+        """键不在基线事实契约内 → 既不算通过也不算失败，交人工核对。"""
+
         case = _case(expected_facts={"conflict_detected": True})
         score = score_case(case, _result(facts={"conflict_detected": True}))
-        self.assertFalse(score.passed)
+        self.assertEqual(score.correctness_total, 0)
+        self.assertIsNone(score.passed)
         self.assertIn("基线事实契约未定义键", score.outcomes[0].detail)
+        self.assertTrue(
+            any("契约未定义键" in item for item in score.manual_queue),
+            score.manual_queue,
+        )
 
 
 class TestOutcomeGrading(unittest.TestCase):
