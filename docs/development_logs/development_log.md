@@ -58,6 +58,73 @@
 
 ---
 
+## [2026-11-07] 任务 018 - 模型驱动的领域 Agent 与 B/C 真实运行入口
+
+- **日期**：2026-11-07
+- **开发阶段**：Agent / Runtime / 评测装配
+- **执行者**：AI 助手（VS Code Copilot SDK 会话）
+- **对应 Prompt 归档**：`docs/prompts/04_agents/2026-11-07_018_model_driven_agents.md`
+- **背景**：Task 017 复查报告第 3 节第 4 条指出"真实模型注入、B/C 运行入口可在无密钥时先用 Fake/适配器测试开发"，本轮补上这块**可离线完成**的装配。
+
+### 本次完成的功能
+
+- **领域 Agent 的 LLM 引擎**：`LLMToolAgent`（模型选工具）+ `Lease/Billing/Property` 三个实现，事实仍取自工具输出，权限/预算/错误码复用既有链路。
+- **统一输出契约**：新增 `_domain_view()`，把工具输出映射成与确定性 Agent 相同的领域视图，图与报告（冲突、缺失、finding）在换模型后语义不变。
+- **引擎装配**：`build_registry(engine=)`、`build_investigation_bundle(engine=, model_client=)`；两套实现表都是代码内静态白名单（YAML 无法引入新类）。
+- **B/C 真实入口**：`build_baseline(..., model_client=)`；B 走 `SingleToolAgent`，C 走 `engine="llm"`；A 拒绝模型（否则基线含义被改变）。
+- **Provider 三态**：`offline` / `scripted` / `deepseek`；`deepseek` 缺 `DEEPSEEK_API_KEY` 时**明确失败**，不静默降级。
+- **CLI**：`investigate --model-provider`、`evaluate --model-provider`（`evaluate` 传模型时自动排除 A）。
+- **共享事实契约**：`app/agents/base/facts.py`，Agent 与评测共用同一套"工具输出 → 可评分事实"映射。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 谁决定调用哪个工具 | 模型（受 `allowed_tools` + 权限白名单约束） | 这是"Agent"与"脚本"的区别；只有这一层交给模型，才能验证真实装配 |
+| 事实来源 | 工具输出，模型只写叙述 | 金额/日期由 LLM 生成是本项目明令禁止的 |
+| LLM 引擎的输出结构 | 与确定性 Agent **完全一致的领域视图** | 否则换模型等于换输出契约，冲突检测会静默失效（本轮实际踩到） |
+| 引擎选择位置 | 装配层（`engine` 参数） | 不改 YAML Schema，避免破坏 57 项契约检查；两套实现表仍是静态白名单 |
+| 无密钥时的验证 | 脚本化模型（无状态、按已调工具决策） | 能证明装配正确，且不会与并发子任务抢轮次；明确标注"不代表模型质量" |
+| 评测是否支持 scripted | 不支持（只有 offline/deepseek） | 脚本化模型做 32 题质量对照没有意义，容易变成自我证明 |
+
+### 修改的文件
+
+见 Prompt 归档第 4 节（新增 10 个文件、修改 6 个文件、新增 23 项测试）。
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 全量单元测试 | `python -m unittest discover -s tests -p "test_*.py"` | **284 项通过** |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | **57 项检查通过** |
+| 模型驱动调查（离线） | `investigate --model-provider scripted` | EXIT=0；3 子任务 success；4 条 trace；`used_model_calls=6`、`used_tool_calls=4`；`conflicting` + `partial` |
+| 缺密钥行为 | `investigate --model-provider deepseek`、`evaluate --model-provider deepseek` | 均 EXIT=2 + `MissingApiKeyError`（不降级） |
+| 离线口径不变 | `evaluate --split heldout --baseline C_multi_agent` | 与历史报告一致 |
+| 引擎等价性 | `test_llm_engine_produces_same_report_shape` | 与确定性引擎同为 `conflicting` + `partial` + 756.00 + 缺失附件 B |
+
+### 遇到的问题及解决方法
+
+| 问题 | 解决 |
+|---|---|
+| 脚本化模型被并发子任务抢轮次 | 改为无状态、按"已调工具"决策，并在第一轮发出批量工具调用 |
+| LLM 引擎下冲突检测失效（`supported`） | 新增领域视图映射，输出与确定性 Agent 同构 |
+| 3 子任务 6 次模型调用只记 2 次 | 预算 `call_id` 纳入 `subtask_id`（并发去重缺陷） |
+| B 基线把 `partial` 记成 `internal_error` | 区分 FAILED 与 PARTIAL，后者按事实评分 |
+
+### 当前项目状态
+
+模型驱动装配与 B/C 真实入口**已实现并可离线验证**；真实 DeepSeek 调用、PostgreSQL、人工量表、部署仍未完成。项目仍是**版本候选**。
+
+### 下一步开发计划
+
+- [ ] 配置 `DEEPSEEK_API_KEY` 后跑一次真实工具闭环并归档 trace
+- [ ] 真实模型下按冻结配置重复 3 次测量 B/C，另立报告版本
+- [ ] PostgreSQL 实机验证
+- [ ] 人工量表评分
+- [ ] 真实服务鉴权与部署验证
+
+---
+
 ## [2026-11-07] 任务 017 - 版本候选复查缺陷修复（R1–R7）
 
 - **日期**：2026-11-07

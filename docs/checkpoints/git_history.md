@@ -58,6 +58,27 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-07] 任务 018 - 模型驱动的领域 Agent 与 B/C 真实运行入口
+
+- **开发阶段**：Agent / Runtime / 评测装配。
+- **对应任务**：018（Task 017 复查报告第 3 节第 4 条）。
+- **Git 分支**：`main`。
+- **Commit Hash**：提交后回填。
+- **变更**：新增 `LLMToolAgent` 与三个领域 LLM 实现、`facts.py` 共享事实契约、`llm/scripted.py`、`llm/factory.py`；`engine` 装配参数；B/C 的 `model_client` 入口；CLI `--model-provider`；修复并发模型预算记账。
+- **验证结果**：
+  - `python -m unittest discover -s tests -p "test_*.py"` → **284 项通过**；
+  - `python tests/smoke_agent_contracts.py` → **57 项通过**；
+  - `investigate --model-provider scripted` → EXIT=0，3 子任务 success，`used_model_calls=6`、`used_tool_calls=4`，`conflicting` + `partial`；
+  - `--model-provider deepseek`（investigate 与 evaluate）→ EXIT=2 + `MissingApiKeyError`。
+- **未完成**：真实 DeepSeek 调用（无密钥）、PostgreSQL 实机、人工量表、部署验证。
+- **回滚参考**（仅在项目所有者确认后执行）：
+
+```powershell
+git --no-pager show <hash> --stat
+```
+
+---
+
 ## [2026-11-07] 任务 017 修复 - 复查缺陷 R1–R7
 
 - **开发阶段**：编排 / 数据层 / RAG / Runtime / API（缺陷修复）。

@@ -229,7 +229,7 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **261 项通过** |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **284 项通过** |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
@@ -244,6 +244,8 @@ python -m app.cli evaluate --split heldout
 | 文档签署状态 | `tests/test_rag.py::TestDocumentStatusPolicy`（6 项） | 默认不返回未签署草案；草案显式单列 |
 | 证据精确绑定 | `tests/test_rag.py::TestFindingEvidenceBinding`（3 项） | 同条号不同版本/5.1 与 5.1.1 各绑各的 chunk |
 | 完成条件 | `tests/test_llm_tool_loop.py::TestInvalidModelResponses` | 调过工具但空回答 → `MODEL_ERROR` |
+| 模型驱动装配 | `tests/test_llm_agents.py`（23 项） | 同一题在确定性/LLM 引擎下判定一致；事实取自工具；并发预算逐次记账 |
+| 缺密钥不降级 | `python -m app.cli investigate --model-provider deepseek` | EXIT=2 + `MissingApiKeyError`（不静默退回离线） |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
 | 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0` |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
@@ -252,7 +254,8 @@ python -m app.cli evaluate --split heldout
 
 ## 8. 已知限制（不夸大）
 
-1. **未调用真实模型**：无 `DEEPSEEK_API_KEY`（已检查，未设置）。真实工具调用闭环、真实 token/成本**未测量**。
+1. **未调用真实模型**：无 `DEEPSEEK_API_KEY`（已检查，未设置）。真实工具调用闭环与真实 token/成本**未测量**。
+   代码路径已就绪（`--model-provider deepseek`），`scripted` 只能验证装配、不能替代质量结论。
 2. **未接 PostgreSQL**：本机无服务（`127.0.0.1:5432` 不可达），迁移与查询只在 SQLite 验证；
    `EXCLUDE` / RLS / 原生 `NUMERIC` 未实测。
 3. **检索只有 BM25**：长问题召回不足（评测 H18–H20 已暴露）；向量/混合检索/rerank 属下一阶段。

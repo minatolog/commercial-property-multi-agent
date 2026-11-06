@@ -54,6 +54,107 @@
 
 ---
 
+## [2026-11-07] 任务 018：并发子任务的模型调用被预算去重吞掉
+
+- **关联任务**：018
+- **严重程度**：中（预算上限失效、`model_calls` 指标不可信；不会产生错误业务结论）
+- **状态**：已解决
+
+### 现象
+
+模型驱动的调查工作流有 3 个并发子 Agent，每个 2 轮模型调用（共 6 次），
+但 `budget.used_model_calls` 显示 **2**。
+
+### 错误信息
+
+```text
+budget: {"max_model_calls": 32, "used_model_calls": 2, "used_tool_calls": 4}
+```
+
+### 原因分析
+
+`run_tool_loop` 里预算记账的 ID 是：
+
+```python
+model_call_id = f"mc_{context.run_id or 'norun'}_{round_index}"
+```
+
+`Budget._reserve` 对 `call_id` 做幂等去重（`if call_id in self._settled or call_id in self._reserved: return`）。
+并发子任务共享同一个 `run_id`，第 1 轮三个子任务都用 `mc_run_x_1` → 只记一次账。
+于是 6 次真实调用被记成 2 次（只按轮次计数）。
+
+这个缺陷一直存在，但确定性引擎下 `used_model_calls` 恒为 0，从未暴露；
+接入模型驱动后立刻显形。它有两个真实后果：
+
+1. `max_model_calls` 上限失效——3 个子任务可以超出限额；
+2. 报告里的模型调用数、token 与成本口径全部偏小。
+
+### 解决方案
+
+```python
+agent_scope = context.subtask_id or "root"
+model_call_id = f"mc_{context.run_id or 'norun'}_{agent_scope}_{round_index}"
+```
+
+并加两条回归：
+
+- `test_parallel_subtasks_count_every_model_call`：断言 `used_model_calls == 6`、`used_tool_calls == 3`；
+- `test_model_budget_is_enforced_across_subtasks`：`max_model_calls=3` 时实际用量 ≤ 3，且报告必须体现 `partial`。
+
+### 如何避免再次出现
+
+1. **幂等键必须包含全部区分维度**：运行 + 子任务 + 轮次。只带其中两个，就会把并发路径合并成一次。
+2. **指标的"恒为 0"是危险信号**：`model_calls` 长期为 0 说明这条路径没被走过，而不是"没花钱"。
+3. 新增"并发 × 计量"功能时，先写一条"断言累计次数"的测试，再看业务结果。
+
+---
+
+## [2026-11-07] 任务 018：LLM 引擎让冲突检测静默失效
+
+- **关联任务**：018
+- **严重程度**：高（会输出 `supported`，把真实差额吞掉）
+- **状态**：已解决
+
+### 现象
+
+同样的 A-301 场景，确定性引擎得到 `verdict=conflicting`（差额 756.00），
+换成模型驱动引擎后得到 `verdict=supported`，且报告没有冲突。
+
+### 错误信息
+
+```text
+VERDICT supported completeness complete
+CONFLICTS []
+```
+
+### 原因分析
+
+图的核验读的是 Agent 输出**顶层**的领域字段：
+
+```python
+variance = output.get("rent_variance_total")
+```
+
+确定性 Agent 把工具输出平铺到顶层（`{**data}`），所以能读到；
+而最初的 LLM Agent 只输出 `{"facts": {...}}`，顶层没有 `rent_variance_total`，
+核验读不到差额 → 判 `supported`。
+
+这不是"模型答错了"，而是**换引擎顺带换了输出契约**，下游规则静默失效。
+
+### 解决方案
+
+新增 `_domain_view(capability, tool_outputs, evidence)`：把工具输出映射成与确定性 Agent
+**同构**的领域视图（`lease` 子对象、`rules`、`clauses`、`rent_variance_total` 等），
+LLM 的 `answer`/`facts`/`usage` 作为附加字段并存。
+
+### 如何避免再次出现
+
+1. 新增一种引擎/适配器时，先写"同一输入在两种引擎下产生同一判定"的对照测试。
+2. 下游若依赖某个字段，该字段必须由**契约**保证存在，而不是"恰好某个实现会填"。
+3. 让"少字段"变成可见失败：本轮用 `test_llm_engine_produces_same_report_shape` 固定住。
+
+---
+
 ## [2026-11-07] 任务 017 修复：持久线索、范围授权与证据适用性的 7 项缺陷
 
 - **关联任务**：017（复查 R1–R7）

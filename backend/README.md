@@ -35,6 +35,8 @@ python -m app.cli ask "..." --provider deepseek     # 需 DEEPSEEK_API_KEY
 # 多 Agent 图（规则规划 → 并发子 Agent → 确定性核验）
 python -m app.cli investigate
 python -m app.cli investigate --backend sqlite      # 用只读数据库后端（本机 SQLite）
+python -m app.cli investigate --model-provider scripted   # 领域 Agent 改由模型选工具（离线脚本化）
+python -m app.cli investigate --model-provider deepseek   # 真实模型（需 DEEPSEEK_API_KEY）
 
 # 合同条款检索（真实 PDF、真实页码）
 python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁年度起租金递增百分之五"
@@ -49,6 +51,7 @@ python -m app.cli approve <request_id> --principal principal_finance_xinghui --d
 # 评测（三基线）
 python -m app.cli evaluate --split dev
 python -m app.cli evaluate --split heldout
+python -m app.cli evaluate --split heldout --baseline C_multi_agent --model-provider deepseek  # 需密钥
 
 # 演示 API + 页面
 python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
@@ -61,13 +64,13 @@ python -m unittest discover -s tests -p "test_*.py"
 
 | 路径 | 职责 |
 |---|---|
-| `app/agents/base/` | Agent 契约（`AgentRequest/Context/Output`）、Registry、`BaseAgent`、`ToolBackedAgent` |
-| `app/agents/factory.py` | 配置 → 实例的**静态白名单**；K2 配置/实现一致性校验；按签名依赖注入 |
-| `app/agents/{lease,billing,property}/` | 领域 Agent：只做受控工具调用并返回事实 + 证据 |
+| `app/agents/base/` | Agent 契约（`AgentRequest/Context/Output`）、Registry、`BaseAgent`、`ToolBackedAgent`（确定性）、`LLMToolAgent`（模型驱动）、共享事实映射 `facts.py` |
+| `app/agents/factory.py` | 配置 → 实例的**静态白名单**（确定性表 + LLM 表）；K2 配置/实现一致性校验；按签名依赖注入 |
+| `app/agents/{lease,billing,property}/` | 领域 Agent：确定性实现 + `llm_agent.py`（模型选工具、事实取自工具输出） |
 | `app/agents/single/` | 单 Agent + Tools 基线（`single.investigate`） |
 | `app/config/` | 每个 Agent 独立 YAML + Schema（拒绝密钥字段） |
 | `app/fixtures/repository.py` | fixture 只读仓库：项目范围、`Decimal` 金额、变体 overlay |
-| `app/llm/` | 厂商无关消息类型、`Fake` 客户端、DeepSeek（OpenAI 兼容）适配、参数裁剪 |
+| `app/llm/` | 厂商无关消息类型、`Fake` 客户端、脚本化模型（`scripted`，仅验证装配）、模型工厂（`offline/scripted/deepseek`）、DeepSeek（OpenAI 兼容）适配、参数裁剪 |
 | `app/runtime/` | `TrustedContext`/`Evidence`/`Trace`、共享预算、有限轮次循环、Runtime 边界 |
 | `app/tools/` | 工具白名单、六道闸执行器、fixture 只读工具、`document.search` |
 | `app/orchestration/investigation.py` | LangGraph：规划 → 并发扇出 → 合流核验 → 限次补查 → 报告 → 审批门 |
@@ -92,7 +95,7 @@ python -m unittest discover -s tests -p "test_*.py"
 
 | 未完成/未验证 | 说明 |
 |---|---|
-| 真实 DeepSeek 调用 | 缺 `DEEPSEEK_API_KEY`；`ask --provider deepseek` 与真实工具调用闭环**未实测** |
+| 真实 DeepSeek 调用 | 缺 `DEEPSEEK_API_KEY`；`--model-provider deepseek` 入口已就绪但**未实测**，缺密钥时明确报错不降级 |
 | PostgreSQL | 本机无服务；迁移与查询仅在 SQLite 上验证，`EXCLUDE`/RLS/NUMERIC 未实测 |
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20） |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |

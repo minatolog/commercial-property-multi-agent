@@ -1,6 +1,6 @@
 # 项目总开发路线与进度表 V1.0
 
-> **2026-11-07 复查与修复**：Task 017 复查确认了旧运行授权、范围标签缺失、持久线程复用、草案版本混用、空回答成功、冲突下补查与引用关联共 7 项问题。**R1–R7 已全部修复并有回归测试（261 项测试、57 项契约检查通过）**，其中 thread 复用、默认拒绝空范围、报告数据范围、文档签署状态、空回答判定、补查闸门与证据精确绑定均有针对性用例。真实模型、PostgreSQL、人工量表与部署验证仍未完成，当前状态仍为**版本候选**。详见 [Task 017 复查报告](../reviews/2026-11-07_release_candidate_recheck.md) 与 [开发日志](../development_logs/development_log.md)。
+> **2026-11-07 复查与修复**：Task 017 复查确认了旧运行授权、范围标签缺失、持久线程复用、草案版本混用、空回答成功、冲突下补查与引用关联共 7 项问题。**R1–R7 已全部修复并有回归测试**。随后 **Task 018 补齐了"真实模型注入与 B/C 运行入口"**（此前被误归因为"只缺 API Key"）：领域 Agent 现在有 LLM 引擎，调查与评测都支持 `--model-provider offline/scripted/deepseek`，无密钥时可用脚本化模型验证装配，缺密钥时明确失败而非静默降级。当前 284 项测试 + 57 项契约检查通过。**真实 DeepSeek 调用、PostgreSQL、人工量表与部署验证仍未完成**，状态仍为**版本候选**。详见 [Task 017 复查报告](../reviews/2026-11-07_release_candidate_recheck.md)、[Task 018 Prompt](../prompts/04_agents/2026-11-07_018_model_driven_agents.md) 与 [开发日志](../development_logs/development_log.md)。
 
 > **2026-11-06 当前状态**：Task 007–015 的自检记录是历史交付证据。Task 016 独立审查发现评分、SQLite/RAG 装配、失败恢复、审批身份和隔离问题；**第一批（F1/F2/F7/F8）与第二批（F3/F4/F5/F6/S1–S4）已修复并有回归测试**，评分升为 `scoring-v2` 并重新生成报告；**第三批中可离线完成的部分（独立环境复现、浏览器验收、运行态文件治理）已完成**，但**真实 DeepSeek 调用、PostgreSQL 实机验证、人工量表评分仍未完成**（缺 `DEEPSEEK_API_KEY` 与可用实例）。当前仍为“版本候选”，不得宣称 MVP 已验收。详情见 [Task 016 审查报告](../reviews/2026-11-06_release_candidate_review.md) 与 [开发日志](../development_logs/development_log.md)。本次检查不恢复逐任务 Codex 审查流程。
 
@@ -74,10 +74,11 @@
 | **10** | 015 | 完整验收、复现说明与项目展示材料 | **DeepSeek 自检通过**（版本候选；未打 Tag/发布/部署） | [Task 015 Prompt](../prompts/01_environment/2026-11-06_015_release_candidate.md) |
 | **11** | 016 | 版本候选独立审查与缺陷修复 | **第一批/第二批已修复并自检通过**；第三批的独立环境复现与浏览器验收完成，真实模型/PG 待外部条件 | [Task 016 审查与实施记录](../prompts/06_testing/2026-11-06_016_release_candidate_review.md) |
 | **12** | 017 | 修复复查与 R1–R7 修复 | **R1–R7 已修复并自检通过**（261 项测试、57 项契约检查）；真实模型/PG 待外部条件 | [Task 017 复查与实施记录](../prompts/06_testing/2026-11-07_017_release_candidate_recheck.md) |
+| **13** | 018 | 模型驱动的领域 Agent 与 B/C 真实运行入口 | **已完成并可离线验证**（284 项测试）；`deepseek` 入口就绪但缺密钥未跑真实调用 | [Task 018 Prompt](../prompts/04_agents/2026-11-07_018_model_driven_agents.md) |
 
-\* 007–017 已按 README 编号表分配；若插入其他独立任务则顺延，正式 Prompt 的顺序不变。任务 006 的返修和 Review 不新占一个开发编号。
+\* 007–018 已按 README 编号表分配；若插入其他独立任务则顺延，正式 Prompt 的顺序不变。任务 006 的返修和 Review 不新占一个开发编号。
 
-**当前：Prompt 1–12 均已交付；Task 016 的两批修复与 Task 017 的 R1–R7 修复完成。** 这不是“项目完成”：真实模型调用、PostgreSQL 实机、人工量表评分仍需外部凭据/实例/人工。独立 Python 环境、历史骨架和数据库设计属于此前基础，继续复用。
+**当前：Prompt 1–13 均已交付。** 领域 Agent 已有确定性/LLM 两套引擎，B/C 有真实运行入口，缺密钥时明确失败。真实 DeepSeek 调用、PostgreSQL 实机、人工量表评分与部署验证仍未完成——这些**必须**由外部凭据、实例或人工完成。
 
 ## 4. 每一步的内容与验收
 
@@ -237,24 +238,27 @@
 
 ## 7. 当前接下来怎么做
 
-Task 001–016 的实施、两批修复与第三批可离线部分均已完成：全量 238 项测试、57 项契约检查、
-独立 venv 复现、浏览器验收均通过。
+Task 001–018 已完成：三基线评测、FastAPI 演示、两批审查修复、R1–R7 修复，以及模型驱动装配与 B/C 真实运行入口。
 
 **剩余工作全部依赖外部条件：**
 
-1. **真实 DeepSeek 工具调用闭环与真实 B/C 评测** —— 需要项目所有者提供 `DEEPSEEK_API_KEY`
-   （本机已检查，未设置）。没有它就不能把离线结果写成真实模型结果。
+1. **真实 DeepSeek 调用与真实 B/C 质量对照** —— 需要项目所有者提供 `DEEPSEEK_API_KEY`。
+   入口已就绪：`python -m app.cli investigate --model-provider deepseek`、
+   `python -m app.cli evaluate --baseline C_multi_agent --model-provider deepseek`。
+   缺密钥时会明确报错（`MissingApiKeyError`），**不会**退回离线结果冒充真实调用。
 2. **PostgreSQL 实机验证**（迁移、排他约束、RLS、fixture 等价性）—— 需要可用实例与凭据
    （本机无服务，`127.0.0.1:5432` 不可达）。
 3. **人工量表评分** —— H25/H26 已声明为人工评定，rubric 队列需人工过一遍。
 4. **真实服务鉴权、部署或外部副作用验证** —— 演示鉴权是演示级。
 
 在此之前**不得**宣称 MVP 已验收或"多 Agent 带来提升"。
+`--model-provider scripted` 只能证明装配正确，**不能**用于质量结论。
 
 ## 8. 变更记录
 
 | 日期 | 变更 |
 |---|---|
+| 2026-11-07 | Task 018 补齐模型驱动装配：领域 Agent 的 LLM 引擎、`engine` 装配参数、B/C 的 `model_client` 入口、CLI `--model-provider`；修复并发子任务的模型预算少记；284 项测试 + 57 项契约检查通过 |
 | 2026-11-07 | Task 017 复查的 R1–R7 全部修复：thread 身份守卫与按 run 过滤、空范围默认拒绝与回填、报告数据范围与授权范围分离、文档签署状态贯穿、空最终回答判失败、补查闸门改为可重试子任务、证据按 chunk_id 精确绑定；261 项测试 + 57 项契约检查通过 |
 | 2026-11-06 | Task 016 第三批可离线部分完成：独立 venv 复现（238 项测试 + 57 项契约）、浏览器验收、`*.db` 运行态文件退出 Git 跟踪；真实模型与 PostgreSQL 仍受凭据/实例限制 |
 | 2026-11-06 | Task 016 审查要求的第一批（F1/F2/F7/F8）与第二批（F3/F4/F5/F6/S1–S4 + 审批意见持久化）修复完成；评分升级 `scoring-v2` 并重生成报告 |
