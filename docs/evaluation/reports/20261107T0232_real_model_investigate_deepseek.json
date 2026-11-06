@@ -1,0 +1,410 @@
+{
+  "agent_results": [
+    {
+      "agent": "lease",
+      "capability": "lease.query",
+      "status": "partial",
+      "subtask_id": "st_1_lease"
+    },
+    {
+      "agent": "billing",
+      "capability": "billing.statement",
+      "status": "success",
+      "subtask_id": "st_2_billing"
+    },
+    {
+      "agent": "property",
+      "capability": "property.work_orders",
+      "status": "success",
+      "subtask_id": "st_3_property"
+    }
+  ],
+  "approval_request": null,
+  "approval_status": "blocked_budget",
+  "approved_draft": null,
+  "budget": {
+    "max_model_calls": 32,
+    "max_tool_calls": 12,
+    "max_total_tokens": 20000,
+    "used_model_calls": 8,
+    "used_tool_calls": 12,
+    "used_total_tokens": 14421
+  },
+  "conflicts": [
+    {
+      "amount": "756.00",
+      "evidence_ids": [
+        "lease_xh_a301_2025",
+        "inv_2026_08",
+        "itm_inv08_rent",
+        "itm_inv08_pf",
+        "rule_xh_a301_rent_2026",
+        "inv_2026_09",
+        "itm_inv09_rent",
+        "itm_inv09_pf",
+        "rule_xh_a301_rent_2026",
+        "inv_2026_10",
+        "itm_inv10_rent",
+        "itm_inv10_pf",
+        "rule_xh_a301_rent_2026",
+        "pay_2026_08_28",
+        "pay_2026_09_28",
+        "alloc_001",
+        "alloc_002",
+        "inv_2026_08",
+        "itm_inv08_rent",
+        "itm_inv08_pf",
+        "inv_2026_09",
+        "itm_inv09_rent",
+        "itm_inv09_pf",
+        "inv_2026_10",
+        "itm_inv10_rent",
+        "itm_inv10_pf",
+        "pay_2026_08_28",
+        "pay_2026_09_28",
+        "alloc_001",
+        "alloc_002"
+      ],
+      "expected_basis": "lease.charge_rule",
+      "observed_basis": "invoice_item.unit_price",
+      "subtask_id": "st_2_billing",
+      "type": "rent_variance"
+    }
+  ],
+  "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
+  "failures": [],
+  "findings": [
+    {
+      "derivation": "direct",
+      "evidence_ids": [
+        "lease_xh_a301_2025",
+        "unit_xh_a301",
+        "ten_xh_yunduan",
+        "rule_xh_a301_rent_2025",
+        "rule_xh_a301_rent_2026",
+        "rule_xh_a301_rent_2027",
+        "rule_xh_a301_pf_all",
+        "doc_xh_a301_contract",
+        "doc_xh_a301_contract#v1#p13#5.3",
+        "doc_xh_a301_contract#v1#p12#5.2",
+        "doc_xh_a301_contract#v1#p13#5.4",
+        "doc_xh_a301_contract#v1#p3#3.2",
+        "doc_xh_a301_contract#v1#p10#第五条",
+        "doc_xh_a301_contract#v1#p23#第九条",
+        "doc_xh_a301_contract#v1#p21#第八条",
+        "doc_xh_property_policy#v1#p1#3.1",
+        "doc_xh_a301_contract#v1#p21#8.1",
+        "doc_xh_a301_contract#v1#p22#8.2",
+        "doc_xh_a301_contract#v1#p20#7.1",
+        "doc_xh_a301_contract#v1#p26#附件B",
+        "doc_xh_a301_contract#v1#p3#3.3",
+        "doc_xh_a301_contract#v1#p17#7.0.1",
+        "doc_xh_a301_contract#v1#p17#第七条",
+        "doc_xh_a301_contract#v1#p14#6.1",
+        "doc_xh_a301_contract#v1#p1#1.1",
+        "doc_xh_a301_contract#v1#p13#5.4",
+        "doc_xh_a301_contract#v1#p10#5.1.1",
+        "doc_xh_a301_contract#v1#p10#5.1",
+        "doc_xh_a301_contract#v1#p11#5.1.2",
+        "doc_xh_a301_contract#v1#p24#9.3",
+        "doc_xh_a301_contract#v1#p19#7.0.6",
+        "doc_xh_a301_contract#v1#p23#第九条",
+        "doc_xh_a301_contract#v1#p14#6.2"
+      ],
+      "statement": "租期 2025-01-01 至 2027-12-31，状态 active"
+    },
+    {
+      "derivation": "document_clause",
+      "evidence_ids": [
+        "doc_xh_a301_contract#v1#p11#5.1.2"
+      ],
+      "source": {
+        "chunk_id": "doc_xh_a301_contract#v1#p11#5.1.2",
+        "clause_id": "5.1.2",
+        "document_id": "doc_xh_a301_contract",
+        "document_status": "signed",
+        "document_version": 1,
+        "page": 11
+      },
+      "statement": "合同第 11 页 5.1.2 条：5.1.2 乙方应于每月五日前支付当月租金，逾期支付的按日万分之五计收违约金。"
+    },
+    {
+      "derivation": "document_clause",
+      "evidence_ids": [
+        "doc_xh_a301_contract#v1#p24#9.3"
+      ],
+      "source": {
+        "chunk_id": "doc_xh_a301_contract#v1#p24#9.3",
+        "clause_id": "9.3",
+        "document_id": "doc_xh_a301_contract",
+        "document_status": "signed",
+        "document_version": 1,
+        "page": 24
+      },
+      "statement": "合同第 24 页 9.3 条：9.3 违约金总额以实际损失为限，双方另有约定的从其约定。"
+    },
+    {
+      "derivation": "document_clause",
+      "evidence_ids": [
+        "doc_xh_a301_contract#v1#p19#7.0.6"
+      ],
+      "source": {
+        "chunk_id": "doc_xh_a301_contract#v1#p19#7.0.6",
+        "clause_id": "7.0.6",
+        "document_id": "doc_xh_a301_contract",
+        "document_status": "signed",
+        "document_version": 1,
+        "page": 19
+      },
+      "statement": "合同第 19 页 7.0.6 条：7.0.6 减免生效后，已开具账单应通过调整或红冲方式处理，不得直接删除账单记录。"
+    },
+    {
+      "derivation": "document_clause",
+      "evidence_ids": [
+        "doc_xh_a301_contract#v1#p23#第九条"
+      ],
+      "source": {
+        "chunk_id": "doc_xh_a301_contract#v1#p23#第九条",
+        "clause_id": "第九条",
+        "document_id": "doc_xh_a301_contract",
+        "document_status": "signed",
+        "document_version": 1,
+        "page": 23
+      },
+      "statement": "合同第 23 页 第九条 条：第九条 违约责任"
+    },
+    {
+      "derivation": "document_clause",
+      "evidence_ids": [
+        "doc_xh_a301_contract#v1#p14#6.2"
+      ],
+      "source": {
+        "chunk_id": "doc_xh_a301_contract#v1#p14#6.2",
+        "clause_id": "6.2",
+        "document_id": "doc_xh_a301_contract",
+        "document_status": "signed",
+        "document_version": 1,
+        "page": 14
+      },
+      "statement": "合同第 14 页 6.2 条：6.2 物业费与租金分别计收，可合并出具账单，但收费项目应分项列示。"
+    },
+    {
+      "derivation": "computed",
+      "evidence_ids": [
+        "lease_xh_a301_2025",
+        "inv_2026_08",
+        "itm_inv08_rent",
+        "itm_inv08_pf",
+        "rule_xh_a301_rent_2026",
+        "inv_2026_09",
+        "itm_inv09_rent",
+        "itm_inv09_pf",
+        "rule_xh_a301_rent_2026",
+        "inv_2026_10",
+        "itm_inv10_rent",
+        "itm_inv10_pf",
+        "rule_xh_a301_rent_2026",
+        "pay_2026_08_28",
+        "pay_2026_09_28",
+        "alloc_001",
+        "alloc_002",
+        "inv_2026_08",
+        "itm_inv08_rent",
+        "itm_inv08_pf",
+        "inv_2026_09",
+        "itm_inv09_rent",
+        "itm_inv09_pf",
+        "inv_2026_10",
+        "itm_inv10_rent",
+        "itm_inv10_pf",
+        "pay_2026_08_28",
+        "pay_2026_09_28",
+        "alloc_001",
+        "alloc_002"
+      ],
+      "statement": "账单应收 52596.00、已收 34560.00、未收 18036.00"
+    },
+    {
+      "derivation": "direct",
+      "evidence_ids": [
+        "wo_2026_07_12",
+        "wo_2026_08_18",
+        "wo_2026_09_25",
+        "wo_2026_10_20"
+      ],
+      "statement": "相关工单 4 条，未关闭 1 条"
+    }
+  ],
+  "lease_id": "lease_xh_a301_2025",
+  "missing_information": [
+    "合同引用但未电子化的文档: doc_xh_a301_annex_b"
+  ],
+  "proposed_draft": {
+    "action_type": "rent_reduction_draft",
+    "amount": "700.00",
+    "computed_variance": "756.00",
+    "currency": "CNY",
+    "draft_id": "draft_xh_a301_oct_reduction",
+    "draft_version": 2,
+    "evidence_ids": [
+      "lease_xh_a301_2025",
+      "unit_xh_a301",
+      "ten_xh_yunduan",
+      "rule_xh_a301_rent_2025",
+      "rule_xh_a301_rent_2026",
+      "rule_xh_a301_rent_2027",
+      "rule_xh_a301_pf_all",
+      "doc_xh_a301_contract",
+      "doc_xh_a301_contract#v1#p13#5.3",
+      "doc_xh_a301_contract#v1#p12#5.2",
+      "doc_xh_a301_contract#v1#p13#5.4",
+      "doc_xh_a301_contract#v1#p3#3.2",
+      "doc_xh_a301_contract#v1#p10#第五条",
+      "doc_xh_a301_contract#v1#p23#第九条",
+      "doc_xh_a301_contract#v1#p21#第八条",
+      "doc_xh_property_policy#v1#p1#3.1",
+      "doc_xh_a301_contract#v1#p21#8.1",
+      "doc_xh_a301_contract#v1#p22#8.2",
+      "doc_xh_a301_contract#v1#p20#7.1",
+      "doc_xh_a301_contract#v1#p26#附件B",
+      "doc_xh_a301_contract#v1#p3#3.3",
+      "doc_xh_a301_contract#v1#p17#7.0.1",
+      "doc_xh_a301_contract#v1#p17#第七条",
+      "doc_xh_a301_contract#v1#p14#6.1",
+      "doc_xh_a301_contract#v1#p1#1.1",
+      "doc_xh_a301_contract#v1#p10#5.1.1",
+      "doc_xh_a301_contract#v1#p10#5.1",
+      "doc_xh_a301_contract#v1#p11#5.1.2",
+      "doc_xh_a301_contract#v1#p24#9.3",
+      "doc_xh_a301_contract#v1#p19#7.0.6",
+      "doc_xh_a301_contract#v1#p14#6.2",
+      "inv_2026_08",
+      "itm_inv08_rent",
+      "itm_inv08_pf",
+      "inv_2026_09",
+      "itm_inv09_rent",
+      "itm_inv09_pf",
+      "inv_2026_10",
+      "itm_inv10_rent",
+      "itm_inv10_pf",
+      "pay_2026_08_28",
+      "pay_2026_09_28",
+      "alloc_001",
+      "alloc_002",
+      "wo_2026_07_12",
+      "wo_2026_08_18",
+      "wo_2026_09_25",
+      "wo_2026_10_20",
+      "snip_contract_7_1"
+    ],
+    "expires_at": "2026-11-06T15:00:00+08:00",
+    "project_id": "prj_xinghui",
+    "target": {
+      "invoice_id": "inv_2026_10",
+      "invoice_item_id": "itm_inv10_rent",
+      "lease_id": "lease_xh_a301_2025"
+    }
+  },
+  "requires_human_review": true,
+  "revision": 0,
+  "route": "fanout",
+  "thread_id": "thread_run_e8f7600396d7",
+  "tool_traces": [
+    {
+      "attempt": 1,
+      "duration_ms": 0.3,
+      "status": "ok",
+      "subtask_id": "st_3_property",
+      "tool": "property.work_orders.read"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.51,
+      "status": "ok",
+      "subtask_id": "st_2_billing",
+      "tool": "billing.statement.read"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.28,
+      "status": "ok",
+      "subtask_id": "st_2_billing",
+      "tool": "billing.arrears.calculate"
+    },
+    {
+      "attempt": 0,
+      "duration_ms": 0.12,
+      "status": "error",
+      "subtask_id": "st_1_lease",
+      "tool": "lease.lookup"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.26,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.16,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.15,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.27,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "lease.lookup"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.32,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.22,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.3,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.17,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    },
+    {
+      "attempt": 1,
+      "duration_ms": 0.16,
+      "status": "ok",
+      "subtask_id": "st_1_lease",
+      "tool": "document.search"
+    }
+  ],
+  "verdict": "conflicting",
+  "warnings": [
+    "达到最大轮次 3，未得到最终答案",
+    "预算耗尽：无法发起人工审批"
+  ]
+}

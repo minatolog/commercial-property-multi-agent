@@ -108,7 +108,7 @@ python -m unittest discover -s tests -p "test_*.py"
 
 | 未完成/未验证 | 说明 |
 |---|---|
-| 真实 DeepSeek 调用 | 缺 `DEEPSEEK_API_KEY`；`--model-provider deepseek` 入口已就绪但**未实测**，缺密钥时明确报错不降级 |
+| 真实 DeepSeek 调用 | 已实测 `ask` / `investigate` / `evaluate --split dev`；heldout 真实对照与重复测量**未做**，成本未换算 |
 | PostgreSQL | 本机无服务；迁移与查询仅在 SQLite 上验证，`EXCLUDE`/RLS/NUMERIC 未实测 |
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20） |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |

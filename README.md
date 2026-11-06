@@ -257,7 +257,7 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **299 项通过** |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **301 项通过**（1 项因本机已配置密钥而 skip） |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
@@ -275,6 +275,9 @@ python -m app.cli evaluate --split heldout
 | 模型驱动装配 | `tests/test_llm_agents.py`（23 项） | 同一题在确定性/LLM 引擎下判定一致；事实取自工具；并发预算逐次记账 |
 | 缺密钥不降级 | `python -m app.cli investigate --model-provider deepseek` | EXIT=2 + `MissingApiKeyError`（不静默退回离线） |
 | `.env` 真实生效 | `tests/test_env.py`（15 项） | 填了就读取；环境变量优先；值不回显；`.env` 不入库 |
+| 真实模型闭环（已实测） | `investigate --model-provider deepseek` | `conflicting` + 756.00；8 次模型调用 / 12 次工具 / 14,421 tokens |
+| 真实模型评测（dev 8 题） | `evaluate --split dev --model-provider deepseek` | B 1/7、C 0/6；报告头部标注 `deepseek/deepseek-chat`（见 [real_model_dev](docs/evaluation/reports/real_model_dev/)） |
+| 报告不得谎报模型 | `tests/test_evaluation.py::test_report_names_the_real_model_when_one_is_used` | 接入模型后报告必须写真实 provider |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
 | 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0` |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
@@ -283,8 +286,10 @@ python -m app.cli evaluate --split heldout
 
 ## 8. 已知限制（不夸大）
 
-1. **未调用真实模型**：无 `DEEPSEEK_API_KEY`（已检查，未设置）。真实工具调用闭环与真实 token/成本**未测量**。
-   代码路径已就绪（`--model-provider deepseek`），`scripted` 只能验证装配、不能替代质量结论。
+1. **真实模型已实测，但只在 dev 集**：`ask` / `investigate` / `evaluate --split dev` 均已真实调用
+   DeepSeek（报告见 [real_model_dev](docs/evaluation/reports/real_model_dev/)）。**heldout 32 题的真实对照尚未执行**，
+   且 dev 集是自然语言断言 + 人工量表题，其通过率**不能**用于 B vs C 的质量结论。
+   成本金额未换算（项目未内置价格表）。
 2. **未接 PostgreSQL**：本机无服务（`127.0.0.1:5432` 不可达），迁移与查询只在 SQLite 验证；
    `EXCLUDE` / RLS / 原生 `NUMERIC` 未实测。
 3. **检索只有 BM25**：长问题召回不足（评测 H18–H20 已暴露）；向量/混合检索/rerank 属下一阶段。
@@ -304,7 +309,9 @@ python -m app.cli evaluate --split heldout
 - 分支 `main`，当前提交见 `git log -1`；里程碑记录见 [git_history](docs/checkpoints/git_history.md)。
 - **未打 Tag、未发布、未部署**——这些动作需要项目所有者确认。
 - 建议的下一步（按价值排序）：
-  1. 接真实 DeepSeek，按冻结配置重复 3 次测量质量/成本（需 `DEEPSEEK_API_KEY`）；
-  2. 上 PostgreSQL 并实测排他约束与 RLS（需实例）；
-  3. 人工量表实际评分（H25/H26 与 rubric 队列）；
-  4. 混合检索 + rerank，用评测集验证召回提升。
+  1. 真实模型 heldout 单基线（C）对照，另立报告版本（成本/时间可控时再跑全量）；
+  2. 同题重复 3 次，测量延迟/token/答案稳定性；
+  3. 若要给成本金额，先内置并冻结一张价格表；
+  4. 上 PostgreSQL 并实测排他约束与 RLS（需实例）；
+  5. 人工量表实际评分（H25/H26 与 rubric 队列）；
+  6. 混合检索 + rerank，用评测集验证召回提升。

@@ -58,6 +58,64 @@
 
 ---
 
+## [2026-11-07] 任务 020 - 真实 DeepSeek 首跑：修复 3 个装配缺陷
+
+- **日期**：2026-11-07
+- **开发阶段**：真实服务集成 / 缺陷修复
+- **执行者**：AI 助手（VS Code Copilot SDK 会话）
+- **对应 Prompt 归档**：`docs/prompts/04_agents/2026-11-07_020_real_model_first_run.md`
+- **触发**：项目所有者填入真实 `DEEPSEEK_API_KEY`（Task 019 的配置路径生效）
+
+### 本次完成的功能
+
+- **真实调用打通**：`ask`、`investigate`、`evaluate` 三条路径均完成真实 DeepSeek 调用。
+- **修复工具名映射**：内部名 `lease.lookup` → 暴露名 `lease__lookup`（provider 只接受 `^[a-zA-Z0-9_-]+$`），执行时映射回内部名。
+- **修复 token 预算语义**：模型路径必须显式给正数（0 = 禁用）；CLI 新增 `--budget-tokens`，基线默认 60000/题。
+- **修复报告绑定**：`model` 与 `cost_basis` 按实际客户端填写，不再把真实调用写成"离线"。
+- **归档真实证据**：调查输出与 dev 评测报告。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 工具名映射方向 | 边界处映射（`ToolSpec.name` vs `tool_name`） | 内部命名（`domain.action`）是项目约定，改全局命名会波及配置/Trace/审计；边界映射代价最小 |
+| 暴露名分隔符 | `.` → `__` | 单下划线会让 `a.b_c` 与 `a_b.c` 撞名；双下划线 + 显式冲突报错 |
+| token 预算为 0 的语义 | 保持"禁用"，不改成"不限" | 与 `max_model_calls=0` 一致；改成"不限"会让"忘配预算"变成无限花费 |
+| 真实结果样本 | dev 8 题（B/C） | 先验证链路与代价；heldout 32 题留待确定报告版本策略后再跑 |
+| 成本金额 | 不换算（`unavailable_no_pricing`） | 项目未内置价格表；凭空换算等于编造成本 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 全量单元测试 | `python -m unittest discover -s tests -p "test_*.py"` | **301 项通过**（1 项 skip：缺密钥用例） |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | **57 项通过** |
+| 真实单 Agent | `ask "..." --provider deepseek` | 成功；3 模型 / 3 工具 / 6325 tokens |
+| 真实多 Agent | `investigate --model-provider deepseek` | `conflicting`（756.00）、`failures=[]`、8 finding、13 trace；8 模型 / 12 工具 / 14,421 tokens |
+| 真实评测 | `evaluate --split dev --model-provider deepseek` | B 1/7（0.2143）、C 0/6（0.1833）；报告头部正确写 `deepseek/deepseek-chat` |
+
+### 遇到的问题及解决方法
+
+| 问题 | 解决 |
+|---|---|
+| 工具名含点号 → provider 400 | 暴露名/内部名分离 + 冲突校验 |
+| 模型路径 `budget_exhausted` | token 预算默认 0 是"禁用"语义；CLI 与基线显式给预算 |
+| 报告把真实调用写成"离线" | 按实际客户端填写 `model`/`cost_basis`，加 2 条回归 |
+| 既有时序 flaky 干扰全量验证 | elapsed 护栏 1.2s → 3.0s（核心断言仍是重试次数） |
+
+### 当前项目状态
+
+真实模型闭环**已实测**（dev 8 题 + 单次调查）。仍未做：heldout 真实对照、重复测量稳定性、PostgreSQL、人工量表、部署。项目仍为**版本候选**。
+
+### 下一步开发计划
+
+- [ ] 真实模型 heldout 单基线（C）对照，另立报告版本
+- [ ] 同题重复 3 次测稳定性
+- [ ] 需要金额成本时先冻结价格表
+- [ ] PostgreSQL / 人工量表 / 部署
+
+---
+
 ## [2026-11-07] 任务 019 - 让 `.env` 真正生效（密钥填写路径）
 
 - **日期**：2026-11-07

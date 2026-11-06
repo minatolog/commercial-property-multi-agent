@@ -54,6 +54,60 @@
 
 ---
 
+## [2026-11-07] 任务 020：真实 provider 首跑暴露的 3 个装配缺陷
+
+- **关联任务**：020
+- **严重程度**：高（第 1 项完全阻断真实调用；第 3 项让报告与事实相反）
+- **状态**：已解决
+
+### 现象
+
+填入真实 `DEEPSEEK_API_KEY` 后：
+
+1. `investigate --model-provider deepseek` → 三个子任务全部 `model_error`；
+2. 修好第 1 项后 → 三个子任务全部 `budget_exhausted`；
+3. 全部跑通后 → 报告头部仍写 `模型：offline_deterministic` 与
+   "无 DEEPSEEK_API_KEY，三基线均未调用真实模型"，而同页却记录 26 次模型调用、42,217 tokens。
+
+### 错误信息
+
+```text
+OpenAIInvalidRequestError: Error code: 400 - Invalid 'tools[0].function.name':
+string does not match pattern. Expected a string that matches the pattern '^[a-zA-Z0-9_-]+$'
+```
+
+```text
+budget: {"max_model_calls": 32, "max_total_tokens": 0, "used_model_calls": 3, ...}
+failures: [{"error_code": "budget_exhausted", ...}]
+```
+
+### 原因分析
+
+1. **工具名**：内部工具名用 `domain.action`（`lease.lookup`），OpenAI 兼容接口的函数名只允许
+   `[a-zA-Z0-9_-]`。离线引擎不校验名字，所以 299 项测试全绿也发现不了。
+2. **token 预算**：`Budget(max_total_tokens=0)` 的语义是"一个 token 都不许用"，
+   而 CLI 只设了 `max_model_calls`，于是第一次 token 结算就失败。
+3. **报告绑定**：`runner.py` 里 `model` 与 `cost_basis` 是硬编码常量，从未与实际客户端关联。
+
+### 解决方案
+
+1. `ToolSpec.name`（暴露名 `lease__lookup`）与 `ToolSpec.tool_name`（内部名）分离；
+   `run_tool_loop` 执行前映射回内部名；`ToolSpecBuilder` 对映射冲突显式报错。
+2. CLI `investigate --budget-tokens`（默认 20000）；基线模型路径 `max_total_tokens=60000`/题。
+   保持 0 = 禁用的语义不变。
+3. `_model_binding(model_client)` 按实际 provider 填写；`cost_basis` 区分
+   `unavailable_offline_no_pricing` 与 `unavailable_no_pricing`；加 2 条回归测试。
+
+### 如何避免再次出现
+
+1. **真实 provider 的契约要在边界处被测**：至少一条"暴露给模型的名字"的断言
+   （本轮已加：`assertNotIn(".", " ".join(exposed))`）。
+2. **"0 = 禁用"这类语义要有对照测试**：否则接入新路径时必然踩到。
+3. **报告里的"元信息"必须由事实生成**，不能是常量字符串。报告自述与数据矛盾，
+   比数据错误更难被发现——因为读者会先信自述。
+
+---
+
 ## [2026-11-07] 任务 019：`.env.example` 承诺的 `.env` 支持从未实现
 
 - **关联任务**：019

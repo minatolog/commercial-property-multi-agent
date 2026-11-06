@@ -84,6 +84,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 017 | 2026-11-07 | 06_testing | 修复复查与 R1–R7 修复（261 项测试通过；真实模型/PG 仍待外部条件） | [2026-11-07_017_release_candidate_recheck.md](./prompts/06_testing/2026-11-07_017_release_candidate_recheck.md) |
 | 018 | 2026-11-07 | 04_agents | 模型驱动的领域 Agent 与 B/C 真实运行入口（`--model-provider offline/scripted/deepseek`；284 项测试通过） | [2026-11-07_018_model_driven_agents.md](./prompts/04_agents/2026-11-07_018_model_driven_agents.md) |
 | 019 | 2026-11-07 | 01_environment | 让 `.env` 真正生效（环境变量填写路径；299 项测试通过） | [2026-11-07_019_env_file_loading.md](./prompts/01_environment/2026-11-07_019_env_file_loading.md) |
+| 020 | 2026-11-07 | 04_agents | 真实 DeepSeek 首跑与 3 项装配修复（301 项测试通过；真实 dev 评测已归档） | [2026-11-07_020_real_model_first_run.md](./prompts/04_agents/2026-11-07_020_real_model_first_run.md) |
 
 ---
 

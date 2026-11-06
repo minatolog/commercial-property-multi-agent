@@ -58,6 +58,28 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-07] 任务 020 - 真实 DeepSeek 首跑与 3 项装配修复
+
+- **开发阶段**：真实服务集成 / 缺陷修复。
+- **对应任务**：020（项目所有者填入真实密钥后首次真实调用）。
+- **Git 分支**：`main`。
+- **Commit Hash**：提交后回填。
+- **变更**：工具名暴露映射、token 预算、报告模型绑定与成本口径、真实调用证据归档。
+- **验证结果**：
+  - `python -m unittest discover -s tests -p "test_*.py"` → **301 项通过**（1 项 skip）；
+  - `python tests/smoke_agent_contracts.py` → **57 项通过**；
+  - `ask --provider deepseek` 成功（3 模型 / 3 工具 / 6325 tokens）；
+  - `investigate --model-provider deepseek` → `conflicting` + 756.00，8 模型 / 12 工具 / 14,421 tokens；
+  - `evaluate --split dev --model-provider deepseek` → B 1/7、C 0/6，报告头部正确标注 `deepseek/deepseek-chat`。
+- **未完成**：heldout 真实对照、重复测量稳定性、成本定价、PostgreSQL、人工量表、部署。
+- **回滚参考**（仅在项目所有者确认后执行）：
+
+```powershell
+git --no-pager show <hash> --stat
+```
+
+---
+
 ## [2026-11-07] 任务 019 - 让 `.env` 真正生效
 
 - **开发阶段**：环境配置 / 可用性修复。

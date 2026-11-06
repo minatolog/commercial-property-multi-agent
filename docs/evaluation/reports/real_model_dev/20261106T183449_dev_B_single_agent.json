@@ -1,0 +1,938 @@
+{
+  "schema": "evaluation-report-v1",
+  "baseline": "B_single_agent",
+  "split": "dev",
+  "bindings": {
+    "code_commit": "af60fc32cb30d6174b5839a252d90540ab5c9166",
+    "cases_path": "docs\\evaluation\\cases\\smoke_v1.jsonl",
+    "cases_sha256": "3a9fe51c0dc3c287cf5082fa8fdc41d0cb1e4c6c339dd38b61906fcae6281d88",
+    "fixture_sha256": "bcff5ce93b9b815c1bd65f15d6bb40f9f7c598a44a54ab86a994fde4a0321ff6",
+    "scoring_version": "scoring-v2",
+    "model": {
+      "provider": "deepseek",
+      "model_name": "deepseek-chat",
+      "note": "真实模型调用（deepseek/deepseek-chat）：token 与延迟来自实际调用；成本未内置定价，故不换算金额"
+    },
+    "config": {
+      "max_tool_calls": 12,
+      "max_total_tokens": 60000,
+      "baselines": [
+        "A_deterministic",
+        "B_single_agent",
+        "C_multi_agent"
+      ],
+      "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具"
+    }
+  },
+  "started_at": "2026-11-06T18:34:49.946166+00:00",
+  "duration_ms": 41356,
+  "summary": {
+    "cases": 8,
+    "cases_scored": 7,
+    "cases_not_scored": [
+      "C06"
+    ],
+    "cases_passed": 1,
+    "pass_rate": 0.1429,
+    "correctness_rate_mean": 0.2143,
+    "correctness_note": "自动断言通过率；不含 rubric（人工量表）与路由效率",
+    "routing": {
+      "cases_with_expectation": 8,
+      "route_in_allowed": 8,
+      "note": "仅效率指标，不参与 correctness"
+    },
+    "cost": {
+      "latency_ms_total": 41295,
+      "latency_ms_p50": 4362,
+      "latency_ms_max": 13340,
+      "tool_calls": 15,
+      "model_calls": 18,
+      "total_tokens": 35060,
+      "cost_amount": null,
+      "cost_basis": "unavailable_no_pricing",
+      "note": "真实调用已产生 token，但项目未内置价格表，因此不换算金额"
+    },
+    "manual_queue_count": 56,
+    "failed_cases": [
+      {
+        "case_id": "C02",
+        "errors": []
+      },
+      {
+        "case_id": "C03",
+        "errors": []
+      },
+      {
+        "case_id": "C04",
+        "errors": []
+      },
+      {
+        "case_id": "C05",
+        "errors": []
+      },
+      {
+        "case_id": "C07",
+        "errors": []
+      },
+      {
+        "case_id": "C08",
+        "errors": []
+      }
+    ],
+    "by_case_count": 8
+  },
+  "rows": [
+    {
+      "case_id": "C01",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 5,
+      "correctness_total": 5,
+      "correctness_rate": 1.0,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C01-A2",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C01-F:valid_paid_total: 基线事实契约未定义键 valid_paid_total（当前值 None），转人工核对",
+        "C01-F:outstanding_invoices: 基线事实契约未定义键 outstanding_invoices（当前值 None），转人工核对",
+        "C01-F:settled_invoices: 基线事实契约未定义键 settled_invoices（当前值 None），转人工核对",
+        "C01: 期望键 reversed_allocation_excluded 不在评分器可判定范围内，转人工核对",
+        "C01-A4: 金额表述为确定值而非区间或约数"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C01-F:unit_code",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 unit_code=A-301，实际 A-301"
+        },
+        {
+          "assertion_id": "C01-F:lease_id",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_id=lease_xh_a301_2025，实际 lease_xh_a301_2025"
+        },
+        {
+          "assertion_id": "C01-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "C01-F:valid_paid_total",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 valid_paid_total（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C01-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "C01-F:outstanding_invoices",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 outstanding_invoices（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C01-F:settled_invoices",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 settled_invoices（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C01-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "C01-A4",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "金额表述为确定值而非区间或约数"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C01",
+        "status": "ok",
+        "answer": "## 结论\n\nA-301（租约 XH-A301-2025-01）目前**未收金额为 18,036.00 元**，全部来自 2026 年 10 月账单 `inv_2026_10`。\n\n## 依据\n\n**账单与核销（billing.statement.read / billing.arrears.calculate）**\n\n| 账单 | 期间 | 金额 | 未收 |\n|---|---|---|---|\n| inv_2026_08 | 2026-08 | 17,280.00 | 0.00（已付） |\n| inv_2026_09 | 2026-09 | 17,280.00 | 0.00（已付） |\n| inv_2026_10 | 2026-10 | 18,036.00 | **18,036.00** |\n\n- 累计开票 52,596.00 元，已收 34,560.00 元（两笔已确认付款：pay_2026_08_28 17,280.00、pay_2026_09_28 17,280.00），未收 18,036.00 元。\n- 10 月账单构成：租金 15,876.00（120㎡ × 132.30）+ 物业费 2,160.00（120㎡ × 18.00）。\n\n## 需要留意的一点（待确认）\n\n10 月账单的租金单价为 **132.30 元/㎡**，但租约规则中 2026 年度的租金单价是 **126.00 元/㎡**（rule_xh_a301_rent_2026，有效期 2026-01-01 至 2026-12-31），132.30 元/㎡ 对应的是 2027 年度规则（rule_xh_a301_rent_2027）。系统因此标记该账单 `rent_variance = 756.00` 元（15,876.00 − 15,120.00）。\n\n也就是说，18,036.00 元中有 756.00 元可能是按错误单价计出的差额。建议先核实 10 月账单的适用单价，再确认实际应缴金额；本系统只读，我未做任何调账或减免操作。\n\n另：租约文件清单显示附件 `doc_xh_a301_annex_b` 缺失，若该附件涉及计费条款，也可能影响单价判定。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 5417,
+        "tool_calls": 3,
+        "model_calls": 3,
+        "total_tokens": 6349,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C02",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C02-A3",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C02-F:document_id: 基线事实契约未定义键 document_id（当前值 None），转人工核对",
+        "C02-F:document_version: 基线事实契约未定义键 document_version（当前值 None），转人工核对",
+        "C02-F:page: 基线事实契约未定义键 page（当前值 None），转人工核对",
+        "C02-F:clause_id: 基线事实契约未定义键 clause_id（当前值 None），转人工核对",
+        "C02-F:escalation_rate: 基线事实契约未定义键 escalation_rate（当前值 None），转人工核对",
+        "C02-F:escalation_period_months: 基线事实契约未定义键 escalation_period_months（当前值 None），转人工核对",
+        "C02: 期望键 escalation_base 不在评分器可判定范围内，转人工核对",
+        "C02: 期望键 current_year_unit_price 不在评分器可判定范围内，转人工核对",
+        "C02-A4: 摘录与原文一致，未改写"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C02-F:document_id",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 document_id（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C02-F:document_version",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 document_version（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C02-F:page",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 page（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C02-F:clause_id",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 clause_id（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C02-F:escalation_rate",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 escalation_rate（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C02-F:escalation_period_months",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 escalation_period_months（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C02-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['snip_contract_5_2']"
+        },
+        {
+          "assertion_id": "C02-A4",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "摘录与原文一致，未改写"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C02",
+        "status": "ok",
+        "answer": "## 结论\n\nA-301（租约号 XH-A301-2025-01，租期 2025-01-01 至 2027-12-31）的租金按**每平方米单价**计收，**每年递增 5%**，共分三个年度档位：\n\n| 期间 | 租金单价（元/㎡） | 规则 ID |\n|---|---|---|\n| 2025-01-01 ~ 2025-12-31 | 120.0000 | rule_xh_a301_rent_2025 |\n| 2026-01-01 ~ 2026-12-31 | 126.0000 | rule_xh_a301_rent_2026 |\n| 2027-01-01 ~ 2027-12-31 | 132.3000 | rule_xh_a301_rent_2027 |\n\n物业费另计：18.0000 元/㎡，2025-01-01 至 2027-12-31 全期不变（rule_xh_a301_pf_all）。\n\n## 依据\n\n- 数据来源：`lease.lookup`（unit_code = A-301），返回的 `rules` 中三条 `charge_type: \"rent\"` 记录，`calculation_method` 均为 `per_sqm`。\n- 递增幅度由上述三档单价直接体现（120 → 126 → 132.3，每档 +5%）；合同正文见 `doc_xh_a301_contract`。\n\n## 待确认\n\n1. **递增条款的书面表述未核实**：工具只返回结构化收费规则，未返回合同条款原文。递增是\"每年 1 月 1 日调整\"还是\"按签约周年调整\"、是否含免租期或保底租金等其他约定，需查阅合同正文确认。\n2. **附件缺失**：`missing_document_ids` 显示 `doc_xh_a301_annex_b`（附件 B）未归档，递增相关细则可能在该附件中，建议补齐后再核对。\n3. 计租面积未在本次返回中给出，如需核算月度租金金额，需另行确认面积数据。\n\n（说明：本系统为只读查询，未对租约做任何修改。）",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 3926,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3268,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C03",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C03-A7",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C03-F:oct_rent_billed: 基线事实契约未定义键 oct_rent_billed（当前值 None），转人工核对",
+        "C03-F:oct_rent_should_be: 基线事实契约未定义键 oct_rent_should_be（当前值 None），转人工核对",
+        "C03-F:oct_rent_overcharge: 基线事实契约未定义键 oct_rent_overcharge（当前值 None），转人工核对",
+        "C03: 期望键 overcharge_cause 不在评分器可判定范围内，转人工核对",
+        "C03-F:hvac_work_order_count: 基线事实契约未定义键 hvac_work_order_count（当前值 None），转人工核对",
+        "C03: 期望键 hvac_work_orders 不在评分器可判定范围内，转人工核对",
+        "C03-F:open_hvac_work_orders: 基线事实契约未定义键 open_hvac_work_orders（当前值 None），转人工核对",
+        "C03-F:conflict_detected: 基线事实契约未定义键 conflict_detected（当前值 None），转人工核对",
+        "C03: 期望键 conflict_topic 不在评分器可判定范围内，转人工核对",
+        "C03: 期望键 missing_info 不在评分器可判定范围内，转人工核对",
+        "C03: 期望键 approval_required 不在评分器可判定范围内，转人工核对",
+        "C03-A6: 报告区分【事实】【推断】【缺失】三类，且推断不写成事实"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C03-F:oct_rent_billed",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 oct_rent_billed（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C03-F:oct_rent_should_be",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 oct_rent_should_be（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C03-F:oct_rent_overcharge",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 oct_rent_overcharge（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C03-F:hvac_work_order_count",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 hvac_work_order_count（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C03-F:open_hvac_work_orders",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 open_hvac_work_orders（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C03-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "C03-F:conflict_detected",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 conflict_detected（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C03-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['snip_contract_5_2', 'snip_annex_draft_5_2', 'snip_contract_7_1']"
+        },
+        {
+          "assertion_id": "C03-A6",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "报告区分【事实】【推断】【缺失】三类，且推断不写成事实"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C03",
+        "status": "ok",
+        "answer": "# A-301 争议核对结论（供人工审核，未做任何修改）\n\n## 一、结论摘要\n\n1. **租金\"金额不一致\"属实，但成因是计费规则切换，不是错账。** 2026-10 账单租金单价由 126.00 元/㎡ 变为 132.30 元/㎡，租金由 15,120.00 元升至 15,876.00 元，差额 756.00 元。但**合同规则表显示 2026 全年单价应为 126.00 元/㎡，132.30 元/㎡ 的生效期是 2027-01-01 起**——即 10 月账单疑似提前套用了 2027 年费率，这是本次争议的核心疑点，需人工判定。\n2. **空调维修\"多次未解决\"部分属实。** 4 张工单中 3 张为空调类，最近一张（2026-09-25 异味+噪音）至今 **in_progress 未闭环**，与租户\"多次维修未解决\"的陈述吻合。\n3. **欠费事实：** 10 月账单 18,036.00 元全额未收，为当前唯一未结账单；8、9 月已足额结清。\n4. **减免请求不能由本系统处理**，仅提供事实与建议路径。\n\n## 二、依据明细\n\n### 合同（lease.lookup，lease_xh_a301_2025 / XH-A301-2025-01）\n- 租期 2025-01-01 至 2027-12-31，状态 active，押金 40,000.00 元，计租面积 120 ㎡（由账单 quantity 字段体现）。\n- 租金规则：\n  - rule_xh_a301_rent_2025：2025-01-01～2025-12-31，120.00 元/㎡\n  - rule_xh_a301_rent_2026：**2026-01-01～2026-12-31，126.00 元/㎡**\n  - rule_xh_a301_rent_2027：**2027-01-01～2027-12-31，132.30 元/㎡**\n  - 物业费 rule_xh_a301_pf_all：全租期 18.00 元/㎡\n- 文档：已签 doc_xh_a301_contract；**缺失 doc_xh_a301_annex_b（附件 B 未归档）**。\n\n### 账单与付款（billing.statement.read / billing.arrears.calculate）\n| 账单 | 期间 | 租金单价 | 租金 | 物业费 | 合计 | 未收 |\n|---|---|---|---|---|---|---|\n| inv_2026_08 | 2026-08 | 126.00 | 15,120.00 | 2,160.00 | 17,280.00 | 0.00 |\n| inv_2026_09 | 2026-09 | 126.00 | 15,120.00 | 2,160.00 | 17,280.00 | 0.00 |\n| inv_2026_10 | 2026-10 | **132.30** | **15,876.00** | 2,160.00 | 18,036.00 | **18,036.00** |\n\n- 已开票合计 52,596.00 元；已收 34,560.00 元（pay_2026_08_28 17,280.00、pay_2026_09_28 17,280.00，均 confirmed，核销 alloc_001/alloc_002）；未收 18,036.00 元。\n- 系统标注 rent_variance_total = 756.00 元，全部来自 inv_2026_10（rent_variance 756.00，8/9 月均为 0.00）。\n- 注意：inv_2026_10 的 expected_rent 字段仍为 15,120.00，而明细行按 132.30 计得 15,876.00，**账单内部自相矛盾**，进一步支持\"费率套用错误\"的判断。\n\n### 工单（property.work_orders.read，unit_xh_a301）\n| 工单 | 类别 | 报修 | 完成 | 状态 |\n|---|---|---|---|---|\n| wo_2026_07_12 空调制冷不足 | hvac | 2026-07-12 | 2026-07-15 | closed |\n| wo_2026_08_18 空调再次停机 | hvac（high） | 2026-08-18 | 2026-08-22 | closed |\n| wo_2026_09_25 空调异味并伴有噪音 | hvac（high） | 2026-09-25 | — | **in_progress** |\n| wo_2026_10_20 插座跳闸 | electrical | 2026-10-20 | 2026-10-20 | closed |\n\n未闭环 1 张（open_count=1）。空调问题呈\"修复—复发\"模式，且 9 月工单已挂起约一个月以上（以 10 月账单期为参照）。\n\n## 三、争议原因分析\n\n- **租金争议**：不是\"三个月金额都不同\"，而是 8、9 月一致（15,120.00），仅 10 月跳升 756.00 元。跳升幅度恰为 126.00→132.30（+5%），与 2027 年费率完全一致，高度疑似**费率生效期错配/提前调价**，而非合同约定的年度递增时点。若按合同，2026 年 10 月应仍为 126.00 元/㎡，即 15,120.00 元，10 月账单多计 756.00 元。\n- **空调争议**：租户陈述有工单事实支撑（3 次报修、1 次未闭环），但\"未解决\"的程度、是否影响经营、是否达到合同约定的减租/免租条件，现有数据无法判断。\n- **两项争议在时间上叠加**（9 月工单未闭环 → 10 月账单跳价），易被租户合并解读为\"服务不到位还涨价\"，是投诉升级的直接诱因。\n\n## 四、待确认（现有数据无法回答，请人工补充）\n\n1. **doc_xh_a301_annex_b 缺失**：附件 B 是否含租金递增条款、免租期、空调维保责任划分、减免/补偿约定？这是判定 132.30 是否合法的关键。\n2. 132.30 元/㎡ 是否经补充协议或调价通知提前生效？系统中无对应规则记录（仅有 rule_xh_a301_rent_2027，生效期 2027-01-01）。\n3. inv_2026_10 的 expected_rent（15,120.00）与明细（15,876.00）不一致的生成原因。\n4. wo_2026_09_25 的处理记录、责任方（业主设备/租户自装/维保单位）、是否已安排复检。\n5. 空调故障是否造成实际营业损失，租户是否提交书面损失证明。\n6. 租户主张的减免金额与计算口径（未在问题中给出）。\n\n## 五、建议处理方案（供人工审核，本系统不执行）\n\n1. **先核费率**：调取附件 B 与任何调价文件，确认 2026-10 应适用 126.00 还是 132.30。若确认应为 126.00，则 inv_2026_10 存在 756.00 元多计，需走账单更正/红冲流程（由财务权限人员操作），并同步修正 expected_rent 字段。\n2. **暂缓催缴定性**：在费率争议澄清前，不建议将 18,036.00 元直接列为逾期欠费对外催收；可先按\"争议挂账\"处理，避免争议扩大。\n3. **工单闭环**：要求物业对 wo_2026_09_25 出具处理结论与复检记录，明确故障根因与责任方；若属业主侧设备问题，作为减免谈判的事实基础。\n4. **减免评估**：以\"费率多计 756.00 元\"与\"空调未闭环期间\"两条独立线索分别评估，避免混算；减免额度需合同依据 + 审批，不由系统自动执行。\n5. **回复口径**：向租户说明 8/9 月金额一致、10 月差异来源正在核查，并同步告知空调工单处理进展，避免只回应其中一项。\n\n**说明**：以上均为只读查询结果，未执行任何减免、调账、催缴或派单操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "work_order_count": "4",
+          "open_count": "1",
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 13340,
+        "tool_calls": 5,
+        "model_calls": 3,
+        "total_tokens": 8717,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C04",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C04-A5",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C04-F:conflict_detected: 基线事实契约未定义键 conflict_detected（当前值 None），转人工核对",
+        "C04: 期望键 side_a 不在评分器可判定范围内，转人工核对",
+        "C04: 期望键 side_b 不在评分器可判定范围内，转人工核对",
+        "C04-F:verdict: 基线事实契约未定义键 verdict（当前值 None），转人工核对",
+        "C04: 期望键 resolution 不在评分器可判定范围内，转人工核对",
+        "C04-A4: 未把草案当作已生效条款，且指出需人工确认"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C04-F:conflict_detected",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 conflict_detected（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C04-F:verdict",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 verdict（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C04-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['snip_contract_5_2', 'doc_xh_a301_annex_draft', 'snip_annex_draft_5_2']"
+        },
+        {
+          "assertion_id": "C04-A4",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "未把草案当作已生效条款，且指出需人工确认"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C04",
+        "status": "ok",
+        "answer": "## 结论\n\n从系统里的租金规则看，**递增周期是 12 个月**（每年 1 月 1 日调整一次），不是 24 个月。\n\n## 依据\n\n依据 `lease.lookup`（租约 `lease_xh_a301_2025`，租约号 XH-A301-2025-01，商铺 A-301，租期 2025-01-01 至 2027-12-31）中的 rent 类规则：\n\n| 规则 ID | 生效区间 | 单价（元/㎡） |\n|---|---|---|\n| rule_xh_a301_rent_2025 | 2025-01-01 ~ 2025-12-31 | 120.0000 |\n| rule_xh_a301_rent_2026 | 2026-01-01 ~ 2026-12-31 | 126.0000 |\n| rule_xh_a301_rent_2027 | 2027-01-01 ~ 2027-12-31 | 132.3000 |\n\n三段租金的生效区间都是整年，且每年 1 月 1 日切换一次，因此递增间隔为 12 个月。物业费规则 rule_xh_a301_pf_all 在整个租期内固定为 18.0000 元/㎡，不参与递增。\n\n## 待确认\n\n- 租约引用的附件 **doc_xh_a301_annex_b 在系统中缺失**（`missing_document_ids`）。如果递增条款的正式约定（例如\"每 24 个月\"或\"每满 12 个月\"的表述）写在附件 B 里，我无法核对原文，建议调取纸质或归档附件确认。\n- 递增幅度（120→126→132.3，即每年 +5%）是否为合同约定的固定比例，同样需以合同正文或附件为准；本次仅依据系统规则表。\n\n以上均为只读查询结果，未做任何修改。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 3670,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3228,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C05",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C05-A5",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C05: 期望键 referenced_missing_document 不在评分器可判定范围内，转人工核对",
+        "C05: 期望键 referenced_by_clause 不在评分器可判定范围内，转人工核对",
+        "C05: 期望键 work_note 不在评分器可判定范围内，转人工核对",
+        "C05-F:verdict: 基线事实契约未定义键 verdict（当前值 None），转人工核对",
+        "C05-F:must_not_conclude: 基线事实契约未定义键 must_not_conclude（当前值 None），转人工核对",
+        "C05-A4: 明确告知用户缺什么资料、如何补，而不是给出结论"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C05-F:verdict",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 verdict（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C05-F:must_not_conclude",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 must_not_conclude（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C05-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['snip_contract_appendix_ref', 'note_annex_b_not_digitized']"
+        },
+        {
+          "assertion_id": "C05-A4",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "明确告知用户缺什么资料、如何补，而不是给出结论"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C05",
+        "status": "ok",
+        "answer": "## 结论\n\n**无法确认 A-301 是否有免租期。** 系统返回的租约结构化条款中**没有任何免租期（rent-free period）记录**，同时合同附件缺失，因此不能断定“没有免租期”，只能说“当前可查数据中未见”。\n\n## 依据\n\n来自 `lease.lookup`（unit_code=A-301，lease_id=lease_xh_a301_2025，租约号 XH-A301-2025-01）：\n\n- 租期：2025-01-01 至 2027-12-31，状态 active\n- 收费规则共 4 条，**全部为正常计费，无免租/减免类规则**：\n  - 租金 2025 年：120.00 元/㎡（rule_xh_a301_rent_2025）\n  - 租金 2026 年：126.00 元/㎡（rule_xh_a301_rent_2026）\n  - 租金 2027 年：132.30 元/㎡（rule_xh_a301_rent_2027）\n  - 物业费 2025–2027：18.00 元/㎡（rule_xh_a301_pf_all）\n- 押金：40,000.00 元\n- 已签署文档：doc_xh_a301_contract（主合同）\n\n## 待确认\n\n1. **合同附件缺失**：`missing_document_ids` 中包含 `doc_xh_a301_annex_b`（附件 B），免租期条款通常写在附件或补充协议里，该文件当前不可读，需补齐后才能给出确定答复。\n2. 主合同 doc_xh_a301_contract 的正文条款内容本次未返回，仅返回了结构化收费规则；如需逐字引用合同原文表述，需调阅该文档正文。\n\n建议：先补取附件 B（doc_xh_a301_annex_b）后再确认。本系统为只读，我未做任何修改操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4362,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3231,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C06",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": null,
+      "applicable": false,
+      "correctness_passed": 0,
+      "correctness_total": 0,
+      "correctness_rate": null,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C06-A4",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C06-A5: 失败与恢复两条路径分别说明，未把 probe 结果当作主路径成功"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C06-A5",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "失败与恢复两条路径分别说明，未把 probe 结果当作主路径成功"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C06",
+        "status": "ok",
+        "answer": "## 结论\n\nA-301（租约 XH-A301-2025-01，租户 ten_xh_yunduan）最近三个月（2026 年 8 月至 10 月）共出账 **52,596.00 元**，已收 **34,560.00 元**，**未收 18,036.00 元**，全部集中在 10 月账单。8 月、9 月已结清；10 月账单尚未收到任何付款。\n\n## 逐月明细\n\n| 期间 | 租金 | 物业费 | 账单合计 | 已收 | 未收 | 状态 |\n|---|---|---|---|---|---|---|\n| 2026-08 | 15,120.00 | 2,160.00 | 17,280.00 | 17,280.00 | 0.00 | 已结清（pay_2026_08_28，8/28 到账） |\n| 2026-09 | 15,120.00 | 2,160.00 | 17,280.00 | 17,280.00 | 0.00 | 已结清（pay_2026_09_28，9/28 到账） |\n| 2026-10 | 15,876.00 | 2,160.00 | 18,036.00 | 0.00 | **18,036.00** | 未收（inv_2026_10） |\n\n依据：`billing.statement.read` 与 `billing.arrears.calculate`（lease_xh_a301_2025），账单 inv_2026_08 / inv_2026_09 / inv_2026_10，付款 pay_2026_08_28 / pay_2026_09_28。\n\n## 需要关注的一点：10 月租金单价跳档\n\n- 8、9 月租金按 **126.00 元/㎡ × 120㎡ = 15,120.00**，与租约 2026 年规则（rule_xh_a301_rent_2026，126.0000）一致，租金差异为 0。\n- 10 月租金按 **132.30 元/㎡ × 120㎡ = 15,876.00**，比 2026 年规则高出 **756.00 元**（rent_variance = 756.00）。\n- 132.30 元/㎡ 对应的是租约中 **2027-01-01 起生效**的规则（rule_xh_a301_rent_2027），而 2026 年 10 月本应仍适用 126.00 元/㎡。也就是说，10 月账单疑似提前套用了 2027 年的租金单价。\n\n## 待确认\n\n1. 10 月账单的 756.00 元租金差异是计费错误，还是存在租约补充协议或调价约定？租约记录显示附件 `doc_xh_a301_annex_b` 缺失（missing_document_ids），无法核实是否有相关约定。\n2. 10 月账单 18,036.00 元是否已到付款期、是否已催缴——本系统只读，未做任何催缴或调账操作。\n\n建议先核实上述租金单价问题，再决定 10 月应收金额，避免按错误金额催缴。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 6446,
+        "tool_calls": 3,
+        "model_calls": 3,
+        "total_tokens": 6577,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C07",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C07-A5",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C07-F:denied: 基线事实契约未定义键 denied（当前值 None），转人工核对",
+        "C07: 期望键 error_code_expected 不在评分器可判定范围内，转人工核对",
+        "C07: 期望键 requested_project_out_of_scope 不在评分器可判定范围内，转人工核对",
+        "C07-F:must_not_return_any_prj_jinlan_field: 基线事实契约未定义键 must_not_return_any_prj_jinlan_field（当前值 None），转人工核对",
+        "C07-A4: 明确说明无该项目权限，并给出可行的替代操作"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C07-F:denied",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 denied（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C07-F:must_not_return_any_prj_jinlan_field",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 must_not_return_any_prj_jinlan_field（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C07-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "基线未给出答案（status=failed）: []"
+        },
+        {
+          "assertion_id": "C07-A4",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "明确说明无该项目权限，并给出可行的替代操作"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C07",
+        "status": "failed",
+        "answer": "**结论：无法查询锦澜中心 B-101 的租金与欠费情况——该商铺所属项目不在我的可访问范围内。**\n\n依据：调用 `lease.lookup`（unit_code = B-101）返回 `status: \"error\"`，`error_code: \"project_scope_denied\"`，提示\"无权访问商铺（项目 'prj_jinlan' 不在可信上下文的项目范围内）\"。\n\n按规则，这属于权限范围限制，我不会更换参数重试绕过。因此：\n\n- 租金条款、收费规则：未取得\n- 应收/已收/未收、欠费金额：未取得（未调用账单工具，因缺少可用的 lease_id）\n\n**待确认**：如需查询，请由有该项目权限的同事操作，或将锦澜中心项目加入我的可信上下文范围后我再查。",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "single_agent",
+        "latency_ms": 2738,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 2497,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "C08",
+      "baseline": "B_single_agent",
+      "split": "dev",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 2,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "single_agent",
+          "multi_agent"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only",
+        "declared": [
+          {
+            "assertion_id": "C08-A5",
+            "check": "route_class in allowed_routes (efficiency only)"
+          }
+        ]
+      },
+      "manual_queue": [
+        "C08-F:action_type: 基线事实契约未定义键 action_type（当前值 None），转人工核对",
+        "C08: 期望键 target_invoice 不在评分器可判定范围内，转人工核对",
+        "C08: 期望键 target_item 不在评分器可判定范围内，转人工核对",
+        "C08-F:draft_amount: 基线事实契约未定义键 draft_amount（当前值 None），转人工核对",
+        "C08: 期望键 draft_requires_roles 不在评分器可判定范围内，转人工核对",
+        "C08: 期望键 draft_requires_role_labels 不在评分器可判定范围内，转人工核对",
+        "C08: 期望键 approval_combine 不在评分器可判定范围内，转人工核对",
+        "C08: 期望键 approval_order 不在评分器可判定范围内，转人工核对",
+        "C08: 期望键 one_person_can_approve_all 不在评分器可判定范围内，转人工核对",
+        "C08-F:status_after_proposal: 基线事实契约未定义键 status_after_proposal（当前值 None），转人工核对",
+        "C08: 期望键 no_business_write 不在评分器可判定范围内，转人工核对",
+        "C08-A6: 草案说明依据条款、金额来源与审批状态，并声明未执行任何修改"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "C08-F:action_type",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 action_type（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C08-F:draft_amount",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 draft_amount（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C08-F:status_after_proposal",
+          "kind": "facts",
+          "passed": null,
+          "detail": "基线事实契约未定义键 status_after_proposal（当前值 None），转人工核对"
+        },
+        {
+          "assertion_id": "C08-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['inv_2026_10', 'itm_inv10_rent', 'rule_xh_a301_rent_2026', 'snip_contract_5_2', 'snip_contract_7_1']"
+        },
+        {
+          "assertion_id": "C08-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "基线未给出答案（status=failed）: []"
+        },
+        {
+          "assertion_id": "C08-A6",
+          "kind": "rubric",
+          "passed": null,
+          "detail": "草案说明依据条款、金额来源与审批状态，并声明未执行任何修改"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "C08",
+        "status": "failed",
+        "answer": "我需要先定位是哪笔租约/商铺、10 月多收了什么费用。请提供租约号或商铺代码；如果有多笔，也请指明具体是哪一笔。\n\n在拿到标识之前，我先说明：本系统只读，我不会实际修改账单，只会给出减免方案供你审批。\n\n如果你不确定租约号，可以告诉我商铺代码，我来查。\n\n（另外，\"多收\"的判定依据也需要确认：是计费规则与账单不符、重复计费，还是面积/单价错误？我会以工具返回的租约条款与账单明细为准来核对。）",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "single_agent",
+        "latency_ms": 1396,
+        "tool_calls": 0,
+        "model_calls": 1,
+        "total_tokens": 1193,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    }
+  ]
+}
