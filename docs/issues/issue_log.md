@@ -4,6 +4,50 @@
 
 ---
 
+## [2026-11-07] Q1–Q3 已修复并自检通过（token 闸门 / 单 Agent 范围 / 资金结论）
+
+- **关联任务**：024；对应 022 复查的三项 P1。
+- **状态**：已修复，DeepSeek 自检通过（不属于 Codex 复核结论）。
+
+| 编号 | 现象 | 根因 | 解决 | 预防 |
+|---|---|---|---|---|
+| Q1 | token 上限 5、单次响应 10 tokens，图补查仍发出第二次物理请求（共 20 tokens、exceeded 15） | `reserve_model_call` 只看模型调用次数，不看 token 剩余额度；token 只能在响应后得知，于是"明知已耗尽仍继续发" | 把 token 剩余额度并入模型预留（同锁判定），零额度/超额一律拒绝；`max_total_tokens` 三态（`None`/`0`/正数）；`BudgetUsage.tokens_exhausted` | `test_token_budget_gate.py`：零额度、首次超额后不再增长、并发共享预算、Agent 重试、图补查 |
+| Q2 | 目标 A-301 时，B/单 Agent 取回 B-101 账单并 `success` | `SingleToolAgent` 未构造 `TaskScope`、未传 `prepare_arguments`、事实归并前不校验实体 | 下沉 `TaskScope.from_payload` + `scope_arguments_hook` 供领域 Agent 与单 Agent 共用；单 Agent 增加实体校验与"有目标业务查询无事实 → insufficient_evidence" | `test_single_agent_scope.py`：错租约、省略注入、被拒后纠正、跨租约文档、纯说明与多目标比较 |
+| Q3 | 应收/已收/未收写反仍判 `consistent` 且满分 4/4；"未收 0.00 已结清"只标 incomplete | 只比对"数字是否在可信集合"，没有绑定字段 | 结构化 `FundConclusion`（只从 facts 赋值）+ 用户可见金额渲染 + 字段级核对；评分升 `scoring-v3.2`/`v3.3`，`fund` 为主断言、`answer` 降为辅助；`unverified` 单独统计不冒充通过 | `test_fund_conclusions.py`：写反、错结清、只答未收、合法明细、表格行、合计口径、整数金额、数据变体 |
+
+> **Q3 的规则在真机首测后收紧过一次**：`scoring-v3.2` 把明细表格里的"应收租金 15,120.00"
+> 当成应收合计，被真实 DeepSeek 触发一次误报（`real_model_v2/20261106T2051_*`）。v3.3 加入
+> "合计词优先 / 跳过表格行 / 多合计值判 unverified"，复测为 `verified`（`20261106T2053_*`）。
+
+- **验证**：399 tests OK（skipped=1）；57 项契约检查；scripted/offline/sqlite CLI 均 exit 0；heldout A 20/30、B 21/30、C 23/30（`scoring-v3.3`），资金结论 9/9、11/11、11/11，C 有 3 题显式"未验证"。
+- **遗留**：真实 heldout 正式实验、PostgreSQL 实机、人工量表、独立模型配置策略仍未完成。
+
+---
+
+## [2026-11-07] N1–N6 复查仍有三个未闭合问题
+
+- **关联任务**：022；关联 021。
+- **严重程度**：高（Q1–Q3 为 P1）。
+- **状态**：未解决，本轮仅复查。
+
+### 现象与实际结果
+
+token 上限 5、首次响应消耗 10 后，图仍补查再次调用，最终消耗 20；B 基线接受了 B-101 账单回答 A-301；正确数字被写到错误金额字段时，scoring-v3.1 仍判答案 consistent、4/4 满分。
+
+### 原因分析
+
+模型发送前只检查请求次数；SingleToolAgent 未使用领域 Agent 的 TaskScope；叙述校验检查金额集合而非字段与数值的对应关系。
+
+### 解决方案
+
+待实施，具体位置、复现与验收标准见 [Task 022 报告](../reviews/2026-11-07_model_fixes_recheck.md)。
+
+### 如何避免再次出现
+
+将费用闸门放在物理发送前，检查所有共享预算入口；Single/B 和领域/C 共用范围契约；使用结构化资金结论与可信展示字段验证最终答案，测试字段互换和错误结清，不能只验证数字是否曾出现在工具中。
+
+---
+
 ## [2026-11-07] N1–N6 已修复并自检通过（模型路径缺陷闭环）
 
 - **关联任务**：021 实施；对应上一条"新模型路径存在预算、目标范围与完成语义缺陷"。

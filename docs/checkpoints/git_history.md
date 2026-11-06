@@ -2,6 +2,57 @@
 
 记录每个开发阶段对应的 Git 提交，用于追溯与回滚。
 
+## [2026-11-07] 任务 024 - 修复 Q1–Q3（token 闸门 / 单 Agent 范围 / 资金结论）
+
+- **开发阶段**：缺陷修复 / 测试。
+- **代码基线**：`main` / `2512a3b`（保留 Codex 的 Task 022/023 文档）。
+- **Git 分支**：`main`。
+- **Commit Hash**：`Pending`（提交后回填）。
+- **本次变更**：
+
+  | 文件 | 变更类型 |
+  |---|---|
+  | `backend/app/runtime/budget.py`、`types.py` | 修改（token 闸门、`max_total_tokens` 三态、`tokens_exhausted`） |
+  | `backend/app/agents/base/scope.py` | 修改（`from_payload` / `mode` / `lease_ids` / `scope_arguments_hook` 共用） |
+  | `backend/app/agents/base/conclusions.py` | 新增（结构化资金结论 + 渲染 + 字段级核对） |
+  | `backend/app/agents/base/llm_agent.py`、`single/agent.py` | 修改（共用 scope 钩子；Q2 单 Agent 接入；资金结论输出） |
+  | `backend/app/orchestration/investigation.py` | 修改（`authoritative_amounts`、discrepancy 分类） |
+  | `backend/app/evaluation/scoring.py`、`runner.py`、`baselines.py` | 修改（`scoring-v3.3`、`fund` 主断言、`by_kind` 三分解） |
+  | `backend/tests/test_token_budget_gate.py`、`test_single_agent_scope.py`、`test_fund_conclusions.py` | 新增 54 项回归 |
+  | `docs/evaluation/scoring_v3.md`、`reports/20261106T205403_*`、`20261106T205407_*`、`reports/real_model_v2/*` | 新增/更新（规则、v3.3 报告、真实核验） |
+
+- **验证结果**：
+
+  | 验证项 | 结果 |
+  |---|---|
+  | `python -m unittest discover -s tests -p "test_*.py"` | 399 tests，OK（skipped=1） |
+  | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+  | `investigate --model-provider scripted --budget-tokens 5000` | exit 0，`conflicting`、`failures=[]` |
+  | `investigate`（offline） / `--backend sqlite` | 均 exit 0 |
+  | `evaluate --split heldout` | A 20/30、B 21/30、C 23/30（`scoring-v3.3`） |
+  | 真实 DeepSeek 单题（30k token 上限） | 物理请求 7 = 账本 7、13,452 tokens、`fund_status=verified`、0 discrepancy |
+
+- **建议 Commit Message**：`fix(runtime,agents,eval): gate model calls on token budget, share task scope, bind fund conclusions`
+- **回滚参考命令**：`git revert <hash>` / `git show <hash> --stat`
+
+## [2026-11-07] 任务 023 - 仓库状态与项目进度文档（未提交）
+
+- **代码基线**：`2512a3b`，本地和通过 `git ls-remote` 查询的 GitHub main 一致；没有新的业务代码交付。
+- **本轮 Commit**：`Pending`，未提交或推送。
+- **变更**：进度说明、023 Prompt、索引/路线图入口/开发日志/检查点。保留原 Task 022 未提交审查文档。
+- **验证**：Git 分支、唯一 worktree、工作区和远端状态核实；本轮没有重新运行测试或验收新修复。
+- **建议 Commit Message**：`docs: record repository delivery state and concrete MVP progress`。
+- **范围确认**：用户补充的 N1–N6 完成说明与 `2512a3b` 一致；后续 Q1–Q3 尚未交付。下一步实施并复验 Q1–Q3；不自动执行回滚或改写历史。
+
+## [2026-11-07] 任务 022 - 模型修复复查文档（未提交）
+
+- **代码基线**：`main` / `2512a3b`，开始时工作区干净、与本地 origin/main 一致。
+- **本轮 Commit**：`Pending`，未提交或推送。
+- **变更**：新增 022 Prompt、N1–N6 复查报告；更新索引、路线图提示、开发日志与问题入口。没有业务代码修复。
+- **验证**：345 tests OK（skipped=1）、57 项契约、scripted CLI 通过；离线评测重现；独立发现 Q1–Q3。
+- **建议 Commit Message**：`docs: recheck model fixes and record remaining Q1-Q3 defects`。
+- **回滚说明**：本轮仅未提交文档，先审查差异，不自动执行回滚或改写历史。
+
 ## [2026-11-07] 任务 021（实施）- 修复模型链路 N1–N6
 
 - **开发阶段**：缺陷修复 / 测试。

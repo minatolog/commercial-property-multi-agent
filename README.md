@@ -38,7 +38,7 @@ python -m app.cli tools
 python -m app.cli check
 python tests/smoke_agent_contracts.py
 
-# 4) 跑一遍完整回归（345 项）
+# 4) 跑一遍完整回归（399 项）
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -213,21 +213,22 @@ python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁
 python -m app.cli evaluate --split heldout
 ```
 
-保留集 v3（离线，`scoring-v3.1`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
+保留集 v3（离线，`scoring-v3.3`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
 
-| 基线 | 架构 | 计分题通过 | 自动断言通过率 | 工具事实断言 | 最终答案断言 | 工具调用 | token | 成本 |
-|---|---|---|---|---|---|---|---|---|
-| `A_deterministic` | 意图表 → 单次工具 | 20/30 | 0.725 | 28/33 | 9/9 | 27 | 0 | n/a（离线） |
-| `B_single_agent` | 单 Agent 汇总全部工具 | 21/30 | 0.7667 | 29/33 | 11/11 | 38 | 0 | n/a（离线） |
-| `C_multi_agent` | LangGraph 分解 + 核验 | 23/30 | 0.8417 | 30/33 | 11/11 | 47 | 0 | n/a（离线） |
+| 基线 | 架构 | 计分题通过 | 自动断言通过率 | 工具事实断言 | 资金结论断言 | 未验证题 | 工具调用 | token | 成本 |
+|---|---|---|---|---|---|---|---|---|---|
+| `A_deterministic` | 意图表 → 单次工具 | 20/30 | 0.7267 | 28/33 | 9/9 | 0 | 27 | 0 | n/a（离线） |
+| `B_single_agent` | 单 Agent 汇总全部工具 | 21/30 | 0.7756 | 29/33 | 11/11 | 0 | 38 | 0 | n/a（离线） |
+| `C_multi_agent` | LangGraph 分解 + 核验 | 23/30 | 0.8489 | 30/33 | 11/11 | 3 | 47 | 0 | n/a（离线） |
 
 **怎么读这张表**：
 
 - 通过率只统计**可机械复核**的断言；人工量表（rubric）与 `scorable=false` 的题另列，
   不参与自动分。断言必须是**同名字段**比较（金额用 `Decimal` 比到分），不允许"数字在文本里出现过"即通过；
-- **"工具事实"与"最终答案"分开统计**（`scoring-v3`）：前者回答"取数对不对"，后者回答
-  "用户读到的金额对不对"。答案里出现工具事实之外的金额判失败，只说"已核对"没写金额转人工，
-  两者都不允许用对方的通过率背书；
+- **"工具事实 / 资金结论 / 金额接地"三者分开统计**（`scoring-v3.3`）：分别回答"取数对不对"、
+  "用户读到的应收/已收/未收对不对"、"金额是否都有工具来源"。三个金额互换或"未收 0 元已结清"
+  都会判失败；叙述没有把金额绑定到字段则记为**未验证**（单独计数，不算通过）；
+  辅助检查不能替主判据背书；
 - 基线事实契约之外、无法自动判定的断言进人工队列，**不进分母**——所以"0/0"表示"没有可判定的题"，
   与"0/7（全错）"不是一回事；
 - 路由命中只作**效率**指标（`B` 为 0/32 是架构使然，不是错误）；
@@ -243,12 +244,12 @@ python -m app.cli evaluate --split heldout
 
 | 位置 | 内容 |
 |---|---|
-| [docs/README.md](docs/README.md) | 文档规范、Prompt 全局编号表（001–015） |
+| [docs/README.md](docs/README.md) | 文档规范、Prompt 全局编号表（001–024） |
 | [docs/architecture/](docs/architecture/) | Agent 架构、接口契约、Runtime 契约、数据库设计 |
 | [docs/prompts/](docs/prompts/) | 每个任务的完整存档（原始 Prompt + 实施 + 验证 + 问题） |
 | [docs/development_logs/development_log.md](docs/development_logs/development_log.md) | 逐任务开发日志 |
 | [docs/issues/issue_log.md](docs/issues/issue_log.md) | 问题、根因、修法、如何避免复发 |
-| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（29 篇） |
+| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（32 篇） |
 | [docs/checkpoints/git_history.md](docs/checkpoints/git_history.md) | 里程碑与回滚参考 |
 | [docs/evaluation/](docs/evaluation/) | 评测规则、数据集、报告 |
 | [docs/demo/demo_script.md](docs/demo/demo_script.md) | 演示脚本与失败示例 |
@@ -261,12 +262,15 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **345 项通过**（1 项因本机已配置密钥而 skip） |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **399 项通过**（1 项因本机已配置密钥而 skip） |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | 模型预算按物理请求记账 | `tests/test_model_budget.py`（6 项） | `max_model_calls=1` 时只发出 1 次请求；重试/补查逐次记账 |
 | 模型不能换目标/丢筛选 | `tests/test_task_scope.py`（15 项） | 越界租约被拒、省略即注入、文档范围取交集、受控调用双省略默认拒绝 |
 | 零取证不算完成 | `tests/test_evidence_and_answer.py`（N4 部分） | 不调工具 / 调无关工具 / 工具全失败 → `insufficient_evidence` |
 | 答案金额必须来自事实 | `tests/test_evidence_and_answer.py`（N6 部分） | facts 全对但回答写 0.00 → 答案断言失败；报告列出 `narrative_discrepancies` |
+| token 耗尽后不再发请求 | `tests/test_token_budget_gate.py`（11 项） | 零额度 0 次请求；首次超额后物理调用保持 1 次；并发/重试/补查一致 |
+| 单 Agent 与领域 Agent 范围一致 | `tests/test_single_agent_scope.py`（15 项） | B 基线取错租约被拒、省略即注入、纠正后可完成 |
+| 资金结论按字段核对 | `tests/test_fund_conclusions.py`（28 项） | 金额写反、错结清判失败；只答未收/合法明细通过；未验证不计通过 |
 | 真实模型记账与叙述核验 | `docs/evaluation/reports/real_model_v2/`（30k token 上限、单题） | 物理请求 7 = 账本 7；13,714 tokens；修正后可核验答案为 `consistent` |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |

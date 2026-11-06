@@ -4,6 +4,51 @@
 
 ---
 
+## [2026-11-07] 任务 024 - 修复 Q1–Q3（token 闸门 / 单 Agent 范围 / 资金结论）
+
+- **阶段**：缺陷修复（由 Task 022 独立复查驱动）。
+- **Prompt**：`docs/prompts/06_testing/2026-11-07_024_q1_q3_model_fixes.md`。
+- **代码基线**：`main` / `2512a3b`；保留 Codex 的 Task 022/023 文档。
+
+  | 项 | 修复前（复现） | 修复后 |
+  |---|---|---|
+  | Q1 token 闸门 | 上限 5、单次 10 tokens → **2 次**物理请求、20 tokens、exceeded 15 | **1 次**请求、10 tokens、exceeded 5；零额度 0 次请求 |
+  | Q2 单 Agent 范围 | 目标 A-301 时取回 B-101 账单 → `success`、facts 全 0.00 | 越界调用被拒绝 → `insufficient_evidence`，事实为空 |
+  | Q3 资金结论 | 三个金额互换 → `consistent`、4/4 满分 | 字段级核对 → `mismatch`，4/5 且不通过 |
+
+- **主要决策**：token 闸门放在"预留一次物理请求"这一步（与预留同锁）；`TaskScope.from_payload` 与 `scope_arguments_hook` 下沉为领域 Agent 与单 Agent 共用；资金结论结构化（`FundConclusion` 只从 facts 赋值）+ 用户可见金额由可信字段渲染；集合接地降级为辅助检查。
+- **评分变更**：`scoring-v3.2` → 真机误报修正后 `scoring-v3.3`；新增 `fund` 主断言、`answer` 辅助断言、`answer_verified`；报告新增"工具事实 / 资金结论 / 未验证题 / 金额接地"四列；旧报告（v3.1、v3.2 中间产物除外）保留。
+- **测试**：新增 `test_token_budget_gate.py`（11）、`test_single_agent_scope.py`（15）、`test_fund_conclusions.py`（28）；全量 **399 tests OK（skipped=1）**、57 项契约通过、scripted/offline/sqlite CLI 均 exit 0。
+- **真实模型核验**（`real_model_v2/`，单题 30k token 上限）：7 次物理请求 = 账本 7 次、13,452 tokens、资金结论 `verified`、0 discrepancy；前一版误报记录保留。
+- **已知限制**：字段绑定是机械规则（合计词优先、跳过表格行、多合计值判 unverified）；`unverified` 不算通过也不算错；真实 heldout 与 PG 仍未做。
+
+---
+
+## [2026-11-07] 任务 023 - 最新交付核对与实际项目进度
+
+- **阶段**：状态盘点 / 文档。
+- **Prompt**：`docs/prompts/06_testing/2026-11-07_023_repository_state_and_progress.md`。
+- **代码状态**：本地 HEAD/main/worktree 与 `git ls-remote` 返回的 GitHub main 都为 `2512a3b`；没有新业务代码，仅 Task 022 未提交审查文档。
+- **本次结果**：用户补充完成说明后确认交付为 Task 021 N1–N6，提交链与当前仓库一致；Q1–Q3 是后续复查问题，尚未修复。当前处于 MVP 集成与验收阶段，具体模块与剩余关口见 `docs/reviews/2026-11-07_repository_state_and_progress.md`。
+- **验证边界**：没有重跑不变源码的测试；345 tests/57 项契约引用上轮独立结果，不冒充本轮新验证。
+- **变更范围**：状态说明、023 Prompt、文档索引、进度入口、日志和检查点。未修代码、未发起模型调用、未提交或推送。
+- **下一步**：实施并复验 Q1–Q3；随后推进 PG、正式模型实验和最终复现验收。
+
+---
+
+## [2026-11-07] 任务 022 - N1–N6 修复复查
+
+- **阶段**：测试 / 独立复查。
+- **Prompt**：`docs/prompts/06_testing/2026-11-07_022_model_fixes_recheck.md`。
+- **代码基线**：`main` / `2512a3b`，开始时工作区干净且与本地 origin/main 一致。
+- **验证**：345 tests OK（skipped=1）、57 项契约通过；scripted CLI exit 0；离线 heldout A/B/C 为 20/30、21/30、23/30。
+- **核实改善**：原 max_model_calls=1 物理次数限额、领域错误目标拒绝、零证据失败、空调筛选注入有效。
+- **仍有问题**：Q1 token 耗尽后的发送闸门、Q2 Single/B 目标约束、Q3 资金结论字段和值绑定，均已实际复现并归档 `docs/reviews/2026-11-07_model_fixes_recheck.md`。
+- **范围**：仅审查文档及索引/日志/问题/检查点/进度提示；未修业务代码、未新增付费模型调用、未连 PG、未提交或推送。
+- **后续**：按 Q1 → Q2 → Q3 分项修正并验证。
+
+---
+
 ## [2026-11-07] 任务 021（实施）- 修复模型链路 N1–N6
 
 - **阶段**：测试 / 缺陷修复（按 021 审查报告逐项修复）。
