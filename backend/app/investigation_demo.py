@@ -11,15 +11,18 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 from .agents.base.contracts import AgentContext
 from .agents.base.registry import AgentRegistry
 from .agents.factory import build_registry
 from .fixtures.repository import FixtureRepository
 from .orchestration.investigation import InvestigationResult, Investigator, Planner
+from .rag.library import KnowledgeLibrary, build_knowledge_library
 from .runtime.budget import Budget
 from .runtime.types import TraceLog, TrustedContext
 from .tools.fixture_tools import build_fixture_tools
+from .tools.knowledge_tools import DocumentSearchTool
 from .tools.registry import ToolRegistry
 
 __all__ = ["InvestigationBundle", "build_investigation_bundle", "run_investigation"]
@@ -35,6 +38,7 @@ class InvestigationBundle:
     investigator: Investigator
     trusted: TrustedContext
     context: AgentContext
+    knowledge: KnowledgeLibrary | None = None
 
 
 def build_investigation_bundle(
@@ -47,6 +51,8 @@ def build_investigation_bundle(
     max_revisions: int = 1,
     planner: Planner | None = None,
     backend: str = "fixture",
+    document_dir: str | Path | None = None,
+    enable_documents: bool = True,
 ) -> InvestigationBundle:
     if backend == "fixture":
         repository = FixtureRepository.load(None, variant=variant)
@@ -62,6 +68,14 @@ def build_investigation_bundle(
     tool_registry = ToolRegistry()
     for tool in build_fixture_tools(repository):
         tool_registry.register(tool)
+
+    knowledge: KnowledgeLibrary | None = None
+    if enable_documents:
+        knowledge = build_knowledge_library(repository, document_dir=document_dir)
+        # 一份文档都没索引到时不注册工具：避免留下一个只能返回空结果的工具，
+        # 让"文档缺失"体现在 missing_documents 里，而不是伪装成"检索过了但没有" 。
+        if knowledge.indexed:
+            tool_registry.register(DocumentSearchTool(knowledge.service))
 
     budget = Budget(
         max_tool_calls=max_tool_calls,
@@ -96,6 +110,7 @@ def build_investigation_bundle(
         investigator=investigator,
         trusted=trusted,
         context=context,
+        knowledge=knowledge,
     )
 
 

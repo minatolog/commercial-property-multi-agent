@@ -280,7 +280,16 @@ class TestToolsBoundToDatabase(unittest.TestCase):
         self.assertEqual(result.verdict, "conflicting")
         self.assertEqual(Decimal(result.conflicts[0]["amount"]), Decimal("756.00"))
         self.assertTrue(any("18036.00" in f["statement"] for f in result.report["findings"]))
-        self.assertEqual(len(trace_log.snapshot()), 3)
+        # Task 011：Lease Agent 会额外尝试 document.search。本用例未注册文档工具，
+        # 因此必须**降级**（Lease 子任务仍成功 + 明确警告），而不是让调查失败。
+        lease_result = next(
+            item for item in result.results if item["capability"] == "lease.query"
+        )
+        self.assertEqual(lease_result["status"], "partial")
+        self.assertTrue(
+            any("条款检索不可用" in warning for warning in lease_result["warnings"])
+        )
+        self.assertGreaterEqual(len(trace_log.snapshot()), 3)
 
 
 if __name__ == "__main__":

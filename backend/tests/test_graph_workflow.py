@@ -124,12 +124,14 @@ class TestInvestigationGraph(unittest.TestCase):
         self.assertEqual(result.failures, ())
 
         traces = bundle.trace_log.snapshot()
-        self.assertEqual(len(traces), 3)
         self.assertEqual(
             {trace.subtask_id for trace in traces},
             {"st_1_lease", "st_2_billing", "st_3_property"},
         )
-        self.assertEqual(len({trace.call_id for trace in traces}), 3)
+        # Lease Agent 在 Task 011 起会额外调用 document.search 取条款证据，
+        # 因此 Trace 数量按"每个子任务至少一条"断言，而不是固定为 3。
+        self.assertGreaterEqual(len(traces), 3)
+        self.assertEqual(len({trace.call_id for trace in traces}), len(traces))
         # 同一 run 内所有 Trace 归属一致
         self.assertEqual(len({trace.run_id for trace in traces}), 1)
 
@@ -245,7 +247,8 @@ class TestInvestigationGraph(unittest.TestCase):
             )
         )
         self.assertEqual(result.revision, 0)
-        self.assertEqual(len(bundle.trace_log.snapshot()), 1)
+        traces = bundle.trace_log.snapshot()
+        self.assertEqual({trace.subtask_id for trace in traces}, {"st_1_lease"})
 
     def test_report_is_json_serialisable(self) -> None:
         import json

@@ -25,6 +25,7 @@ allowed_tools:
   - lease.lookup
   - lease.term_extract
   - billing.statement.read
+  - document.search
 
 retrieval_settings:
   enabled: true

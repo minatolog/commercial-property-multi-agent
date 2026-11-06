@@ -38,6 +38,10 @@ class LeaseAgent(ToolBackedAgent):
                 "status",
             )
         }
+        clauses, clause_evidence, clause_warnings = await self._retrieve_clauses(
+            request=request, context=context, lease_id=lease_id
+        )
+        warnings = list(clause_warnings)
 
         if request.capability == "lease.query":
             return AgentOutput(
@@ -47,20 +51,20 @@ class LeaseAgent(ToolBackedAgent):
                     "rules": data.get("rules", []),
                     "documents": data.get("document_ids", []),
                     "missing_documents": data.get("missing_document_ids", []),
+                    "clauses": clauses,
+                    "clause_evidence": clause_evidence,
                     "evidence": self._evidence_payload(execution),
-                }
+                },
+                warnings=warnings,
             )
 
         # renewal_evaluation：只汇总事实，并显式标注需要人工判断的部分
         rules = data.get("rules", []) or []
-        warnings = (
-            (
+        if data.get("missing_document_ids"):
+            warnings.append(
                 "租约引用但未电子化的文档: "
                 + ", ".join(data.get("missing_document_ids", []))
             )
-            if data.get("missing_document_ids")
-            else ()
-        )
         return AgentOutput(
             data={
                 "capability": request.capability,
@@ -71,12 +75,49 @@ class LeaseAgent(ToolBackedAgent):
                     "billing_cycle": lease.get("billing_cycle"),
                     "currency": lease.get("currency"),
                 },
+                "clauses": clauses,
+                "clause_evidence": clause_evidence,
                 "requires_human_decision": True,
                 "decision_reason": "续租定价与商务条件属于人工决策，本 Agent 只提供事实依据",
                 "evidence": self._evidence_payload(execution),
             },
             warnings=warnings,
         )
+
+    async def _retrieve_clauses(
+        self, *, request: AgentRequest, context: AgentContext, lease_id: str
+    ) -> tuple[list[dict], list[dict], list[str]]:
+        """读取合同条款作为可追溯证据。
+
+        未授权或未注册 `document.search` 时**不报错**，只降级为"无条款证据"并给出警告：
+        条款检索是增强能力，不应该让租约事实查询整体失败。
+        """
+
+        query = str(request.payload.get("query") or "").strip()
+        if not query or "document.search" not in self.config.allowed_tools:
+            return [], [], []
+        try:
+            execution = await self._invoke_tool(
+                "document.search", {"query": query, "top_k": 3}, context
+            )
+        except AgentError as exc:
+            return [], [], [
+                f"条款检索不可用（{exc.code.value}），本次结论不含合同条款证据"
+            ]
+        payload = execution.data or {}
+        clauses = [
+            {
+                "document_id": item["document_id"],
+                "document_version": item["document_version"],
+                "page": item["page"],
+                "clause_id": item["clause_id"],
+                "excerpt": item["excerpt"],
+            }
+            for item in payload.get("results", [])
+        ]
+        if not clauses:
+            return [], [], [f"租约 {lease_id} 的合同条款未检索到匹配片段"]
+        return clauses, self._evidence_payload(execution), []
 
 
 def _require_lease_id(payload: dict) -> str:

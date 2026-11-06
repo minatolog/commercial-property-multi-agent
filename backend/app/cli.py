@@ -148,14 +148,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="数据来源：fixture=JSON（默认）；sqlite=SQLAlchemy 只读数据库（本机无 PostgreSQL）",
     )
     investigate.add_argument("--full", action="store_true", help="输出完整图状态报告")
+
+    search = sub.add_parser(
+        "search",
+        help="在已归档合同 PDF 中检索条款（离线 BM25，返回真实页码与原文摘录）",
+    )
+    search.add_argument("query", help="检索词，例如“租金递增比例”")
+    search.add_argument("--document-id", default=None, help="限定文档 ID，例如 doc_xh_a301_contract")
+    search.add_argument("--document-version", type=int, default=None, help="限定文档版本")
+    search.add_argument("--top-k", type=int, default=3, help="返回条数（默认 3）")
+    search.add_argument(
+        "--principal", default="principal_ops_xinghui", help="可信主体 ID（决定可见项目范围）"
+    )
+    search.add_argument(
+        "--verify-claim",
+        default=None,
+        help="附带 L1/L2 引用验证：判断返回的首条证据是否支持该结论",
+    )
+    search.add_argument(
+        "--dir", default=None, help="文档目录（默认 docs/evaluation/documents）"
+    )
     return parser
+
+
+def _tool_registry(repository: FixtureRepository) -> ToolRegistry:
+    """与真实运行一致的只读工具集合（含可用的条款检索工具）。"""
+
+    from .rag.library import build_knowledge_library
+    from .tools.knowledge_tools import DocumentSearchTool
+
+    registry = ToolRegistry()
+    for tool in build_fixture_tools(repository):
+        registry.register(tool)
+    library = build_knowledge_library(repository)
+    if library.indexed:
+        registry.register(DocumentSearchTool(library.service))
+    return registry
 
 
 def _cmd_tools() -> int:
     repository = FixtureRepository.load()
-    registry = ToolRegistry()
-    for tool in build_fixture_tools(repository):
-        registry.register(tool)
+    registry = _tool_registry(repository)
     payload = {
         "dataset_version": repository.dataset_version,
         "as_of_date": repository.as_of_date.isoformat(),
@@ -168,9 +201,7 @@ def _cmd_tools() -> int:
 def _cmd_check() -> int:
     report = build_registry()
     repository = FixtureRepository.load()
-    tools = ToolRegistry()
-    for tool in build_fixture_tools(repository):
-        tools.register(tool)
+    tools = _tool_registry(repository)
     declared = sorted(
         {tool for config in _load_configs() for tool in config.allowed_tools}
     )
@@ -351,6 +382,67 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_search(args: argparse.Namespace) -> int:
+    from .rag.library import build_knowledge_library
+
+    repository = FixtureRepository.load()
+    library = build_knowledge_library(repository, document_dir=args.dir)
+    principal = repository.principal(args.principal)
+    project_ids = frozenset(principal.get("project_ids") or [])
+    hits = library.service.search(
+        args.query,
+        document_id=args.document_id,
+        document_version=args.document_version,
+        project_ids=project_ids,
+        top_k=args.top_k,
+    )
+    payload: dict[str, Any] = {
+        "query": args.query,
+        "principal_id": args.principal,
+        "visible_project_ids": sorted(project_ids),
+        "indexed_documents": sorted(library.indexed),
+        "missing_documents": list(library.missing_documents),
+        "result_count": len(hits),
+        "results": [
+            {
+                "chunk_id": hit.chunk.chunk_id,
+                "document_id": hit.chunk.document_id,
+                "document_version": hit.chunk.document_version,
+                "page": hit.chunk.page,
+                "clause_id": hit.chunk.clause_id,
+                "excerpt": hit.chunk.text,
+                "score": hit.score,
+                "project_id": library.service.project_of(
+                    hit.chunk.document_id, hit.chunk.document_version
+                ),
+            }
+            for hit in hits
+        ],
+    }
+    if args.verify_claim is not None:
+        if not hits:
+            payload["citation_check"] = {
+                "claim": args.verify_claim,
+                "reference_exists": False,
+                "note": "没有检索结果，无法验证引用",
+            }
+        else:
+            check = library.service.verify_citation(
+                chunk_id=hits[0].chunk.chunk_id, claim=args.verify_claim
+            )
+            payload["citation_check"] = {
+                "claim": args.verify_claim,
+                "chunk_id": check.chunk_id,
+                "reference_exists": check.reference_exists,
+                "supports_claim": check.supports_claim,
+                "coverage": check.coverage,
+                "method": check.method,
+                "acceptable": check.acceptable,
+            }
+    _print_json(payload)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -365,6 +457,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_ask(args)
         if args.command == "investigate":
             return _cmd_investigate(args)
+        if args.command == "search":
+            return _cmd_search(args)
     except (ConfigError, AgentError, FileNotFoundError, ValueError) as exc:
         print(f"[error] {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2

@@ -420,6 +420,80 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 011 - 合同 PDF 导入、条款检索与可追溯证据
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 3' - 知识与证据层（RAG）
+- **执行者**：DeepSeek（DeepSeek Harness 会话，用户已取消 Codex 逐任务审查）
+- **对应 Prompt 归档**：`docs/prompts/03_rag/2026-11-06_011_contract_pdf_rag.md`
+- **状态**：**DeepSeek 自检通过**（离线 BM25；向量检索 / Embedding / Reranker 属 P1，未实现）
+
+### 本次完成的功能
+
+- **合成合同 PDF**：`app/rag/pdf_builder.py` 生成 26 页中文合同（reportlab + 系统 TTF 子集嵌入，缺字体回退 `STSong-Light`），另生成 2 页物业报修制度；页码刻意与 fixture `document_snippets` 对齐（5.2→p12、7.1→p20、附件B→p26、制度 3.1→p1）。
+- **条款级分块**：逐页提取 → 按 `第X条` / `5.2` / `5.1.1` / `附件B` 切块，剔除页脚；`chunk_id` = `document_id#vN#pX#clause`。
+- **BM25 检索**：中文二元组、英文数字按词；`KnowledgeService` 支持文档 / 版本 / 项目过滤与文档移除（重建索引）。
+- **引用两级验证**：L1 引用存在（chunk 存在 + 版本匹配）、L2 是否支持结论（词元覆盖度，标注 `method=token_coverage_heuristic`）。
+- **页码对齐硬校验**：`build_knowledge_library(strict=True)` 比对 fixture 声明页码与真实 PDF 页码，不一致抛 `DocumentMismatch`。
+- **只读工具 `document.search`**：输出 `document_clause` 证据（文档 ID、版本、真实页码、条款号、摘录），按 `AgentContext.project_ids` 隔离，空授权默认拒绝。
+- **Agent 集成**：Planner 为 `lease.query` 下发原始问题；LeaseAgent 追加条款检索（工具不可用时降级为警告）；报告生成 `derivation=document_clause` 的条款级 finding。
+- **CLI**：新增 `search`（支持 `--verify-claim`）；`tools` / `check` 改用与真实运行一致的工具集合。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| PDF 生成库 | reportlab | 手写 PDF 内容流只能写 ASCII，Helvetica 无法表示汉字；reportlab 可对 TTF 子集嵌入并写 ToUnicode CMap，pypdf 能可靠取回中文 |
+| 字体来源 | 探测系统 TTF（simhei/simkai/simfang/Deng），缺失回退 `STSong-Light` | 不把某台机器的绝对路径当成唯一依赖，同时保证默认环境可用 |
+| 页码一致性 | 生成 26 页合同，强制与 fixture 页码一致；不一致直接失败 | "证据页码"若与真实 PDF 不符，等于伪造可追溯性 |
+| 检索方式 | 先 BM25，不引入向量库 | P0 只需可评测的最小路径；BM25 确定性、零外部服务，召回不足再上混合检索（理由与代价写进 §9 待办） |
+| 中文分词 | 二元组，不用单字 | 单字召回会把「押金」匹配到任意含「金/押」的条款，产生假证据 |
+| 数据隔离 | 索引记录 `project_id`，检索按 `context.project_ids` 过滤，空集合拒绝 | 越权检索比检索不到更危险；工具不得硬编码项目 |
+| 文档缺失处理 | 不生成占位文件，缺失体现在 `missing_documents` | 让「查不到」是真实结果，而不是被伪造的证据 |
+| 条款检索失败 | 降级为警告，不失败整个租约查询 | 条款检索是增强能力，不应拖垮确定性事实查询 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/rag/{__init__,pdf_builder,chunker,bm25,service,library}.py` | 新增 |
+| `backend/app/tools/knowledge_tools.py` | 新增 |
+| `docs/evaluation/documents/{lease_xh_a301_contract_v1,property_policy_v1}.pdf` | 新增（合成产物） |
+| `backend/app/agents/lease/agent.py` | 修改：条款检索 + 降级 |
+| `backend/app/config/agents/lease.yaml` | 修改：`allowed_tools` 增加 `document.search` |
+| `backend/app/orchestration/investigation.py` | 修改：Planner 下发 `query`、条款级 finding |
+| `backend/app/investigation_demo.py` | 修改：装配知识库 |
+| `backend/app/fixtures/repository.py`、`paths.py`、`cli.py` | 修改：`snapshot()`、文档路径、`search` 命令 |
+| `backend/pyproject.toml` | 修改：声明 `pypdf` / `reportlab` |
+| `backend/tests/test_rag.py` | 新增（29 项） |
+| `backend/tests/test_graph_workflow.py`、`test_database_layer.py` | 修改：Trace 断言改为按 subtask 归属；新增降级断言 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 / 方式 | 结果 |
+|---|---|---|
+| PDF 生成 | `python -m app.rag.pdf_builder` | 26 页合同 + 2 页制度，退出码 0 |
+| 本任务测试 | `python -m unittest tests.test_rag` | `Ran 29 tests ... OK` |
+| 全量回归 | `python -m unittest discover -s tests -p "test_*.py"` | `Ran 135 tests ... OK` |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| 条款检索 CLI | `python -m app.cli search "租金递增比例"` | 命中 `5.2`@p12 |
+| 工具/配置一致性 | `python -m app.cli check` | `unimplemented_allowed_tools` 仅剩 `compliance.checklist.read`、`lease.term_extract` |
+| 多 Agent 集成 | `python -m app.cli investigate` | 报告含 `document_clause` finding，页码可回查 |
+| 既有 CLI | `demo` / `ask` | 退出码 0，行为未变 |
+
+### 当前项目状态
+
+合同条款从「fixture 预写片段」升级为「真实 PDF → 分块 → BM25 → 可回溯页码证据」，并进入多 Agent 报告的条款级 finding。
+**未验证**：向量检索 / Embedding / Reranker（未实现）、真实模型给出的检索式（无 `DEEPSEEK_API_KEY`）。
+
+### 下一步开发计划
+
+- [ ] 任务 012：持久 checkpoint（thread/run/request 标识）、审批独立节点、重新授权后恢复、草案版本绑定
+- [ ] P1：混合检索 + Reranker，用评测集量化召回提升
+- [ ] 补齐 `doc_jl_b101_contract` PDF 以支持跨项目隔离的端到端评测
+
+---
+
 ## [2026-11-06] 任务 010 - PostgreSQL 只读业务工具与数据访问边界
 
 - **日期**：2026-11-06

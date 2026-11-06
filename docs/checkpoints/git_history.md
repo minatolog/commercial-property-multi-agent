@@ -321,6 +321,56 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-06] 里程碑 2：Task 010 只读数据层 + Task 011 合同 RAG（已提交并推送）
+
+- **开发阶段**：阶段 2' 数据底座 + 阶段 3' 知识与证据层
+- **对应任务**：010（Prompt 5）、011（Prompt 6）
+- **Git 分支**：`main`
+- **Commit Hash**：见下方"回填记录"
+- **推送状态**：见下方"回填记录"
+
+### 本次变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `backend/app/db/{models,session,seed,repository,bootstrap}.py`、`backend/migrations/` | 新增（Task 010） |
+| `backend/app/rag/{pdf_builder,chunker,bm25,service,library,__init__}.py` | 新增（Task 011） |
+| `backend/app/tools/knowledge_tools.py` | 新增（Task 011） |
+| `docs/evaluation/documents/*.pdf` | 新增（合成文档产物） |
+| `backend/app/agents/lease/agent.py`、`config/agents/lease.yaml` | 修改 |
+| `backend/app/orchestration/investigation.py`、`investigation_demo.py` | 修改 |
+| `backend/app/{cli,paths}.py`、`fixtures/repository.py` | 修改 |
+| `backend/pyproject.toml` | 修改：`SQLAlchemy` / `alembic` / `pypdf` / `reportlab` |
+| `backend/tests/{test_database_layer,test_rag,test_graph_workflow}.py` | 新增 / 修改 |
+| `docs/prompts/02_database/2026-11-06_010_*.md`、`docs/prompts/03_rag/2026-11-06_011_*.md` | 新增 |
+
+### 验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests -p "test_*.py"` | `Ran 135 tests ... OK` |
+| `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| CLI `tools` / `check` / `demo` / `ask` / `investigate` / `search` | 全部退出码 0 |
+| Alembic `upgrade head` / `downgrade`（SQLite） | 通过 |
+| PostgreSQL 真库验证 | **未验证**（本机无 PostgreSQL 服务） |
+
+### 回填记录
+
+- Task 010：`3c10317`（已推送；Task 011 实施前就绪）
+- Task 011：本轮里程碑提交后回填
+
+### 回滚参考命令
+
+```bash
+# 查看该提交内容
+git show <hash> --stat
+
+# 撤销该提交（保留改动到工作区）
+git revert <hash>
+```
+
+---
+
 ## [2026-11-06] 里程碑 1：Task 007 自检 + Task 008 + Task 009（已提交并推送）
 
 - **Commit**：`7b87ef2`（父提交 `fe95ba5`）

@@ -129,6 +129,10 @@ class RuleBasedPlanner(Planner):
                 task_payload["unit_id"] = unit_id
             if domain == "property" and _mentions_hvac(text):
                 task_payload["category"] = "hvac"
+            if domain == "lease":
+                # 条款检索需要原始问题作为查询依据；由 Planner 显式下发，
+                # Agent 不应自己去猜"该查什么条款"。
+                task_payload["query"] = text
             subtasks.append(
                 {
                     "subtask_id": f"st_{index}_{domain}",
@@ -430,6 +434,11 @@ def _latest_by_subtask(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [latest[key] for key in sorted(latest)]
 
 
+def _truncate(text: Any, limit: int = 60) -> str:
+    value = "" if text is None else str(text).replace("\n", " ").strip()
+    return value if len(value) <= limit else value[: limit - 1] + "…"
+
+
 def _build_findings(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for item in results:
@@ -460,6 +469,30 @@ def _build_findings(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "derivation": "direct",
                 }
             )
+            clauses = output.get("clauses") or []
+            clause_evidence_ids = _evidence_ids({"evidence": output.get("clause_evidence", [])})
+            for clause in clauses:
+                findings.append(
+                    {
+                        "statement": (
+                            f"合同第 {clause.get('page')} 页 {clause.get('clause_id')} 条："
+                            f"{_truncate(clause.get('excerpt'))}"
+                        ),
+                        "evidence_ids": [
+                            evidence_id
+                            for evidence_id in clause_evidence_ids
+                            if clause.get("clause_id") in evidence_id
+                        ]
+                        or clause_evidence_ids,
+                        "derivation": "document_clause",
+                        "source": {
+                            "document_id": clause.get("document_id"),
+                            "document_version": clause.get("document_version"),
+                            "page": clause.get("page"),
+                            "clause_id": clause.get("clause_id"),
+                        },
+                    }
+                )
         elif item["capability"] == "property.work_orders":
             findings.append(
                 {

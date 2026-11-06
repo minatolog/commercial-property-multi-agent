@@ -113,6 +113,11 @@ class FixtureRepository:
     def record(self, record_id: str) -> dict[str, Any] | None:
         return self._by_id.get(record_id)
 
+    def snapshot(self) -> dict[str, Any]:
+        """原始数据快照（只读用途：知识层按 fixture 元数据对齐真实文档）。"""
+
+        return self._data
+
     def principal(self, principal_id: str) -> dict[str, Any]:
         principals = self._data.get("principals", {})
         if principal_id not in principals:

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "commercial-property-multi-agent"
 version = "0.1.0"
-description = "Agent-first 商业地产多 Agent 工作流：Runtime、受控只读工具与 LangChain 模型适配"
+description = "Agent-first 商业地产多 Agent 工作流：Runtime、受控只读工具、LangChain 模型适配与合同条款 RAG"
 readme = "README.md"
 requires-python = ">=3.11"
 # 只声明当前源码真实使用的依赖；不引入 LangGraph / 数据库 / 向量库 / Web 框架
@@ -20,6 +20,9 @@ dependencies = [
     # Task 010：只读业务数据层与迁移（本机验证用 SQLite；生产目标 PostgreSQL）
     "SQLAlchemy>=2.0,<3",
     "alembic>=1.13,<2",
+    # Task 011：PDF 解析与中文 PDF 生成（合成合同样本）
+    "pypdf>=5.0,<7",
+    "reportlab>=4.0,<5",
 ]
 
 [project.optional-dependencies]
