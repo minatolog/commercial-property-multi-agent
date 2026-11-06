@@ -73,8 +73,13 @@ desktop.ini
 # ---------------------------------------------------------------------------
 # Runtime state (Task 012) - LangGraph checkpoints / approval ledger / local
 # business SQLite. These are reproducible local state, never source of truth.
+# `*.db` covers the SQLite fallback used by `migrations/env.py` when no
+# PostgreSQL URL is configured; it is recreated by `alembic upgrade head`.
 # ---------------------------------------------------------------------------
 data/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
