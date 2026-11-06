@@ -236,13 +236,16 @@ python -m app.cli evaluate --split heldout
 | 主体隔离 | `tests/test_api.py::TestRunOwnership` | 跨项目读取按"不存在"处理（404） |
 | 运行身份一致 | `tests/test_api.py::TestRunIdentity`（4 项） | 公开 `run_id` == checkpoint context == 审批 == 每条 trace |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
+| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0` |
+| 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
 
 ---
 
 ## 8. 已知限制（不夸大）
 
-1. **未调用真实模型**：无 `DEEPSEEK_API_KEY`。真实工具调用闭环、真实 token/成本**未测量**。
-2. **未接 PostgreSQL**：本机无服务，迁移与查询只在 SQLite 验证；`EXCLUDE` / RLS / 原生 `NUMERIC` 未实测。
+1. **未调用真实模型**：无 `DEEPSEEK_API_KEY`（已检查，未设置）。真实工具调用闭环、真实 token/成本**未测量**。
+2. **未接 PostgreSQL**：本机无服务（`127.0.0.1:5432` 不可达），迁移与查询只在 SQLite 验证；
+   `EXCLUDE` / RLS / 原生 `NUMERIC` 未实测。
 3. **检索只有 BM25**：长问题召回不足（评测 H18–H20 已暴露）；向量/混合检索/rerank 属下一阶段。
 4. **没有外部副作用实现**：调账/派单未实现，接入前必须先定义幂等键与补偿。
 5. **演示鉴权是演示级**：服务端固定主体 + 审批人白名单，`X-Actor-Id` 不是认证。
@@ -261,5 +264,4 @@ python -m app.cli evaluate --split heldout
   1. 接真实 DeepSeek，按冻结配置重复 3 次测量质量/成本（需 `DEEPSEEK_API_KEY`）；
   2. 上 PostgreSQL 并实测排他约束与 RLS（需实例）；
   3. 人工量表实际评分（H25/H26 与 rubric 队列）；
-  4. 在全新独立环境按本文档复现安装与测试；
-  5. 混合检索 + rerank，用评测集验证召回提升。
+  4. 混合检索 + rerank，用评测集验证召回提升。

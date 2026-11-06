@@ -124,12 +124,24 @@ dev 全 0 与 v1 一致，原因是开发集为自然语言断言、离线基线
 
 - `a9c6355` fix(runtime): repair scoring, ownership isolation and failure recovery
 - `43b48ef` fix(eval): treat contract gaps as manual review, not as wrong answers
-- 本轮文档提交：见 `docs/checkpoints/git_history.md`（提交后回填 hash）
+- `97b4e9f` docs: record the release candidate review and the fixes that closed it
+- `9da7189` chore(repo): stop tracking the local SQLite migration fallback
 
-### 10.6 仍未完成（第三批，需外部条件）
+### 10.6 第三批：真实服务与独立环境（本轮实际执行范围）
 
-- [ ] 至少一次真实 DeepSeek 工具调用闭环与真实 B/C 评测装配 —— 需要 `DEEPSEEK_API_KEY`，本机未配置。
-- [ ] 可连接的 PostgreSQL 实例、迁移执行与 fixture 等价性验证 —— 需要可用实例与凭据。
-- [ ] 5 道人工量表题的评分补齐（H25/H26 已显式声明为人工评定，H22/H27/H30 已补自动断言）。
-- [ ] 按 README 在全新独立环境复现安装与测试。
-- [ ] 浏览器视觉验收、真实服务鉴权、部署或外部副作用验证。
+**已完成（有真实命令与输出）**
+
+| 项 | 做法 | 结果 |
+|---|---|---|
+| 独立环境复现 | `python -m venv`（base = conda `commercial-agent`）建全新空 venv；确认隔离（`import pydantic` 失败、`sys.prefix` 指向 venv）；`pip install -e .` 安装声明的全部依赖；再跑全量验证 | 安装 `EXIT=0`；`unittest discover` **238 项通过**；契约自检 **57 项通过**；`app.cli check` `EXIT=0`；`investigate --backend sqlite` `EXIT=0` |
+| 浏览器视觉验收 | 本地 `uvicorn` 起 `127.0.0.1:8011`，用浏览器打开演示页并提交一次调查 | 页面完整渲染：运行/线程 ID、结论与完成度、预算、6 条发现（含证据 ID）、冲突、缺失信息、审批请求（草案 v2、有效期、两级阶段）、4 条工具 Trace；`awaiting_approval` 状态正确 |
+| 运行态文件治理 | 确认 `backend/commercial_agent_migrate.db` 的唯一用途是 `migrations/env.py` 在未配置数据库 URL 时的 SQLite 回退；`git rm --cached` 并加入 `.gitignore`；再跑 `alembic upgrade head` 验证可重建 | 迁移 `EXIT=0`（`Running upgrade -> 0001`），文件被正确重新生成且不再被跟踪 |
+
+**未完成（缺外部条件，不得用离线结果替代）**
+
+- [ ] 至少一次真实 DeepSeek 工具调用闭环与真实 B/C 评测装配 —— 本机 `DEEPSEEK_API_KEY` 未设置（已检查，值为空）。
+- [ ] 可连接的 PostgreSQL 实例、迁移执行与 fixture 等价性验证 —— 本机无 PostgreSQL 服务，`127.0.0.1:5432` 不可达，`DATABASE_URL` 未设置。
+- [ ] 5 道人工量表题的评分（H25/H26 已声明 `scorable=false`，需人工；H22/H27/H30 已补自动断言）。
+- [ ] 真实服务鉴权、部署或外部副作用验证。
+
+**结论**：真实模型与 PostgreSQL 两项**不能**用离线测试代替，当前状态仍是"版本候选"，不得宣称 MVP 已验收。

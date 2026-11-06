@@ -49,6 +49,29 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-06] 任务 016 第三批 - 独立环境复现与运行态文件治理
+
+- **开发阶段**：交付验证 / 仓库卫生。
+- **对应任务**：016 第三批（可离线完成的部分）。
+- **Git 分支**：`main`。
+- **Commit Hash**：
+  - `9da7189` — `chore(repo): stop tracking the local SQLite migration fallback`
+  - 文档同步：见下一条记录（本轮文档提交后回填）。
+- **变更**：`.gitignore` 增加 `*.db` 系列；`backend/commercial_agent_migrate.db` 退出 Git 跟踪（本地可重建）。
+- **验证结果**：
+  - 全新 venv（base=conda `commercial-agent`）隔离确认后 `pip install -e .`，全量 **238 项测试 + 57 项契约**通过，`check` 与 `investigate --backend sqlite` 均 `EXIT=0`；
+  - 本地 `uvicorn` + 浏览器实访演示页，运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 渲染正确；
+  - `alembic upgrade head` 重新生成被忽略的 SQLite 文件（`EXIT=0`）。
+- **未完成**：真实 DeepSeek 调用（无 `DEEPSEEK_API_KEY`）、PostgreSQL 实机（无服务，5432 不可达）、人工量表评分。
+- **回滚参考**（仅在项目所有者确认后执行）：
+
+```powershell
+git --no-pager show 9da7189 --stat
+git --no-pager revert --no-commit 9da7189   # 恢复跟踪该 SQLite 文件（不推荐）
+```
+
+---
+
 ## [2026-11-06] 任务 016 实施 - 版本候选缺陷修复（第一批 + 第二批）
 
 - **开发阶段**：评测 / Runtime / 编排 / 审批 / API / 数据层（缺陷修复）。
@@ -57,7 +80,7 @@ git show <hash> --stat
 - **Commit Hash**：
   - `a9c6355` — `fix(runtime): repair scoring, ownership isolation and failure recovery`（F1–F8、S1–S4 与 reason 持久化）
   - `43b48ef` — `fix(eval): treat contract gaps as manual review, not as wrong answers`（评分器契约缺口语义）
-  - 文档与评测报告：见下一条记录。
+  - `97b4e9f` — `docs: record the release candidate review and the fixes that closed it`（文档、Prompt 归档与评测报告）
 - **变更**：见开发日志「任务 016 实施」；新增 `backend/app/rag/catalog.py`、`docs/evaluation/scoring_v2.md`、`docs/evaluation/cases/heldout_v3.jsonl`。
 - **验证结果**：
   - `python -m unittest discover -s tests -p "test_*.py"` → **238 项通过**；
@@ -78,7 +101,7 @@ git --no-pager revert --no-commit 43b48ef   # 撤销评分契约缺口语义
 
 - **开发阶段**：独立审查；仅文档归档。
 - **被审查基线**：`main` / `041b2c5`，检查开始时与 `origin/main` 一致，工作区干净。
-- **本轮 Commit Hash**：`Pending`（审查文档本身在实施提交之后统一提交，见上一条）。
+- **本轮 Commit Hash**：`Pending`（审查阶段的文档随后与实施记录一起提交，见 `97b4e9f`）。
 - **变更**：新增完整审查报告与 016 Prompt；更新文档编号、当前进度提示、开发日志与问题记录。审查轮次未修复业务代码；修复在后续实现轮次完成。
 - **验证**：192 项 unittest 与 57 项契约检查通过；离线评测重现原结果，额外反例揭示评分/集成/恢复/隔离缺陷。
 - **报告**：`docs/reviews/2026-11-06_release_candidate_review.md`。

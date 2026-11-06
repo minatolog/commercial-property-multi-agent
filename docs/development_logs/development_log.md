@@ -45,6 +45,66 @@
 
 ---
 
+## [2026-11-06] 任务 016 第三批 - 独立环境复现与运行态文件治理
+
+- **日期**：2026-11-06
+- **开发阶段**：交付验证 / 仓库卫生
+- **执行者**：AI 助手（VS Code Copilot SDK 会话）
+- **对应 Prompt 归档**：`docs/prompts/06_testing/2026-11-06_016_release_candidate_review.md` §10.6
+
+### 本次完成的功能
+
+- **独立环境复现**：用 conda `commercial-agent` 作为 base 新建**全新空 venv**，确认隔离（`sys.prefix` 指向 venv，`import pydantic` 在安装前失败），`pip install -e .` 从 `pyproject.toml` 装上全部声明依赖，然后在该环境内重跑全部验证。
+- **浏览器视觉验收**：本地 `uvicorn` 起服务并用浏览器实际提交一次调查，检查演示页渲染。
+- **运行态文件治理**：`backend/commercial_agent_migrate.db` 的唯一用途是 `migrations/env.py` 在未配置数据库 URL 时的 SQLite 回退；已从索引移除并加入 `.gitignore`，并验证 `alembic upgrade head` 能重新生成。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 独立环境的 base | 用 conda 环境的解释器建 venv，而不是装第二个 conda 环境 | 验证的是"声明依赖是否足够"，不是"conda 版本是否可用"；venv 能更快暴露漏声明的依赖 |
+| 本地 SQLite 迁移回退文件 | 不跟踪，但**保留**回退机制 | 文件是可重建的运行态；回退机制让没有 PostgreSQL 的机器仍能演练迁移 |
+| 真实模型 / PostgreSQL 验证 | 不伪造，明确标注未完成 | 无 `DEEPSEEK_API_KEY`、无 PostgreSQL 服务（5432 不可达）；离线测试不能替代 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `.gitignore` | 增加 `*.db` / `*.db-wal` / `*.db-shm`（含注释说明来源） |
+| `backend/commercial_agent_migrate.db` | 从 Git 索引移除（本地文件保留、可重建） |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| venv 隔离 | `python -c "import site,sys; ..."` + `import pydantic` | `sys.prefix`=venv、`base_prefix`=conda env；安装前 `import pydantic` 失败（确为空环境） |
+| 依赖声明完整性 | `pip install -e .`（全新 venv） | `EXIT=0` |
+| 独立环境回归 | `python -m unittest discover -s tests -p "test_*.py"` | **238 项通过** |
+| 独立环境契约 | `python tests/smoke_agent_contracts.py` | **57 项通过** |
+| 独立环境 CLI | `python -m app.cli check`、`investigate --backend sqlite` | 均 `EXIT=0` |
+| 浏览器验收 | `uvicorn app.api.app:app --port 8011` + 浏览器 | 演示页完整渲染运行/线程 ID、结论、预算、发现与证据、冲突、缺失信息、审批请求与两级阶段、4 条工具 Trace |
+| 迁移可重建 | 删除文件后 `python -m alembic upgrade head` | `EXIT=0`（`Running upgrade -> 0001`），文件重新生成且不再被跟踪 |
+
+### 遇到的问题及解决方法
+
+| 问题 | 解决 |
+|---|---|
+| `Invoke-WebRequest` 读 `/api/meta` 显示中文乱码 | 是 PowerShell 侧未按 UTF-8 解码，服务端与页面本身正常；不影响结论 |
+| venv 建在 conda 环境之上时 `sys.path` 仍出现 base 目录 | 用 `site.getsitepackages()` + 实际 `import` 验证隔离性，而不是只看 `sys.path` 字面 |
+
+### 当前项目状态
+
+第一、二批修复完成并推送；第三批中**可以离线完成的部分（独立环境复现、浏览器验收、运行态治理）已完成**。真实 DeepSeek 调用与 PostgreSQL 实机验证**受凭据/实例限制未执行**，因此项目仍是"版本候选"。
+
+### 下一步开发计划
+
+- [ ] 由项目所有者提供 `DEEPSEEK_API_KEY` 后跑真实工具闭环与真实 B/C 评测
+- [ ] 提供 PostgreSQL 实例后执行迁移、排他约束与 RLS 实测
+- [ ] 人工评分 H25/H26 与 rubric 队列
+- [ ] 真实服务鉴权与部署验证
+
+---
+
 ## [2026-11-06] 任务 016 实施 - 版本候选缺陷修复（第一批 + 第二批）
 
 - **日期**：2026-11-06
