@@ -45,6 +45,119 @@
 
 ---
 
+## [2026-11-06] 任务 016 实施 - 版本候选缺陷修复（第一批 + 第二批）
+
+- **日期**：2026-11-06
+- **开发阶段**：测试 / 评测 / Runtime / 编排 / 审批 / API / 数据层（缺陷修复）
+- **执行者**：AI 助手（VS Code Copilot SDK 会话），取消 Codex 逐任务审查后由同一助手自检
+- **对应 Prompt 归档**：`docs/prompts/06_testing/2026-11-06_016_release_candidate_review.md`
+- **修复依据**：[版本候选独立审查](../reviews/2026-11-06_release_candidate_review.md)（F1–F8、S1–S4）
+- **修复原则**：先复现、再改代码、每项加能复现原缺陷的回归测试；评分规则变更必须升级版本并保留历史报告。
+
+### 本次完成的功能
+
+| 编号 | 问题 | 修复要点 |
+|---|---|---|
+| F1 | 评分按子串匹配，金额互换仍满分 | 评分升 `scoring-v2`：改成**按字段**比较（金额 `Decimal` 到分、布尔真值、列表集合、其余全等），删除"数字出现在文本里"的判定 |
+| F2 | 预期拒绝的题被记失败，三基线结局口径不一 | `EvalCase` 增加 `expected_outcome`/`expected_error_code`/`scorable`；`baselines.derive_status()` 统一"拒绝=`denied`、其它失败=`failed`"；数据集升 v3 |
+| F3 | `investigate --backend sqlite` 直接崩溃 | 抽出 `DocumentCatalog` 契约与 `DatabaseRepository.documents()`，装配层注入；`as_of_date` 由仓库提供 |
+| F4 | 补查成功后仍判 partial / insufficient | `retry_subtasks` 通道只重跑未解决子任务；`conflicts`/`missing` 改覆盖语义；`verify` 只统计**未解决**失败；报告分离 `failures` 与 `resolved_failures` |
+| F5 | 审批返回的 request_id 与台账不一致 | 审批钩子改为返回台账**权威** `ApprovalRequest`，恢复后回读台账覆盖结果；新增 `approval_reader` |
+| F6 | 非法/截断模型响应被当成空答案 | `ModelTurn.invalid_tool_calls` + `finish_reason` 判定，统一转 `MODEL_ERROR` |
+| F7 | 条款检索跨合同串证据 | 文档按 `document_ids`（租约自己的版本）限定；`DocumentSearchTool` 增加 `document_ids`/`include_project_documents` 与 `document_scope` 证据 |
+| F8 | 跨项目主体可读他人运行 | `RunIndex` 记录 `project_ids`，`get`/`list` 按所有权过滤；跨项目一律按"不存在"处理（404），`decide` 先查所有权再查白名单 |
+| S1 | 终态审批可被重复修改 | `ApprovalStore.decide` 校验顺序重排：身份/权限/范围 → 版本 → 自批 → 已记录决定（同人同结论幂等） → 终态 → 过期 → 重复审批人 → 阶段顺序 |
+| S2 | 装配期未强制只读 | `db/session.enforce_read_only()` 在装配仓库的会话上启用 `PRAGMA query_only=1` |
+| S3 | 非法参数触发 500、`null` 被转成 `"None"` | Pydantic 请求模型（`extra="forbid"`、严格布尔/整数、预算上下限）+ 统一 422 校验响应，带 `details` 与 `trace_id` |
+| S4 | 公开 `run_id` 与 trace/checkpoint/审批不一致 | `build_investigation_bundle(run_id=, trace_id=)` 注入统一身份；`WorkflowService.submit`/`decide` 传递同一 `run_id` |
+| 附 | API/CLI 接收 `reason` 但未落库 | `Investigator.resume(..., reason=)` 一路转发到审批台账，CLI `approve --reason` 与 API 均生效 |
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 评分规则变更方式 | 升版本 `scoring-v2` + 新规则文档 + 新报告，旧 v1 规则与报告全部保留 | 规则变了就不允许与旧报告比通过率高低，否则结论不可追溯 |
+| 基线事实契约外的键 | 不进分母，转人工核对（不判失败） | 开发集为人工量表写的自然语言断言；把契约缺口记成答错会让报告读成"实现全面失败" |
+| 失败与补查的记账 | 区分"未解决失败"与"已通过补查解决" | 只按未解决失败算完整度，同时保留历史失败供审计 |
+| 审批结论来源 | 以审批台账为唯一权威（checkpoint 只记流程位置） | LangGraph `interrupt` 保存的是"停在哪"，不是"谁批了什么" |
+| 身份边界 | 跨项目按"不存在"处理 | 403/409 会泄漏"该运行确实存在" |
+| 工具参数校验 | 保留严格 schema，不改宽 | 越权题租约解析为空时暴露的是评分用例缺口，不该靠放宽工具契约掩盖 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/evaluation/scoring.py` | `scoring-v2`、字段比较、结局断言、契约缺口转人工 |
+| `backend/app/evaluation/cases.py` | `expected_outcome`/`scorable` 契约、指向 `heldout_v3.jsonl` |
+| `backend/app/evaluation/baselines.py` | `derive_status()` 统一结局、`document_ids` 事实、catalog 装配 |
+| `backend/scripts/generate_heldout_cases.py` | 生成 v3（含拒绝/失败结局与新增断言） |
+| `docs/evaluation/cases/heldout_v3.jsonl` | 新增（32 题，30 题可自动计分） |
+| `docs/evaluation/scoring_v2.md` | 新增（冻结规则） |
+| `docs/evaluation/scoring_v1.md` | 标注已被 v2 取代 |
+| `backend/app/rag/catalog.py` | 新增（文档目录契约与适配器） |
+| `backend/app/rag/library.py` | 接 catalog、记录 `documents`/`snippet_verified`、`document_ids_for_lease` |
+| `backend/app/rag/service.py` | `lease_id`/`document_ids` 过滤与 `document_scope` |
+| `backend/app/tools/knowledge_tools.py` | 检索限定入参与证据字段 |
+| `backend/app/agents/lease/agent.py` | 用租约自己的文档限定条款检索 |
+| `backend/app/orchestration/investigation.py` | 补查/校验/报告改造、审批台账回读、`resume(reason)` |
+| `backend/app/orchestration/approval.py` | 审批校验顺序（S1） |
+| `backend/app/runtime/tool_loop.py` | 非法响应 → `MODEL_ERROR` |
+| `backend/app/llm/model_client.py`、`langchain_client.py` | 收集非法工具调用 |
+| `backend/app/db/session.py`、`bootstrap.py`、`repository.py` | 只读闸门、`documents()` |
+| `backend/app/api/service.py` | 所有权过滤、`run_id` 注入、`reason` 转发 |
+| `backend/app/api/app.py` | Pydantic 校验与 422 处理器 |
+| `backend/app/investigation_demo.py`、`cli.py` | 统一注入 `run_id`/`trace_id`、catalog 装配、`reason` 转发 |
+| `backend/tests/test_{evaluation,rag,api,database_layer,graph_workflow,approval,llm_tool_loop}.py` | 新增回归用例 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 全量单元测试 | `python -m unittest discover -s tests -p "test_*.py"` | **238 项通过** |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | **57 项检查全部通过** |
+| SQLite + RAG 入口 | `python -m app.cli investigate --backend sqlite` | 退出码 **0**（修复前 `AttributeError: 'DatabaseRepository' object has no attribute 'snapshot'`） |
+| 审批意见持久化 | `investigate --with-approval` → `approve --reason "..."` → `pending` | 台账 `stages[0].reason` 为该意见，`approval_status=pending_next_stage` |
+| 保留集评测（scoring-v2） | `python -m app.cli evaluate --split heldout --quiet` | A 20/30、B 21/30、C 23/30（30 题可自动计分，H25/H26 显式人工评定） |
+| 开发集评测（scoring-v2） | `python -m app.cli evaluate --split dev --quiet` | A/B/C 均 0/7，自动断言通过率 0.1571（与 v1 的 0/7、0.1684 同源：开发集是人工量表题，离线基线不解析自然语言） |
+
+报告绑定提交：`43b48ef`（评分器契约缺口修正后重新生成）。
+
+### 遇到的问题及解决方法
+
+| 问题 | 解决 |
+|---|---|
+| `report.get("failures") or state["failures"]` 被判空列表 fall through | 改用 `"failures" in report` 判断 |
+| LangGraph `Annotated[list, operator.add]` 让旧 `missing` 残留 | 每轮重算的 `conflicts`/`missing` 改覆盖语义 |
+| 测试类重名导致用例静默丢失 | 重命名重复的 `TestPausedAndResumedFlow`，用例数从 22 恢复 26 |
+| 评分改为严格后开发集通过率跌到 0 | 区分"契约缺口（转人工）"与"基线缺值（判失败）"，避免误读为实现失败 |
+| `Out-File -Encoding utf8` 在 PowerShell 5.1 写入 BOM 污染提交信息 | 改用 `[IO.File]::WriteAllText` + `UTF8Encoding($false)` |
+
+### 当前项目状态
+
+第一批（F1/F2/F7/F8）与第二批（F3/F4/F5/F6/S1–S4 及 reason 持久化）全部修复并有回归测试，全量测试通过。**第三批（真实 DeepSeek 调用、PostgreSQL 实机验证、严谨评测、独立环境复现）尚未开始**，详见路线图与审查报告第 5 节。
+
+### 下一步开发计划
+
+- [ ] 第三批：真实模型工具闭环与真实 B/C 评测（需 `DEEPSEEK_API_KEY`）
+- [ ] 第三批：PostgreSQL 实机装配与迁移验证（需可用实例）
+- [ ] 第三批：补齐人工量表、按 README 做独立环境复现
+- [ ] 按需补充运行标识在演示页与 API 文档中的展示
+
+---
+
+## [2026-11-06] 任务 016 - 版本候选进度与缺陷审查
+
+- **开发阶段**：测试 / 独立审查。
+- **对应 Prompt 归档**：`docs/prompts/06_testing/2026-11-06_016_release_candidate_review.md`。
+- **审查基线**：`main` / `041b2c5`，开始时工作区干净且与 origin/main 一致。
+- **完成内容**：核对 Task 007–015 实现与状态，阅读 Runtime/Graph/模型/数据库/RAG/审批/API/评测，归档完整证据至 `docs/reviews/2026-11-06_release_candidate_review.md`。
+- **验证**：192 项 unittest、57 项契约检查通过；离线保留集重现 A 15/27、B 16/27、C 23/27。额外反例复现了评分、SQLite 入口、成功补查状态、审批请求身份、异常模型响应、合同归属、API 主体隔离及其他问题。
+- **当前状态**：离线功能齐备的版本候选，存在待修正项；真实模型/PG 与完整严谨评测尚未完成。未改业务代码，未访问外部模型/PG，未提交或推送。
+- **变更文件**：审查报告、016 Prompt、docs README、路线图提示、开发日志、问题记录和 Git 检查点。
+- **下一步**：按审查报告分三批处理：正确性/隔离 → 集成/恢复 → 真实服务与交付验证。
+
+---
+
 ## [2026-11-06] 任务 007 返修 - Prompt 2-R1（F1/F2，待 Codex 复验）
 
 - **日期**：2026-11-06

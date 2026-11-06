@@ -80,6 +80,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 013 | 2026-11-06 | 06_testing | 三基线与 40 题正式评测（Prompt 8；离线三基线完成，真实模型测量受凭据限制） | [2026-11-06_013_three_baselines_evaluation.md](./prompts/06_testing/2026-11-06_013_three_baselines_evaluation.md) |
 | 014 | 2026-11-06 | 05_frontend | FastAPI 与轻量演示页（Prompt 9；本地 uvicorn 实测通过） | [2026-11-06_014_fastapi_demo_api.md](./prompts/05_frontend/2026-11-06_014_fastapi_demo_api.md) |
 | 015 | 2026-11-06 | 01_environment | 最终验收与项目展示材料（Prompt 10；版本候选，未打 Tag/发布） | [2026-11-06_015_release_candidate.md](./prompts/01_environment/2026-11-06_015_release_candidate.md) |
+| 016 | 2026-11-06 | 06_testing | 版本候选独立审查与缺陷修复（F1–F8、S1–S4 已修复并有回归测试；真实模型/PG 验证待补） | [2026-11-06_016_release_candidate_review.md](./prompts/06_testing/2026-11-06_016_release_candidate_review.md) |
 
 ---
 

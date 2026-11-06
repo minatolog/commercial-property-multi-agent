@@ -42,8 +42,8 @@ python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁
 # 审批（持久 checkpoint + 独立审批台账）
 python -m app.cli investigate --with-approval --thread-id thread_demo
 python -m app.cli pending
-python -m app.cli approve <request_id> --principal principal_property_manager_xinghui --draft-version 2
-python -m app.cli approve <request_id> --principal principal_finance_xinghui --draft-version 2
+python -m app.cli approve <request_id> --principal principal_property_manager_xinghui --draft-version 2 --reason "核对合同 5.1.1 后同意减免"
+python -m app.cli approve <request_id> --principal principal_finance_xinghui --draft-version 2 --reason "财务复核通过"
 
 # 评测（三基线）
 python -m app.cli evaluate --split dev
@@ -72,9 +72,9 @@ python -m unittest discover -s tests -p "test_*.py"
 | `app/orchestration/investigation.py` | LangGraph：规划 → 并发扇出 → 合流核验 → 限次补查 → 报告 → 审批门 |
 | `app/orchestration/approval.py` | 审批规则、审计台账、校验链、幂等与并发（独立 SQLite） |
 | `app/orchestration/checkpointing.py` | `AsyncSqliteSaver` 装配与 serde 白名单 |
-| `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验 |
-| `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（本机用 SQLite 验证） |
-| `app/evaluation/` | 用例装载、三基线、确定性评分、报告绑定 |
+| `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验、`DocumentCatalog` 目录契约（按租约限定文档版本） |
+| `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（装配期 `PRAGMA query_only=1`；本机用 SQLite 验证） |
+| `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v2`）、报告绑定 |
 | `app/api/` | FastAPI 适配层 + 同源演示页（**可整体删除**，CLI/评测不依赖它） |
 | `app/cli.py` | 命令行入口（tools/check/demo/ask/investigate/search/approve/pending/evaluate） |
 
@@ -96,4 +96,6 @@ python -m unittest discover -s tests -p "test_*.py"
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20） |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |
 | 演示鉴权 | `DEMO_PRINCIPAL_ID` + 白名单仅为演示，非真实认证 |
-| 人工量表 | 评测 rubric 仍为人工待评队列 |
+| 人工量表 | 评测 rubric 仍为人工待评队列；保留集 H25/H26 显式声明为人工评定（`scorable=false`） |
+| 开发集自动计分 | `smoke_v1.jsonl` 是自然语言断言、面向人工量表；离线三基线在它上面都是 0/7，不能用它评价实现质量 |
+| 分布式语义 | checkpoint 与审批台账是本机 SQLite；多实例并发与"恰好一次"未验证 |

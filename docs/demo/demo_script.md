@@ -149,6 +149,6 @@ python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
 
 ```bash
 python tests/smoke_agent_contracts.py                       # 57 项
-python -m unittest discover -s tests -p "test_*.py"         # 192 项
+python -m unittest discover -s tests -p "test_*.py"         # 238 项
 python -m app.cli evaluate --split dev --quiet              # 生成本地报告
 ```

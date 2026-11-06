@@ -49,6 +49,44 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-06] 任务 016 实施 - 版本候选缺陷修复（第一批 + 第二批）
+
+- **开发阶段**：评测 / Runtime / 编排 / 审批 / API / 数据层（缺陷修复）。
+- **对应任务**：016（依据 `docs/reviews/2026-11-06_release_candidate_review.md`）。
+- **Git 分支**：`main`。
+- **Commit Hash**：
+  - `a9c6355` — `fix(runtime): repair scoring, ownership isolation and failure recovery`（F1–F8、S1–S4 与 reason 持久化）
+  - `43b48ef` — `fix(eval): treat contract gaps as manual review, not as wrong answers`（评分器契约缺口语义）
+  - 文档与评测报告：见下一条记录。
+- **变更**：见开发日志「任务 016 实施」；新增 `backend/app/rag/catalog.py`、`docs/evaluation/scoring_v2.md`、`docs/evaluation/cases/heldout_v3.jsonl`。
+- **验证结果**：
+  - `python -m unittest discover -s tests -p "test_*.py"` → **238 项通过**；
+  - `python tests/smoke_agent_contracts.py` → **57 项检查通过**；
+  - `investigate --backend sqlite` → 退出码 0（修复前崩溃）；
+  - `approve --reason` → 台账 `stages[0].reason` 落库；
+  - 评测（`scoring-v2`，绑定 `43b48ef`）：heldout A 20/30、B 21/30、C 23/30；dev 三基线 0/7（人工量表题）。
+- **回滚参考**（仅在项目所有者确认后执行）：
+
+```powershell
+git --no-pager show a9c6355 --stat
+git --no-pager revert --no-commit 43b48ef   # 撤销评分契约缺口语义
+```
+
+---
+
+## [2026-11-06] 任务 016 - 版本候选审查文档（未提交）
+
+- **开发阶段**：独立审查；仅文档归档。
+- **被审查基线**：`main` / `041b2c5`，检查开始时与 `origin/main` 一致，工作区干净。
+- **本轮 Commit Hash**：`Pending`（审查文档本身在实施提交之后统一提交，见上一条）。
+- **变更**：新增完整审查报告与 016 Prompt；更新文档编号、当前进度提示、开发日志与问题记录。审查轮次未修复业务代码；修复在后续实现轮次完成。
+- **验证**：192 项 unittest 与 57 项契约检查通过；离线评测重现原结果，额外反例揭示评分/集成/恢复/隔离缺陷。
+- **报告**：`docs/reviews/2026-11-06_release_candidate_review.md`。
+- **建议 Commit Message**：`docs: audit agent-first release candidate and record reproducible defects`。
+- **回滚参考**：当前仅未提交的文档改动，审查差异后由用户决定是否保留，不自动执行回滚。
+
+---
+
 ## [2026-11-06] 任务 007 返修 - Prompt 2-R1（F1/F2，待复验，未提交）
 
 - **开发阶段**：阶段 1' - Agent Runtime（返修）

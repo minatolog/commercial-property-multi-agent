@@ -38,7 +38,7 @@ python -m app.cli tools
 python -m app.cli check
 python tests/smoke_agent_contracts.py
 
-# 4) 跑一遍完整回归（192 项）
+# 4) 跑一遍完整回归（238 项）
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -171,27 +171,34 @@ python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁
 
 ## 5. 评测（三基线）
 
-数据：8 道开发题（`cases/smoke_v1.jsonl`）+ 32 道保留题（`cases/heldout_v2.jsonl`，冻结后只跑不改）。
-评分规则先冻结：[scoring_v1.md](docs/evaluation/scoring_v1.md)。
+数据：8 道开发题（`cases/smoke_v1.jsonl`，为人工量表写的自然语言题）+ 32 道保留题
+（`cases/heldout_v3.jsonl`，冻结后只跑不改；其中 H25/H26 显式声明为人工评定，30 题参与自动计分）。
+评分规则先冻结：[scoring_v2.md](docs/evaluation/scoring_v2.md)（v1 规则与历史报告保留在
+[scoring_v1.md](docs/evaluation/scoring_v1.md) 与 reports 目录，**两版不可做通过率对比**）。
 
 ```bash
 python -m app.cli evaluate --split heldout
 ```
 
-保留集 v2（离线，`scoring-v1`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
+保留集 v3（离线，`scoring-v2`，代码提交 `43b48ef`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
 
 | 基线 | 架构 | 计分题通过 | 自动断言通过率 | 工具调用 | token | 成本 |
 |---|---|---|---|---|---|---|
-| `A_deterministic` | 意图表 → 单次工具 | 15/27 | 0.6481 | 27 | 0 | n/a（离线） |
-| `B_single_agent` | 单 Agent 汇总全部工具 | 16/27 | 0.6975 | 38 | 0 | n/a（离线） |
-| `C_multi_agent` | LangGraph 分解 + 核验 | 23/27 | 0.8704 | 47 | 0 | n/a（离线） |
+| `A_deterministic` | 意图表 → 单次工具 | 20/30 | 0.7222 | 27 | 0 | n/a（离线） |
+| `B_single_agent` | 单 Agent 汇总全部工具 | 21/30 | 0.7444 | 38 | 0 | n/a（离线） |
+| `C_multi_agent` | LangGraph 分解 + 核验 | 23/30 | 0.8222 | 47 | 0 | n/a（离线） |
 
 **怎么读这张表**：
 
-- 通过率只统计**可机械复核**的断言；人工量表（rubric）另列，不参与自动分；
+- 通过率只统计**可机械复核**的断言；人工量表（rubric）与 `scorable=false` 的题另列，
+  不参与自动分。断言必须是**同名字段**比较（金额用 `Decimal` 比到分），不允许"数字在文本里出现过"即通过；
+- 基线事实契约之外、无法自动判定的断言进人工队列，**不进分母**——所以"0/0"表示"没有可判定的题"，
+  与"0/7（全错）"不是一回事；
 - 路由命中只作**效率**指标（`B` 为 0/32 是架构使然，不是错误）；
-- `C` 的领先来自"跨领域扇出 + 权限/审批边界"这类 A/B 结构上做不到的题；
+- `C` 的领先主要来自"跨领域扇出 + 权限/审批边界"这类 A/B 结构上做不到的题；
   **单领域单工具的题上，A 一样对，且更省**；
+- 开发集（8 题）三基线都是 0/7：那批题是自然语言断言、面向人工量表，离线基线不解析自然语言，
+  因此**不能**用它的通过率评价实现质量；
 - `token=0`、`cost=null` 是因为**没有调用真实模型**；不得把这些数字当作真实成本或质量。
 
 ---
@@ -218,11 +225,16 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **192 项通过** |
-| 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **238 项通过** |
+| 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
+| SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
+| 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
 | Agent 可禁用/替换 | `tests/test_graph_workflow.py::test_disabled_capability_degrades_explicitly`、`tests/test_runtime.py::test_replace_success_swaps_capabilities_atomically` | 禁用后明确报能力不可用；替换原子生效 |
-| 审批只出草案 | `tests/test_approval.py`（21 项） | `approved_draft_only` + `executed_side_effects=[]` |
-| 证据页码真实 | `tests/test_rag.py`（29 项） | fixture 声明页码 == 真实 PDF 页码 |
+| 审批只出草案 | `tests/test_approval.py`（26 项） | `approved_draft_only` + `executed_side_effects=[]`；终态重复提交受幂等保护 |
+| 证据页码真实 | `tests/test_rag.py`（33 项） | fixture 声明页码 == 真实 PDF 页码；条款检索限定本租约文档 |
+| 评分字段绑定 | `tests/test_evaluation.py::TestFactFieldBinding`（6 项） | 金额互换、错字段、差一分均判失败 |
+| 主体隔离 | `tests/test_api.py::TestRunOwnership` | 跨项目读取按"不存在"处理（404） |
+| 运行身份一致 | `tests/test_api.py::TestRunIdentity`（4 项） | 公开 `run_id` == checkpoint context == 审批 == 每条 trace |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
 
 ---
@@ -234,8 +246,10 @@ python -m app.cli evaluate --split heldout
 3. **检索只有 BM25**：长问题召回不足（评测 H18–H20 已暴露）；向量/混合检索/rerank 属下一阶段。
 4. **没有外部副作用实现**：调账/派单未实现，接入前必须先定义幂等键与补偿。
 5. **演示鉴权是演示级**：服务端固定主体 + 审批人白名单，`X-Actor-Id` 不是认证。
-6. **人工量表未评**：rubric 仍是待评队列，自动分不含表述质量。
-7. **数据集有 5 题不可自动判定**（`cases_not_scored`），已在归档中记录，计划随 v3 修正。
+6. **人工量表未评**：rubric 仍是待评队列，自动分不含表述质量；H25/H26 已显式声明为人工评定。
+7. **开发集不是自动评测集**：8 道开发题为自然语言断言、面向人工量表，离线三基线在它上面都是 0/7，
+   因此不能用它的通过率评价实现质量。
+8. **失败路径只覆盖单机**：checkpoint 与审批台账是本机 SQLite，未验证多实例并发与分布式"恰好一次"。
 
 ---
 
@@ -244,7 +258,8 @@ python -m app.cli evaluate --split heldout
 - 分支 `main`，当前提交见 `git log -1`；里程碑记录见 [git_history](docs/checkpoints/git_history.md)。
 - **未打 Tag、未发布、未部署**——这些动作需要项目所有者确认。
 - 建议的下一步（按价值排序）：
-  1. 接真实 DeepSeek，按冻结配置重复 3 次测量质量/成本；
-  2. 上 PostgreSQL 并实测排他约束与 RLS；
-  3. 混合检索 + rerank，用评测集验证召回提升；
-  4. 数据集 v3：补全无断言题；人工量表实际评分。
+  1. 接真实 DeepSeek，按冻结配置重复 3 次测量质量/成本（需 `DEEPSEEK_API_KEY`）；
+  2. 上 PostgreSQL 并实测排他约束与 RLS（需实例）；
+  3. 人工量表实际评分（H25/H26 与 rubric 队列）；
+  4. 在全新独立环境按本文档复现安装与测试；
+  5. 混合检索 + rerank，用评测集验证召回提升。
