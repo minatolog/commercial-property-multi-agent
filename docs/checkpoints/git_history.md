@@ -2,6 +2,15 @@
 
 记录每个开发阶段对应的 Git 提交，用于追溯与回滚。
 
+## [2026-11-07] 任务 017 - 修复复查文档（未提交）
+
+- **代码基线**：`main` / `bf30dd5`，开始时与本地 origin/main 一致，工作区干净。
+- **本轮 Commit**：`Pending`，没有提交或推送。
+- **变更**：新增 Task 017 复查报告和 Prompt；更新文档索引、路线图提示、开发日志和问题记录；未修业务代码。
+- **验证**：238 项 unittest、57 项契约检查、SQLite CLI 入口通过；保留集离线结果重现；新增反例发现 R1–R7。
+- **建议 Commit Message**：`docs: recheck release fixes and record remaining boundary defects`。
+- **回滚说明**：本轮仅未提交文档，先审查差异，不自动执行回滚或修改 Git 历史。
+
 > **重要**：本文档只用于**追溯**，真正的代码回滚依赖 Git 提交记录。不要把本文档当作代码快照。
 > 所有回滚操作必须先经项目所有者确认，不自动执行 `git reset` / `git rebase` / `git push --force`。
 
@@ -46,6 +55,28 @@ git show <hash> --stat
 - **远端**：`https://github.com/minatolog/commercial-property-multi-agent.git`
 - **默认分支**：`main`
 - **Conda 环境**：`commercial-agent` → `D:\anacada\envs\commercial-agent`（Python 3.11.18）
+
+---
+
+## [2026-11-07] 任务 017 修复 - 复查缺陷 R1–R7
+
+- **开发阶段**：编排 / 数据层 / RAG / Runtime / API（缺陷修复）。
+- **对应任务**：017（依据 `docs/reviews/2026-11-07_release_candidate_recheck.md`）。
+- **Git 分支**：`main`。
+- **Commit Hash**：提交后回填（本轮改动集中在 `investigation.py`、`api/service.py`、`rag/*`、`tools/*`、`agents/lease/agent.py`、`runtime/tool_loop.py` 与 5 个测试文件）。
+- **变更**：thread 身份守卫与按 run 过滤、范围默认拒绝与回填、数据范围/授权范围拆分、文档签署状态贯穿、空回答判失败、补查闸门改为可重试子任务、证据按 chunk_id 精确绑定。
+- **验证结果**：
+  - `python -m unittest discover -s tests -p "test_*.py"` → **261 项通过**；
+  - `python tests/smoke_agent_contracts.py` → **57 项通过**；
+  - R1 CLI 实测：同 `--thread-id` 第二次 `EXIT=2` 并给出 `invalid_context`；
+  - R1 图实测：复用被拒，新线索对越权主体返回 `insufficient` 且不含他人金额；
+  - R5 实测：工具后空回答 → `model_error` / `completed=False`。
+- **未完成**：真实模型、PostgreSQL、人工量表、部署验证。
+- **回滚参考**（仅在项目所有者确认后执行）：
+
+```powershell
+git --no-pager show <hash> --stat
+```
 
 ---
 

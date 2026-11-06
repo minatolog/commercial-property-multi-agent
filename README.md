@@ -152,13 +152,17 @@ python -m app.cli investigate --lease lease_xh_a301_2025
 ### 场景 C：需要人工审批（暂停 → 两人串行批准 → 只产出草案）
 
 ```bash
-python -m app.cli investigate --with-approval --thread-id demo_thread
+python -m app.cli investigate --with-approval --thread-id demo_thread_01
 python -m app.cli pending
 python -m app.cli approve <request_id> --principal principal_property_manager_xinghui --draft-version 2
 python -m app.cli approve <request_id> --principal principal_finance_xinghui --draft-version 2
 ```
 → 第一次批准后仍是 `pending_next_stage`；第二次后 `approved`，返回
 `approved_draft.status=approved_draft_only`、`executed_side_effects=[]`（**没有真实调账**）。
+
+> 每条 `thread_id` 只能承载**一次**运行：重复用同一个 `--thread-id` 做新调查会被明确拒绝
+> （`invalid_context`），因为持久化状态里的旧结果不能混进新结论。再演示一次请换
+> `demo_thread_02`，或使用新的 `--control-dir`。
 
 ### 场景 D：证据可回溯
 
@@ -225,7 +229,7 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **238 项通过** |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **261 项通过** |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
@@ -235,6 +239,11 @@ python -m app.cli evaluate --split heldout
 | 评分字段绑定 | `tests/test_evaluation.py::TestFactFieldBinding`（6 项） | 金额互换、错字段、差一分均判失败 |
 | 主体隔离 | `tests/test_api.py::TestRunOwnership` | 跨项目读取按"不存在"处理（404） |
 | 运行身份一致 | `tests/test_api.py::TestRunIdentity`（4 项） | 公开 `run_id` == checkpoint context == 审批 == 每条 trace |
+| 持久线索不被复用 | `tests/test_approval.py::TestThreadIdentityBoundary`（5 项） | 跨主体/换租约/重复调查均被拒绝，越权主体拿不到他人旧结果 |
+| 运行范围归属 | `tests/test_api.py::TestLegacyRunScope`、`TestReportScopeIsNotCreatorGrant` | 空范围默认拒绝；数据范围 ≠ 创建者授权范围 |
+| 文档签署状态 | `tests/test_rag.py::TestDocumentStatusPolicy`（6 项） | 默认不返回未签署草案；草案显式单列 |
+| 证据精确绑定 | `tests/test_rag.py::TestFindingEvidenceBinding`（3 项） | 同条号不同版本/5.1 与 5.1.1 各绑各的 chunk |
+| 完成条件 | `tests/test_llm_tool_loop.py::TestInvalidModelResponses` | 调过工具但空回答 → `MODEL_ERROR` |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
 | 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0` |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
@@ -253,6 +262,8 @@ python -m app.cli evaluate --split heldout
 7. **开发集不是自动评测集**：8 道开发题为自然语言断言、面向人工量表，离线三基线在它上面都是 0/7，
    因此不能用它的通过率评价实现质量。
 8. **失败路径只覆盖单机**：checkpoint 与审批台账是本机 SQLite，未验证多实例并发与分布式"恰好一次"。
+9. **一条 `thread_id` 只能承载一次运行**：重复用它做新调查会被明确拒绝（`invalid_context`）；
+   恢复请用 `resume`/`approve`，新任务请换线索。这是有意的安全约束，不是缺陷。
 
 ---
 

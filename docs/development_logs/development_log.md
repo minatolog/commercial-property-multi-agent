@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-11-07] 任务 017 - 版本候选修复复查
+
+- **阶段**：测试 / 独立复查。
+- **Prompt**：`docs/prompts/06_testing/2026-11-07_017_release_candidate_recheck.md`。
+- **代码基线**：`main` / `bf30dd5`，开始时工作区干净，与本地 origin/main 一致。
+- **完成内容**：阅读修复 diff，复现原反例和新增边界，归档 `docs/reviews/2026-11-07_release_candidate_recheck.md`。
+- **实际验证**：238 tests OK；57 项契约通过；SQLite 调查 exit 0；离线保留集 A/B/C 为 20/30、21/30、23/30。
+- **发现**：上轮主要反例已改善；仍有 R1–R4（P1）和 R5–R7（P2），涉及持久状态、授权、合同有效状态、模型完成条件、补查和引用关联。
+- **变更范围**：仅审查报告、Prompt、文档索引、路线图提示、开发日志、问题记录、检查点。未修业务代码、未调用真实模型/PG、未提交或推送。
+- **下一步**：先修 R1–R4，再修 R5–R7；随后完成真实集成与 MVP 验收。
+
+---
+
 ## 模板
 
 ```markdown
@@ -42,6 +55,85 @@
 - [ ] 计划 1
 - [ ] 计划 2
 ```
+
+---
+
+## [2026-11-07] 任务 017 - 版本候选复查缺陷修复（R1–R7）
+
+- **日期**：2026-11-07
+- **开发阶段**：编排 / 数据层 / RAG / Runtime / API（缺陷修复）
+- **执行者**：AI 助手（VS Code Copilot SDK 会话）
+- **对应 Prompt 归档**：`docs/prompts/06_testing/2026-11-07_017_release_candidate_recheck.md` §10
+- **修复依据**：[Task 017 复查报告](../reviews/2026-11-07_release_candidate_recheck.md)
+- **基线**：`main` / `bf30dd5`
+
+### 本次完成的功能
+
+| 编号 | 问题 | 修复要点 |
+|---|---|---|
+| R1 | 复用持久 `thread_id` 时旧结果可掩盖本次越权失败 | `investigate()` 拒绝复用已有线索（主体/租约/`run_id` 任一不符即报 `invalid_context`）；`results`/`failures` 带 `run_id`，核验与报告只统计本次运行（纵深防御） |
+| R2 | 旧库记录无范围标签时默认放行 | `RunIndex.get()` 空范围默认拒绝；服务层用可信主体 + 目标租约回填，回填不了保持隔离 |
+| R3 | 用创建者授权范围当报告数据范围 | 拆成 `project_ids`（按租约解析的数据范围，用于授权）与 `grant_project_ids`（授权范围，仅审计） |
+| R4 | 未签署草案混入正式结论 | 索引/检索/工具/证据全链路绑定 `document_status`；默认只返回 `signed`；草案需显式 `include_drafts`，并标 `document_draft` |
+| R5 | 调过工具后空回答仍算成功 | 最终回合空文本一律 `MODEL_ERROR`，有证据也不例外 |
+| R6 | 有账单冲突时可恢复失败不补查 | 补查闸门改为"存在未解决可重试子任务"，不再依赖总体 verdict |
+| R7 | 证据按条款号子串关联，混入其他版本 | 按 `chunk_id` 精确绑定，缺失时用 `document_id#v{version}#p{page}#{clause_id}` 重建 |
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| thread 复用策略 | **拒绝**而不是静默重置 | 追加型通道清不空；重置需要"经过授权的完整状态迁移"，比拒绝更容易出错 |
+| 数据范围 vs 授权范围 | 两个字段分开存 | 授权范围回答"谁可以做什么"，数据范围回答"这份报告属于谁"；混用会扩大读取面 |
+| 旧记录处理 | 能回填则回填，不能则隔离 | 迁移不该假设"旧数据默认安全"；空范围必须表示拒绝 |
+| 文档状态策略 | 默认只 `signed`，草案显式开启 | 草案真实存在≠生效；审计需要能区分"依据"与"提议" |
+| 完成条件 | 必须产出面向用户的文本 | "有证据"是过程，"有答案"才是结果 |
+| 补查条件 | 按未解决可重试子任务 | 用总体 verdict 当闸门会把跨领域恢复能力绑死在别的领域结论上 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/orchestration/investigation.py` | thread 身份守卫、按 run 过滤、补查闸门、finding 证据精确绑定、失败去重 |
+| `backend/app/api/service.py` | 默认拒绝空范围、范围回填、数据范围/授权范围拆分 |
+| `backend/app/rag/service.py` | `document_status` 索引与状态过滤、`status_of`/`versions_of` |
+| `backend/app/rag/library.py` | 复合键元数据、signed-only 的租约文档集、草案集合 |
+| `backend/app/tools/knowledge_tools.py` | `include_drafts`、`document_status` 输出与证据字段 |
+| `backend/app/tools/fixture_tools.py` | `lease.lookup` 输出 signed/draft 文档集合 |
+| `backend/app/agents/lease/agent.py` | 只检索已签署文档、草案告警 |
+| `backend/app/runtime/tool_loop.py` | 空最终回答 → `MODEL_ERROR` |
+| `backend/tests/{test_approval,test_api,test_rag,test_llm_tool_loop,test_graph_workflow}.py` | 20 项回归用例 |
+| `README.md`、`backend/README.md`、`docs/demo/demo_script.md` | 说明 `thread_id` 单次运行语义 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 全量单元测试 | `python -m unittest discover -s tests -p "test_*.py"` | **261 项通过** |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | **57 项检查通过** |
+| R1 复现（图 + 控制面） | 见 017 Prompt §10.3 | 复用被拒（`invalid_context`），新线索对越权主体返回 `insufficient` 且不含星汇金额 |
+| R1 复现（CLI 真实入口） | 同 `--thread-id` 连跑两次 | 第二次 `EXIT=2` + 可读错误 |
+| R5 复现 | 工具成功后空回答 | `model_error` / `completed=False`（17 条证据也不例外） |
+| 评分规则 | — | 仍为 `scoring-v2`，未改规则、未生成新报告 |
+
+### 遇到的问题及解决方法
+
+| 问题 | 解决 |
+|---|---|
+| 身份守卫先判 `run_id` 导致跨主体/换租约的错误信息不够具体 | 调整顺序为 主体 → 租约 → 运行，`details` 直接给出冲突字段 |
+| 同一子任务首轮与补查都失败时报告出现两条失败 | `report_node` 按 `subtask_id` 去重保留最后一次 |
+| `test_retries_do_not_run_past_deadline` 在全量连跑时偶发超时 1.2s | 既有时间敏感用例（单跑稳定通过）；本轮未改动其逻辑，记录为已知 flaky |
+
+### 当前项目状态
+
+R1–R7 全部修复并有回归测试，261 项测试与 57 项契约检查通过。项目仍是**版本候选**：真实模型、PostgreSQL、人工量表与部署验证均未完成。
+
+### 下一步开发计划
+
+- [ ] 真实 DeepSeek 工具闭环与真实 B/C 评测（需 `DEEPSEEK_API_KEY`）
+- [ ] PostgreSQL 实机验证（需实例）
+- [ ] 人工量表评分
+- [ ] 真实服务鉴权与部署验证
 
 ---
 

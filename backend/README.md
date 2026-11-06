@@ -40,7 +40,8 @@ python -m app.cli investigate --backend sqlite      # 用只读数据库后端�
 python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁年度起租金递增百分之五"
 
 # 审批（持久 checkpoint + 独立审批台账）
-python -m app.cli investigate --with-approval --thread-id thread_demo
+# 注意：一条 thread_id 只能承载一次运行，重复演示请换新 id 或换 --control-dir
+python -m app.cli investigate --with-approval --thread-id thread_demo_01
 python -m app.cli pending
 python -m app.cli approve <request_id> --principal principal_property_manager_xinghui --draft-version 2 --reason "核对合同 5.1.1 后同意减免"
 python -m app.cli approve <request_id> --principal principal_finance_xinghui --draft-version 2 --reason "财务复核通过"
@@ -99,3 +100,4 @@ python -m unittest discover -s tests -p "test_*.py"
 | 人工量表 | 评测 rubric 仍为人工待评队列；保留集 H25/H26 显式声明为人工评定（`scorable=false`） |
 | 开发集自动计分 | `smoke_v1.jsonl` 是自然语言断言、面向人工量表；离线三基线在它上面都是 0/7，不能用它评价实现质量 |
 | 分布式语义 | checkpoint 与审批台账是本机 SQLite；多实例并发与"恰好一次"未验证 |
+| 线索复用 | 一条 `thread_id` 只允许一次运行（新增运行会因 `invalid_context` 被拒），恢复请走 `resume`/`approve` |

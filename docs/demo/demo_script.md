@@ -56,7 +56,7 @@ python -m app.cli investigate --lease lease_xh_a301_2025
 ## 场景 C：人工审批（暂停 → 两级串行 → 只出草案）
 
 ```bash
-python -m app.cli investigate --with-approval --thread-id demo_thread
+python -m app.cli investigate --with-approval --thread-id demo_thread_01
 # 记下输出里的 "request_id": "apr_xxxxxxxx" 与 draft_version
 
 python -m app.cli pending
@@ -81,7 +81,10 @@ python -m app.cli approve <apr_id> --principal principal_finance_xinghui --draft
 
 1. checkpoint 存"流程停在哪"，审批台账存"谁在何时批准了什么"，**两份独立存储**；
 2. 请求人不能自批、同一人不能签两段、财务不能跳过物业先批；
-3. 批准**不等于执行**：本项目没有任何调账/派单副作用。
+3. 批准**不等于执行**：本项目没有任何调账/派单副作用；
+4. **一条 `thread_id` 只承载一次运行**：再演示一次要换 `demo_thread_02`（或新的 `--control-dir`），
+   否则会被 `invalid_context` 明确拒绝——持久化状态里的旧结果不能混进新结论；
+5. 审批意见用 `--reason "..."` 提交，会写进台账并在 `pending` 输出里可见。
 
 ---
 
