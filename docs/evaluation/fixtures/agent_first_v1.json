@@ -1,0 +1,1080 @@
+{
+  "dataset_version": "agent-first-v1",
+  "spec_revision": "2026-11-06-r2",
+  "as_of_date": "2026-11-03",
+  "synthetic": true,
+  "currency": "CNY",
+  "core_investigation_period": {
+    "start": "2026-08-01",
+    "end": "2026-10-31"
+  },
+  "conventions": {
+    "money": "十进制字符串，两位小数；单价四位小数；禁止 float",
+    "business_date": "YYYY-MM-DD",
+    "event_time": "RFC3339 带偏移",
+    "id_prefix": "prj_/bld_/unit_/ten_/lease_/rule_/inv_/itm_/pay_/alloc_/wo_/doc_/snip_"
+  },
+  "notes": [
+    "全部数据为合成数据，不含任何真实公司、租户或合同信息。",
+    "文档片段为模拟检索语料，page 字段代表约定的测试来源定位，不代表已验证 PDF 分页。",
+    "inv_2026_10 的租金行为故意设置的业务差异（错用了下一年度档位），不是 fixture 错误。",
+    "doc_xh_a301_annex_b 被 contract 引用但未电子化，属于故意设置的缺失资料，用于 C05。"
+  ],
+  "projects": [
+    {
+      "id": "prj_xinghui",
+      "code": "XH",
+      "name": "星汇广场",
+      "city": "上海",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "id": "prj_jinlan",
+      "code": "JL",
+      "name": "锦澜中心",
+      "city": "杭州",
+      "timezone": "Asia/Shanghai"
+    }
+  ],
+  "buildings": [
+    {
+      "id": "bld_xh_a",
+      "project_id": "prj_xinghui",
+      "code": "A",
+      "name": "A座"
+    },
+    {
+      "id": "bld_jl_1",
+      "project_id": "prj_jinlan",
+      "code": "1",
+      "name": "1号楼"
+    }
+  ],
+  "units": [
+    {
+      "id": "unit_xh_a301",
+      "project_id": "prj_xinghui",
+      "building_id": "bld_xh_a",
+      "code": "A-301",
+      "floor": "3",
+      "area_sqm": "120.00",
+      "chargeable_area_sqm": "120.00",
+      "usage_type": "food",
+      "physical_status": "normal"
+    },
+    {
+      "id": "unit_xh_a302",
+      "project_id": "prj_xinghui",
+      "building_id": "bld_xh_a",
+      "code": "A-302",
+      "floor": "3",
+      "area_sqm": "90.00",
+      "chargeable_area_sqm": "90.00",
+      "usage_type": "retail",
+      "physical_status": "normal"
+    },
+    {
+      "id": "unit_jl_b101",
+      "project_id": "prj_jinlan",
+      "building_id": "bld_jl_1",
+      "code": "B-101",
+      "floor": "1",
+      "area_sqm": "150.00",
+      "chargeable_area_sqm": "150.00",
+      "usage_type": "retail",
+      "physical_status": "normal"
+    }
+  ],
+  "tenants": [
+    {
+      "id": "ten_xh_yunduan",
+      "code": "T-XH-001",
+      "name": "云端咖啡（合成租户）",
+      "unified_social_credit_code": "91310000SYNTH0001X",
+      "contact_name": "合成联系人甲",
+      "contact_phone": "13800000001",
+      "status": "active"
+    },
+    {
+      "id": "ten_xh_wenju",
+      "code": "T-XH-002",
+      "name": "星汇文具（合成租户）",
+      "unified_social_credit_code": "91310000SYNTH0002X",
+      "contact_name": "合成联系人乙",
+      "contact_phone": "13800000002",
+      "status": "active"
+    },
+    {
+      "id": "ten_jl_shuye",
+      "code": "T-JL-001",
+      "name": "锦澜书业（合成租户）",
+      "unified_social_credit_code": "91330100SYNTH0003X",
+      "contact_name": "合成联系人丙",
+      "contact_phone": "13800000003",
+      "status": "active"
+    }
+  ],
+  "leases": [
+    {
+      "id": "lease_xh_a301_2025",
+      "project_id": "prj_xinghui",
+      "lease_no": "XH-A301-2025-01",
+      "tenant_id": "ten_xh_yunduan",
+      "unit_id": "unit_xh_a301",
+      "start_date": "2025-01-01",
+      "end_date": "2027-12-31",
+      "signing_date": "2024-12-18",
+      "status": "active",
+      "billing_cycle": "monthly",
+      "payment_terms_days": 5,
+      "deposit_amount": "40000.00",
+      "currency": "CNY",
+      "referenced_document_ids": [
+        "doc_xh_a301_contract",
+        "doc_xh_a301_annex_b"
+      ]
+    },
+    {
+      "id": "lease_xh_a302_2025",
+      "project_id": "prj_xinghui",
+      "lease_no": "XH-A302-2025-01",
+      "tenant_id": "ten_xh_wenju",
+      "unit_id": "unit_xh_a302",
+      "start_date": "2025-03-01",
+      "end_date": "2027-02-28",
+      "signing_date": "2025-02-10",
+      "status": "active",
+      "billing_cycle": "monthly",
+      "payment_terms_days": 5,
+      "deposit_amount": "30000.00",
+      "currency": "CNY",
+      "referenced_document_ids": []
+    },
+    {
+      "id": "lease_jl_b101_2025",
+      "project_id": "prj_jinlan",
+      "lease_no": "JL-B101-2025-01",
+      "tenant_id": "ten_jl_shuye",
+      "unit_id": "unit_jl_b101",
+      "start_date": "2025-06-01",
+      "end_date": "2028-05-31",
+      "signing_date": "2025-05-12",
+      "status": "active",
+      "billing_cycle": "monthly",
+      "payment_terms_days": 5,
+      "deposit_amount": "60000.00",
+      "currency": "CNY",
+      "referenced_document_ids": [
+        "doc_jl_b101_contract"
+      ]
+    }
+  ],
+  "lease_charge_rules": [
+    {
+      "id": "rule_xh_a301_rent_2025",
+      "lease_id": "lease_xh_a301_2025",
+      "charge_type": "rent",
+      "calculation_method": "per_sqm",
+      "unit_price": "120.0000",
+      "period_unit": "month",
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "is_rent_free": false
+    },
+    {
+      "id": "rule_xh_a301_rent_2026",
+      "lease_id": "lease_xh_a301_2025",
+      "charge_type": "rent",
+      "calculation_method": "per_sqm",
+      "unit_price": "126.0000",
+      "period_unit": "month",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "is_rent_free": false
+    },
+    {
+      "id": "rule_xh_a301_rent_2027",
+      "lease_id": "lease_xh_a301_2025",
+      "charge_type": "rent",
+      "calculation_method": "per_sqm",
+      "unit_price": "132.3000",
+      "period_unit": "month",
+      "effective_from": "2027-01-01",
+      "effective_to": "2027-12-31",
+      "is_rent_free": false
+    },
+    {
+      "id": "rule_xh_a301_pf_all",
+      "lease_id": "lease_xh_a301_2025",
+      "charge_type": "property_fee",
+      "calculation_method": "per_sqm",
+      "unit_price": "18.0000",
+      "period_unit": "month",
+      "effective_from": "2025-01-01",
+      "effective_to": "2027-12-31",
+      "is_rent_free": false
+    }
+  ],
+  "invoices": [
+    {
+      "id": "inv_2026_08",
+      "project_id": "prj_xinghui",
+      "lease_id": "lease_xh_a301_2025",
+      "invoice_no": "XH-2026-08-0001",
+      "period_start": "2026-08-01",
+      "period_end": "2026-08-31",
+      "issue_date": "2026-08-25",
+      "due_date": "2026-08-30",
+      "currency": "CNY",
+      "status": "issued"
+    },
+    {
+      "id": "inv_2026_09",
+      "project_id": "prj_xinghui",
+      "lease_id": "lease_xh_a301_2025",
+      "invoice_no": "XH-2026-09-0001",
+      "period_start": "2026-09-01",
+      "period_end": "2026-09-30",
+      "issue_date": "2026-09-25",
+      "due_date": "2026-09-30",
+      "currency": "CNY",
+      "status": "issued"
+    },
+    {
+      "id": "inv_2026_10",
+      "project_id": "prj_xinghui",
+      "lease_id": "lease_xh_a301_2025",
+      "invoice_no": "XH-2026-10-0001",
+      "period_start": "2026-10-01",
+      "period_end": "2026-10-31",
+      "issue_date": "2026-10-25",
+      "due_date": "2026-10-30",
+      "currency": "CNY",
+      "status": "issued"
+    }
+  ],
+  "invoice_items": [
+    {
+      "id": "itm_inv08_rent",
+      "invoice_id": "inv_2026_08",
+      "charge_rule_id": "rule_xh_a301_rent_2026",
+      "charge_type": "rent",
+      "description": "2026年8月租金",
+      "quantity": "120.0000",
+      "unit_price": "126.0000",
+      "amount": "15120.00"
+    },
+    {
+      "id": "itm_inv08_pf",
+      "invoice_id": "inv_2026_08",
+      "charge_rule_id": "rule_xh_a301_pf_all",
+      "charge_type": "property_fee",
+      "description": "2026年8月物业费",
+      "quantity": "120.0000",
+      "unit_price": "18.0000",
+      "amount": "2160.00"
+    },
+    {
+      "id": "itm_inv09_rent",
+      "invoice_id": "inv_2026_09",
+      "charge_rule_id": "rule_xh_a301_rent_2026",
+      "charge_type": "rent",
+      "description": "2026年9月租金",
+      "quantity": "120.0000",
+      "unit_price": "126.0000",
+      "amount": "15120.00"
+    },
+    {
+      "id": "itm_inv09_pf",
+      "invoice_id": "inv_2026_09",
+      "charge_rule_id": "rule_xh_a301_pf_all",
+      "charge_type": "property_fee",
+      "description": "2026年9月物业费",
+      "quantity": "120.0000",
+      "unit_price": "18.0000",
+      "amount": "2160.00"
+    },
+    {
+      "id": "itm_inv10_rent",
+      "invoice_id": "inv_2026_10",
+      "charge_rule_id": "rule_xh_a301_rent_2026",
+      "charge_type": "rent",
+      "description": "2026年10月租金",
+      "quantity": "120.0000",
+      "unit_price": "132.3000",
+      "amount": "15876.00",
+      "data_note": "故意设置：错误引用 2027 年档位单价 132.3000，应为 126.0000"
+    },
+    {
+      "id": "itm_inv10_pf",
+      "invoice_id": "inv_2026_10",
+      "charge_rule_id": "rule_xh_a301_pf_all",
+      "charge_type": "property_fee",
+      "description": "2026年10月物业费",
+      "quantity": "120.0000",
+      "unit_price": "18.0000",
+      "amount": "2160.00"
+    }
+  ],
+  "payments": [
+    {
+      "id": "pay_2026_08_28",
+      "project_id": "prj_xinghui",
+      "receipt_no": "XH-RC-2026-0828",
+      "payer_tenant_id": "ten_xh_yunduan",
+      "payment_method": "bank_transfer",
+      "amount": "17280.00",
+      "currency": "CNY",
+      "paid_at": "2026-08-28T10:12:00+08:00",
+      "status": "confirmed"
+    },
+    {
+      "id": "pay_2026_09_28",
+      "project_id": "prj_xinghui",
+      "receipt_no": "XH-RC-2026-0928",
+      "payer_tenant_id": "ten_xh_yunduan",
+      "payment_method": "bank_transfer",
+      "amount": "17280.00",
+      "currency": "CNY",
+      "paid_at": "2026-09-28T15:40:00+08:00",
+      "status": "confirmed"
+    },
+    {
+      "id": "pay_2026_08_20_rev",
+      "project_id": "prj_xinghui",
+      "receipt_no": "XH-RC-2026-0820",
+      "payer_tenant_id": "ten_xh_yunduan",
+      "payment_method": "cheque",
+      "amount": "5000.00",
+      "currency": "CNY",
+      "paid_at": "2026-08-20T09:05:00+08:00",
+      "status": "reversed",
+      "reversed_at": "2026-08-21T11:00:00+08:00",
+      "reversed_reason": "支票退票（合成场景）"
+    }
+  ],
+  "payment_allocations": [
+    {
+      "id": "alloc_001",
+      "payment_id": "pay_2026_08_28",
+      "invoice_id": "inv_2026_08",
+      "amount": "17280.00",
+      "allocated_at": "2026-08-28T10:20:00+08:00",
+      "reversed_at": null
+    },
+    {
+      "id": "alloc_002",
+      "payment_id": "pay_2026_09_28",
+      "invoice_id": "inv_2026_09",
+      "amount": "17280.00",
+      "allocated_at": "2026-09-28T15:45:00+08:00",
+      "reversed_at": null
+    },
+    {
+      "id": "alloc_003",
+      "payment_id": "pay_2026_08_20_rev",
+      "invoice_id": "inv_2026_08",
+      "amount": "5000.00",
+      "allocated_at": "2026-08-20T09:10:00+08:00",
+      "reversed_at": "2026-08-21T11:00:00+08:00"
+    }
+  ],
+  "work_orders": [
+    {
+      "id": "wo_2026_07_12",
+      "project_id": "prj_xinghui",
+      "unit_id": "unit_xh_a301",
+      "lease_id": "lease_xh_a301_2025",
+      "work_order_no": "XH-WO-2026-0712",
+      "category": "hvac",
+      "priority": "normal",
+      "status": "closed",
+      "title": "空调制冷不足",
+      "description": "商户反映午市期间出风温度偏高（合成记录）",
+      "reported_at": "2026-07-12T13:20:00+08:00",
+      "resolved_at": "2026-07-15T17:00:00+08:00",
+      "resolution_note": "补充冷媒，清洗过滤网"
+    },
+    {
+      "id": "wo_2026_08_18",
+      "project_id": "prj_xinghui",
+      "unit_id": "unit_xh_a301",
+      "lease_id": "lease_xh_a301_2025",
+      "work_order_no": "XH-WO-2026-0818",
+      "category": "hvac",
+      "priority": "high",
+      "status": "closed",
+      "title": "空调再次停机",
+      "description": "商户反映压缩机频繁启停（合成记录）",
+      "reported_at": "2026-08-18T11:05:00+08:00",
+      "resolved_at": "2026-08-22T16:30:00+08:00",
+      "resolution_note": "更换启动电容，观察运行正常"
+    },
+    {
+      "id": "wo_2026_09_25",
+      "project_id": "prj_xinghui",
+      "unit_id": "unit_xh_a301",
+      "lease_id": "lease_xh_a301_2025",
+      "work_order_no": "XH-WO-2026-0925",
+      "category": "hvac",
+      "priority": "high",
+      "status": "in_progress",
+      "title": "空调异味并伴有噪音",
+      "description": "商户第三次报修，实测出风温度 26.5℃（合成记录）",
+      "reported_at": "2026-09-25T14:40:00+08:00",
+      "resolved_at": null,
+      "resolution_note": null
+    },
+    {
+      "id": "wo_2026_10_20",
+      "project_id": "prj_xinghui",
+      "unit_id": "unit_xh_a301",
+      "lease_id": "lease_xh_a301_2025",
+      "work_order_no": "XH-WO-2026-1020",
+      "category": "electrical",
+      "priority": "normal",
+      "status": "closed",
+      "title": "插座跳闸",
+      "description": "后场插座多次跳闸（合成记录）",
+      "reported_at": "2026-10-20T09:15:00+08:00",
+      "resolved_at": "2026-10-20T15:00:00+08:00",
+      "resolution_note": "更换空气开关"
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc_xh_a301_contract",
+      "project_id": "prj_xinghui",
+      "lease_id": "lease_xh_a301_2025",
+      "doc_type": "lease_contract",
+      "title": "星汇广场 A-301 租赁合同（合成）",
+      "version": 1,
+      "document_status": "signed",
+      "source": "upload",
+      "synthetic": true,
+      "checksum_sha256": "0000000000000000000000000000000000000000000000000000000000000a01"
+    },
+    {
+      "id": "doc_xh_property_policy",
+      "project_id": "prj_xinghui",
+      "lease_id": null,
+      "doc_type": "attachment",
+      "title": "星汇广场物业报修响应标准（合成）",
+      "version": 1,
+      "document_status": "signed",
+      "source": "generated",
+      "synthetic": true,
+      "checksum_sha256": "0000000000000000000000000000000000000000000000000000000000000a02"
+    },
+    {
+      "id": "doc_jl_b101_contract",
+      "project_id": "prj_jinlan",
+      "lease_id": "lease_jl_b101_2025",
+      "doc_type": "lease_contract",
+      "title": "锦澜中心 B-101 租赁合同（合成）",
+      "version": 1,
+      "document_status": "signed",
+      "source": "upload",
+      "synthetic": true,
+      "checksum_sha256": "0000000000000000000000000000000000000000000000000000000000000a03"
+    }
+  ],
+  "document_snippets": [
+    {
+      "id": "snip_contract_5_2",
+      "document_id": "doc_xh_a301_contract",
+      "document_version": 1,
+      "page": 12,
+      "clause_id": "5.2",
+      "text": "自第二个租赁年度起，租金每十二（12）个月递增百分之五（5%）；递增基数为上一租赁年度末月租金标准。",
+      "synthetic": true
+    },
+    {
+      "id": "snip_contract_7_1",
+      "document_id": "doc_xh_a301_contract",
+      "document_version": 1,
+      "page": 20,
+      "clause_id": "7.1",
+      "text": "任何租金减免须由承租方书面提出申请，经物业管理部门与财务部门共同审批后生效；审批期间承租人仍应按原约定支付租金。",
+      "synthetic": true
+    },
+    {
+      "id": "snip_contract_appendix_ref",
+      "document_id": "doc_xh_a301_contract",
+      "document_version": 1,
+      "page": 26,
+      "clause_id": "附件B",
+      "text": "附件B《免租期与装修期补充约定》为本合同不可分割组成部分，与正文具有同等效力。",
+      "synthetic": true
+    },
+    {
+      "id": "snip_property_policy_3_1",
+      "document_id": "doc_xh_property_policy",
+      "document_version": 1,
+      "page": 1,
+      "clause_id": "3.1",
+      "text": "空调类故障报修后，物业应在 24 小时内响应，48 小时内到场检修。",
+      "synthetic": true
+    }
+  ],
+  "work_notes": [
+    {
+      "id": "note_annex_b_not_digitized",
+      "project_id": "prj_xinghui",
+      "related_document_id": "doc_xh_a301_annex_b",
+      "text": "合同附件B（免租期与装修期补充约定）尚未电子化归档，资料室纸质件待扫描。",
+      "recorded_at": "2026-09-01T09:00:00+08:00"
+    }
+  ],
+  "principals": {
+    "principal_ops_xinghui": {
+      "principal_id": "principal_ops_xinghui",
+      "role": "星汇广场物业运营（合成）",
+      "project_ids": ["prj_xinghui"],
+      "permissions": ["lease.read", "billing.read", "property.read", "approval.request"],
+      "commercial_tenant_ids": ["ten_xh_yunduan", "ten_xh_wenju"],
+      "approval_roles": [],
+      "can_request_approval": true,
+      "can_decide_approval": false
+    },
+    "principal_billing_xinghui_readonly": {
+      "principal_id": "principal_billing_xinghui_readonly",
+      "role": "星汇广场账务只读（合成）",
+      "project_ids": ["prj_xinghui"],
+      "permissions": ["billing.read"],
+      "commercial_tenant_ids": null,
+      "approval_roles": [],
+      "can_request_approval": false,
+      "can_decide_approval": false
+    },
+    "principal_property_manager_xinghui": {
+      "principal_id": "principal_property_manager_xinghui",
+      "role": "星汇广场物业管理部门审批人（合成）",
+      "project_ids": ["prj_xinghui"],
+      "permissions": ["lease.read", "property.read", "approval.decide"],
+      "commercial_tenant_ids": null,
+      "approval_roles": ["property_manager"],
+      "can_request_approval": true,
+      "can_decide_approval": true
+    },
+    "principal_finance_xinghui": {
+      "principal_id": "principal_finance_xinghui",
+      "role": "星汇广场财务部门审批人（合成）",
+      "project_ids": ["prj_xinghui"],
+      "permissions": ["billing.read", "approval.decide"],
+      "commercial_tenant_ids": null,
+      "approval_roles": ["finance"],
+      "can_request_approval": true,
+      "can_decide_approval": true
+    },
+    "principal_finance_jinlan": {
+      "principal_id": "principal_finance_jinlan",
+      "role": "锦澜中心财务部门审批人（合成，用于跨项目越权审批）",
+      "project_ids": ["prj_jinlan"],
+      "permissions": ["billing.read", "approval.decide"],
+      "commercial_tenant_ids": null,
+      "approval_roles": ["finance"],
+      "can_request_approval": true,
+      "can_decide_approval": true
+    }
+  },
+  "approval_role_rules": {
+    "rent_reduction_draft": {
+      "combine": "all_of",
+      "order": "serial",
+      "serial_order": ["property_manager", "finance"],
+      "distinct_principals_required": true,
+      "one_principal_may_satisfy_multiple_roles": false,
+      "self_approval_forbidden": true,
+      "draft_expiry_hours": 72,
+      "roles": [
+        { "role": "property_manager", "label": "物业管理部门", "seq": 1, "permission": "approval.decide" },
+        { "role": "finance", "label": "财务部门", "seq": 2, "permission": "approval.decide" }
+      ],
+      "semantics": "AND（all_of）+ 串行：物业先批、财务后批；两名审批人必须不同；请求人不得自批；批准只改变草案状态，不写业务数据。"
+    }
+  },
+  "approval_drafts": {
+    "draft_xh_a301_oct_reduction_v1": {
+      "draft_id": "draft_xh_a301_oct_reduction",
+      "draft_version": 1,
+      "action_type": "rent_reduction_draft",
+      "project_id": "prj_xinghui",
+      "target": { "lease_id": "lease_xh_a301_2025", "invoice_id": "inv_2026_10", "invoice_item_id": "itm_inv10_rent" },
+      "amount": "756.00",
+      "currency": "CNY",
+      "evidence_ids": ["inv_2026_10", "itm_inv10_rent", "rule_xh_a301_rent_2026", "snip_contract_7_1"],
+      "generated_at": "2026-11-03T10:00:00+08:00",
+      "expires_at": "2026-11-06T10:00:00+08:00",
+      "status": "awaiting_approval"
+    },
+    "draft_xh_a301_oct_reduction_v2": {
+      "draft_id": "draft_xh_a301_oct_reduction",
+      "draft_version": 2,
+      "action_type": "rent_reduction_draft",
+      "project_id": "prj_xinghui",
+      "target": { "lease_id": "lease_xh_a301_2025", "invoice_id": "inv_2026_10", "invoice_item_id": "itm_inv10_rent" },
+      "amount": "700.00",
+      "currency": "CNY",
+      "evidence_ids": ["inv_2026_10", "itm_inv10_rent", "rule_xh_a301_rent_2026", "snip_contract_7_1"],
+      "generated_at": "2026-11-03T15:00:00+08:00",
+      "expires_at": "2026-11-06T15:00:00+08:00",
+      "supersedes": { "draft_id": "draft_xh_a301_oct_reduction", "draft_version": 1 },
+      "status": "awaiting_approval"
+    }
+  },
+  "scenario_protocol": {
+    "version": "2026-11-06-r2",
+    "case_form": "case.scenarios 是数组，元素为含唯一 scenario_id 的场景对象；没有 scenarios 字段的 case 是无场景 case",
+    "run_items": {
+      "with_scenarios": "每个场景展开为一个独立运行项 (case_id, scenario_id)，每个运行项恰好执行一次",
+      "without_scenarios": "恰好一个运行项 (case_id, null)，使用 variant.events 执行一次",
+      "empty_array": "validation_error: EMPTY_SCENARIOS"
+    },
+    "resolution": {
+      "case_scenario": "在 case.scenarios 数组中按 scenario_id 精确匹配唯一元素，供评测器读取 assertions 与 expected_*",
+      "fixture_scenario": "在 variant_registry[case.variant].scenarios 映射中按同一 scenario_id 取场景，供运行器读取 events 与 evidence_requirement",
+      "events": "取 fixture_scenario.events 整个数组，替换 variant.events，不做合并",
+      "evidence": "若 fixture_scenario 提供 evidence_requirement，则以它为权威并覆盖 case.required_evidence_ids；若未提供，则沿用 case.required_evidence_ids。case 场景若显式写出 required_evidence_ids / evidence_policy，必须与之一致",
+      "assertions": "case 场景 assertions 与 case 级 assertions 对该运行项都生效；case 级断言对每个运行项各判一次",
+      "overlay": "先应用 variant.overlay 得到数据，再取事件；事件不改数据"
+    },
+    "no_scenario_case": {
+      "events": "variant_registry[variant].events（可为空数组）",
+      "default_scenario": "仅当无场景 case 引用的 variant 同时声明了 scenarios 时，必须提供 default_scenario；缺失或未知即 validation_error",
+      "assertions": "只使用 case 级 assertions 与 expected_*，恰好执行一次"
+    },
+    "errors": {
+      "MISSING_SCENARIO_ID": "场景对象缺少 scenario_id，或不是非空字符串",
+      "DUPLICATE_SCENARIO_ID": "同一 case 的 scenarios 中 scenario_id 重复",
+      "UNKNOWN_SCENARIO_ID": "case 场景的 scenario_id 在所引用 variant.scenarios 中不存在",
+      "EMPTY_SCENARIOS": "scenarios 存在但为空数组；无场景 case 必须省略该字段",
+      "SCENARIOS_NOT_ARRAY": "scenarios 不是数组",
+      "DEFAULT_SCENARIO_MISSING": "无场景 case 引用了含 scenarios 的 variant，但 variant 没有 default_scenario",
+      "DEFAULT_SCENARIO_UNKNOWN": "variant.default_scenario 不在该 variant 的 scenarios 中",
+      "SCENARIO_MISMATCH": "case 场景与 fixture 场景在 fault / evidence / terminal / assertions 上不一致"
+    },
+    "events_mode": "replace",
+    "order": "先按评测计划 §2.3 应用 overlay 得到数据，再加载选中场景的 events；events 不改数据",
+    "fault_semantics": "fail_attempts 表示该工具在场景内前 N 次调用返回 mode 故障；尝试序号从 1 开始；超过 N 次后按 then 处理；N 必须 ≤ scenario.tool_max_attempts，否则校验失败",
+    "consistency_rule": "对每个有场景的 case：case 场景的 fault_injection.event_id/tool/mode/fail_attempts/then 必须等于 fixture events 中同 event_id 的事件；expected_terminal_outcomes（或 expected_terminal_status）与 fixture 场景一致；evidence_policy 与 evidence_requirement.mode 一致；required_evidence_ids 与 evidence_requirement.required_evidence_ids 相同；任一项不一致即 SCENARIO_MISMATCH",
+    "replay_delivery_rule": "重复投递由 delivery.duplicates（event_id + deliveries 次数）表达；事件对象本身逐字段不变，禁止加入 replayed 之类会改变内容哈希的字段"
+  },
+  "variant_registry": {
+    "v_base": {
+      "description": "基线数据，不做任何覆盖或故障注入",
+      "overlay": {},
+      "events": []
+    },
+    "v_annex_conflict": {
+      "description": "在基线之上追加一份未签署的补充协议片段，其递增周期与已签署正文冲突",
+      "overlay": {
+        "add_documents": [
+          {
+            "id": "doc_xh_a301_annex_draft",
+            "project_id": "prj_xinghui",
+            "lease_id": "lease_xh_a301_2025",
+            "doc_type": "attachment",
+            "title": "A-301 租金条款补充协议（未签署草案，合成）",
+            "version": 1,
+            "document_status": "draft_unsigned",
+            "source": "upload",
+            "synthetic": true,
+            "checksum_sha256": "0000000000000000000000000000000000000000000000000000000000000a04"
+          }
+        ],
+        "add_document_snippets": [
+          {
+            "id": "snip_annex_draft_5_2",
+            "document_id": "doc_xh_a301_annex_draft",
+            "document_version": 1,
+            "page": 2,
+            "clause_id": "5.2 补充",
+            "text": "双方同意将租金递增周期调整为每二十四（24）个月一次，其余条款不变。",
+            "synthetic": true
+          }
+        ]
+      },
+      "events": []
+    },
+    "v_oct_rent_corrected": {
+      "description": "回归用数据变体：把 10 月租金更正为合同档位，用于比对调查结论是否会随之消失",
+      "overlay": {
+        "patch_invoice_items": [
+          {
+            "invoice_item_id": "itm_inv10_rent",
+            "set": {
+              "unit_price": "126.0000",
+              "amount": "15120.00"
+            }
+          }
+        ]
+      },
+      "events": []
+    },
+    "v_tool_timeout_billing": {
+      "description": "账务查询工具超时：主失败路径与恢复 probe 是两套独立子场景，各自定义事件、终止状态与证据要求",
+      "overlay": {},
+      "default_scenario": "main_timeout_exhausted",
+      "events": [],
+      "scenarios": {
+        "main_timeout_exhausted": {
+          "role": "main_failure_path",
+          "description": "同一工具连续 2 次超时（等于 tool_max_attempts）；必须明确失败或显式降级，不得编造金额；不得因工具无结果而被要求取得 invoice 证据",
+          "events": [
+            {
+              "event_id": "evt_tool_fault_main_001",
+              "type": "tool_fault",
+              "tool": "billing.read_invoices",
+              "mode": "timeout",
+              "fail_attempts": 2,
+              "then": "fail",
+              "applies_to": "main_path"
+            }
+          ],
+          "tool_max_attempts": 2,
+          "expected_terminal_outcomes": ["failed_with_explicit_error", "degraded_with_missing_marked"],
+          "evidence_requirement": {
+            "mode": "none",
+            "required_evidence_ids": [],
+            "rule": "工具在失败路径没有成功返回，因此禁止要求 invoice 证据；报告必须显式标注缺失，且不得出现任何未由成功工具调用产生的金额"
+          }
+        },
+        "recovery_probe": {
+          "role": "recovery_probe",
+          "description": "独立 probe：仅第 1 次超时，第 2 次成功；只有 probe 成功才要求 invoice 证据",
+          "events": [
+            {
+              "event_id": "evt_tool_fault_probe_001",
+              "type": "tool_fault",
+              "tool": "billing.read_invoices",
+              "mode": "timeout",
+              "fail_attempts": 1,
+              "then": "succeed",
+              "applies_to": "recovery_probe"
+            }
+          ],
+          "tool_max_attempts": 2,
+          "expected_terminal_outcomes": ["recovered_on_attempt_2"],
+          "evidence_requirement": {
+            "mode": "required_on_success",
+            "required_evidence_ids": ["inv_2026_08", "inv_2026_09", "inv_2026_10"],
+            "rule": "第 2 次尝试成功后，汇总必须引用 3 张 invoice 证据；若仍失败则退化为 mode=none，不得把失败判成成功"
+          }
+        }
+      }
+    },
+    "v_approval_flow": {
+      "description": "减免草案审批：6 个可解析子场景（拒绝、正确版本批准、同版本重放、无权限审批、换版拒绝、过期拒绝）；事件序列用稳定 event_id 定义",
+      "overlay": {},
+      "default_scenario": "approval_granted",
+      "events": [],
+      "scenarios": {
+        "approval_denied": {
+          "description": "物业部门拒绝：串行审批在第 1 步终止，不再请求财务",
+          "events": [
+            {
+              "event_id": "evt_apr_req_001",
+              "type": "approval.requested",
+              "occurred_at": "2026-11-03T10:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approval_id": "apr_req_xh_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "action_type": "rent_reduction_draft"
+            },
+            {
+              "event_id": "evt_apr_prop_deny_002",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T11:00:00+08:00",
+              "actor_principal_id": "principal_property_manager_xinghui",
+              "actor_role": "property_manager",
+              "approval_id": "apr_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "denied",
+              "reason": "附件B（免租期补充约定）未归档，减免依据不足"
+            }
+          ],
+          "expected": {
+            "terminal_status": "rejected",
+            "approval_state": "denied",
+            "accepted_decisions": 1,
+            "decided_roles": ["property_manager"],
+            "satisfied_roles": [],
+            "pending_roles": [],
+            "rejected_events": [],
+            "business_writes": 0
+          }
+        },
+        "approval_granted": {
+          "description": "正确版本授权：物业先批、财务后批，两名不同审批人；批准后仍不写业务数据",
+          "events": [
+            {
+              "event_id": "evt_apr_req_001",
+              "type": "approval.requested",
+              "occurred_at": "2026-11-03T10:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approval_id": "apr_req_xh_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "action_type": "rent_reduction_draft"
+            },
+            {
+              "event_id": "evt_apr_prop_grant_002",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T11:00:00+08:00",
+              "actor_principal_id": "principal_property_manager_xinghui",
+              "actor_role": "property_manager",
+              "approval_id": "apr_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            },
+            {
+              "event_id": "evt_apr_fin_grant_003",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T14:00:00+08:00",
+              "actor_principal_id": "principal_finance_xinghui",
+              "actor_role": "finance",
+              "approval_id": "apr_002",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            }
+          ],
+          "expected": {
+            "terminal_status": "approved_no_write",
+            "approval_state": "approved",
+            "accepted_decisions": 2,
+            "decided_roles": ["property_manager", "finance"],
+            "satisfied_roles": ["property_manager", "finance"],
+            "pending_roles": [],
+            "rejected_events": [],
+            "business_writes": 0
+          }
+        },
+        "approval_replay": {
+          "description": "同版本重放：已批准后同 event_id、同内容的事件再次到达，只记一次、不重复计账",
+          "events": [
+            {
+              "event_id": "evt_apr_req_001",
+              "type": "approval.requested",
+              "occurred_at": "2026-11-03T10:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approval_id": "apr_req_xh_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "action_type": "rent_reduction_draft"
+            },
+            {
+              "event_id": "evt_apr_prop_grant_002",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T11:00:00+08:00",
+              "actor_principal_id": "principal_property_manager_xinghui",
+              "actor_role": "property_manager",
+              "approval_id": "apr_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            },
+            {
+              "event_id": "evt_apr_fin_grant_003",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T14:00:00+08:00",
+              "actor_principal_id": "principal_finance_xinghui",
+              "actor_role": "finance",
+              "approval_id": "apr_002",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            },
+            {
+              "event_id": "evt_apr_fin_grant_003",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T14:00:00+08:00",
+              "actor_principal_id": "principal_finance_xinghui",
+              "actor_role": "finance",
+              "approval_id": "apr_002",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            }
+          ],
+          "delivery": {
+            "mode": "duplicate_delivery",
+            "duplicates": [
+              { "event_id": "evt_apr_fin_grant_003", "deliveries": 2 }
+            ],
+            "content_rule": "重复投递的事件必须逐字段相同；投递次数属于场景配置，不属于事件内容"
+          },
+          "expected": {
+            "terminal_status": "idempotent_noop",
+            "approval_state": "approved",
+            "accepted_decisions": 2,
+            "decided_roles": ["property_manager", "finance"],
+            "duplicate_events_ignored": 1,
+            "budget_delta_on_replay": 0,
+            "satisfied_roles": ["property_manager", "finance"],
+            "rejected_events": [],
+            "business_writes": 0
+          }
+        },
+        "approval_unauthorized_actor": {
+          "description": "无权限审批：无 approval.decide 的只读主体、以及跨项目审批人先后尝试批准，都必须被拒绝且不改变状态",
+          "events": [
+            {
+              "event_id": "evt_apr_req_001",
+              "type": "approval.requested",
+              "occurred_at": "2026-11-03T10:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approval_id": "apr_req_xh_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "action_type": "rent_reduction_draft"
+            },
+            {
+              "event_id": "evt_apr_badreadonly_grant_002",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T11:00:00+08:00",
+              "actor_principal_id": "principal_billing_xinghui_readonly",
+              "actor_role": "billing_readonly",
+              "approval_id": "apr_bad_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            },
+            {
+              "event_id": "evt_apr_badcross_grant_003",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T12:00:00+08:00",
+              "actor_principal_id": "principal_finance_jinlan",
+              "actor_role": "finance",
+              "approval_id": "apr_bad_002",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            }
+          ],
+          "expected": {
+            "terminal_status": "awaiting_approval",
+            "approval_state": "awaiting_approval",
+            "accepted_decisions": 0,
+            "decided_roles": [],
+            "satisfied_roles": [],
+            "pending_roles": ["property_manager", "finance"],
+            "rejected_events": [
+              { "event_id": "evt_apr_badreadonly_grant_002", "error_code": "APPROVAL_FORBIDDEN" },
+              { "event_id": "evt_apr_badcross_grant_003", "error_code": "APPROVAL_PROJECT_SCOPE_DENIED" }
+            ],
+            "business_writes": 0
+          }
+        },
+        "approval_stale_version": {
+          "description": "换版拒绝：v1 已获双角色批准后草案改为 v2，再用 v1 的批准继续执行必须被拒",
+          "events": [
+            {
+              "event_id": "evt_apr_req_001",
+              "type": "approval.requested",
+              "occurred_at": "2026-11-03T10:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approval_id": "apr_req_xh_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "action_type": "rent_reduction_draft"
+            },
+            {
+              "event_id": "evt_apr_prop_grant_002",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T11:00:00+08:00",
+              "actor_principal_id": "principal_property_manager_xinghui",
+              "actor_role": "property_manager",
+              "approval_id": "apr_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            },
+            {
+              "event_id": "evt_apr_fin_grant_003",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-03T14:00:00+08:00",
+              "actor_principal_id": "principal_finance_xinghui",
+              "actor_role": "finance",
+              "approval_id": "apr_002",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            },
+            {
+              "event_id": "evt_apr_draft_revise_004",
+              "type": "draft.revised",
+              "occurred_at": "2026-11-03T15:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "from_draft_version": 1,
+              "draft_version": 2
+            },
+            {
+              "event_id": "evt_apr_resume_v1_005",
+              "type": "approval.resumed",
+              "occurred_at": "2026-11-03T16:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approved_draft_id": "draft_xh_a301_oct_reduction",
+              "approved_draft_version": 1,
+              "current_draft_version": 2
+            }
+          ],
+          "expected": {
+            "terminal_status": "rejected_version_mismatch",
+            "approval_state": "invalidated",
+            "accepted_decisions": 2,
+            "decided_roles": ["property_manager", "finance"],
+            "satisfied_roles": ["property_manager", "finance"],
+            "rejected_events": [
+              { "event_id": "evt_apr_resume_v1_005", "error_code": "APPROVAL_VERSION_MISMATCH" }
+            ],
+            "business_writes": 0
+          }
+        },
+        "approval_expired": {
+          "description": "过期拒绝：首次批准晚于草案 expires_at（2026-11-06T10:00:00+08:00）",
+          "events": [
+            {
+              "event_id": "evt_apr_req_001",
+              "type": "approval.requested",
+              "occurred_at": "2026-11-03T10:00:00+08:00",
+              "actor_principal_id": "principal_ops_xinghui",
+              "approval_id": "apr_req_xh_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "action_type": "rent_reduction_draft"
+            },
+            {
+              "event_id": "evt_apr_prop_grant_late_002",
+              "type": "approval.decided",
+              "occurred_at": "2026-11-06T12:00:00+08:00",
+              "actor_principal_id": "principal_property_manager_xinghui",
+              "actor_role": "property_manager",
+              "approval_id": "apr_001",
+              "draft_id": "draft_xh_a301_oct_reduction",
+              "draft_version": 1,
+              "decision": "granted"
+            }
+          ],
+          "expected": {
+            "terminal_status": "rejected_expired",
+            "approval_state": "expired",
+            "accepted_decisions": 0,
+            "decided_roles": [],
+            "satisfied_roles": [],
+            "pending_roles": ["property_manager", "finance"],
+            "rejected_events": [
+              { "event_id": "evt_apr_prop_grant_late_002", "error_code": "APPROVAL_EXPIRED" }
+            ],
+            "business_writes": 0
+          }
+        }
+      }
+    }
+  }
+}

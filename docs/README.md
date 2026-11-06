@@ -11,8 +11,18 @@
 | 路径 | 用途 |
 |---|---|
 | `docs/README.md` | 本文件。说明目录约定、命名规范与文档更新流程 |
+| `docs/decisions/` | **架构决策记录（ADR）**：ADR-005 起的新方向决策与取舍 |
+| `docs/product/` | **产品范围**：MVP 范围（P0/P1/暂停）、场景与完成标准 |
+| `docs/product/PROJECT_DEVELOPMENT_ROADMAP.md` | **项目总路线与进度表**：10 次正式 Prompt、每步产物/验收及当前进度 |
+| [项目路线图文 PDF](../output/pdf/commercial_property_agent_first_roadmap_notability.pdf) | **Notability 阅读批注版**：16 页，含流程图、十步导航、验收页及手写进度表；2026-11-04 导出，状态快照截至 2026-11-03 |
+| `docs/reviews/` | **Codex 验收报告**：实际验证、待修正项及同任务返修 Prompt |
+| `docs/evaluation/` | **评测**：评测计划、共享 fixture、评测用例（JSON/JSONL） |
+| `docs/handoffs/` | **交接文档**：跨工具（Codex / DeepSeek）的方向基线与交接记录 |
 | `docs/architecture/system_design.md` | 系统架构设计：模块划分、Agent 编排、数据流、技术选型理由 |
-| `docs/architecture/database_design.md` | 数据库设计：表结构、字段定义、索引、关系与演进记录 |
+| `docs/architecture/agent_architecture.md` | Agent 层概念设计：契约、Registry、配置、编排、错误与降级 |
+| `docs/architecture/agent_runtime_contracts.md` | **Agent Runtime 契约与 Graph 规格**（编码级，P0 规格，尚未实现） |
+| `docs/architecture/agent_development_guide.md` | 新增/禁用/替换 Agent 的标准流程与硬规则 |
+| `docs/architecture/database_design.md` | 数据库设计：表结构、字段定义、索引、关系与演进记录（**P0 长期参考，非建表清单**） |
 | `docs/prompts/01_environment/` | 环境配置相关任务的 Prompt 归档（Conda、依赖、工具链） |
 | `docs/prompts/02_database/` | 数据库相关任务的 Prompt 归档（建表、迁移、SQLAlchemy 模型） |
 | `docs/prompts/03_rag/` | RAG 相关任务的 Prompt 归档（Chroma、BGE Embedding、BM25、Reranker） |
@@ -57,6 +67,11 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 |---|---|---|---|---|
 | 001 | 2026-11-03 | 01_environment | Conda 独立环境配置 | [2026-11-03_001_conda_environment.md](./prompts/01_environment/2026-11-03_001_conda_environment.md) |
 | 002 | 2026-11-03 | 01_environment | 项目文档与 Prompt 归档系统 | [2026-11-03_002_docs_prompt_archive_system.md](./prompts/01_environment/2026-11-03_002_docs_prompt_archive_system.md) |
+| 003 | 2026-11-03 | 04_agents | 模块化多 Agent 架构约束 | [2026-11-03_003_modular_multi_agent_architecture.md](./prompts/04_agents/2026-11-03_003_modular_multi_agent_architecture.md) |
+| 004 | 2026-11-03 | 02_database | PostgreSQL 数据库架构设计（用户侧标注为 Task 003） | [2026-11-03_004_postgresql_database_design.md](./prompts/02_database/2026-11-03_004_postgresql_database_design.md) |
+| 005 | 2026-11-03 | 02_database | 数据库设计复核与 MVP 决策补充（用户侧标注为 Task 003 Review） | [2026-11-03_005_database_design_review.md](./prompts/02_database/2026-11-03_005_database_design_review.md) |
+| 006 | 2026-11-03 | 04_agents | Agent-first 基线、契约与首批评测样例（Prompt 1 已验收；进入 Prompt 2 / Task 007） | [2026-11-03_006_agent_first_baseline.md](./prompts/04_agents/2026-11-03_006_agent_first_baseline.md) |
+| 007 | 2026-11-06 | 04_agents | Agent Runtime 与受控工具执行（Prompt 2；R1 已修复 F1/F2，待 Codex 复验） | [2026-11-06_007_agent_runtime_controlled_tools.md](./prompts/04_agents/2026-11-06_007_agent_runtime_controlled_tools.md) |
 
 ---
 

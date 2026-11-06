@@ -30,6 +30,62 @@
 
 ---
 
+## [2026-11-06] 环境未安装 pytest，与“新增 pytest 覆盖”要求冲突
+
+- **关联任务**：007 / Prompt 2
+- **严重程度**：中（影响验证方式，不影响交付内容）
+- **状态**：规避中（测试用 `unittest` 编写与执行，pytest 可原生收集）
+
+### 现象
+
+Task 007 要求“新增 pytest 自动化覆盖”，但当前 Conda 环境 `commercial-agent` 没有 pytest；同一 Prompt 又明确禁止安装依赖。
+
+### 错误信息
+
+```
+D:\anacada\envs\commercial-agent\python.exe: No module named pytest
+```
+
+### 原因分析
+
+环境由任务 001 建立，只含 pip / setuptools / wheel / packaging，后续任务未引入测试框架；本任务不允许 `pip install` 或修改环境。
+
+### 解决方案
+
+`backend/tests/test_runtime.py` 使用标准库 `unittest.TestCase` 编写，文件/类/方法命名符合 `test_*.py`、`Test*`、`test_*`，可被 pytest 直接收集；本轮实际执行命令为 `python -m unittest discover -s tests -v`（47 个测试通过）。未安装任何依赖。
+
+### 如何避免再次出现
+
+需要 pytest 的任务应在 Prompt 中显式允许安装测试依赖，或由项目所有者预先装好；提交前按 Task 007 归档 §11 的命令复跑两种运行方式（unittest 现在可跑，pytest 待环境具备）。
+
+---
+
+## [2026-11-03] Task 006 规格与评测场景存在冲突
+
+- **关联任务**：006 / Prompt 1
+- **严重程度**：高（阻塞 006 验收，不是运行中系统故障）
+- **状态**：已解决（Prompt 1-R1/R2 返修后，Task 006 于 2026-11-06 复验通过）
+
+### 现象与证据
+
+核心 fixture 金额与引用通过，但 C06 失败路径要求取得超时工具证据；三基线使用只允许 multi_agent 的共同路由断言；C08 无具备审批权限的可信事件主体；State 预算简单相加与幂等声明冲突；Graph 缺分支且审批/信息补充混用；P0 保留集与 P1 清单不一致。
+
+完整定位、影响与验证见 [Codex 006 Review](../reviews/2026-11-03_task006_review.md)。无 Runtime 执行错误堆栈，本次为规格审查发现。
+
+### 原因分析
+
+文件可解析、ID 存在和金额正确不足以证明场景在故障、并发、审批及不同基线下可满足。原验证未覆盖这些语义组合。
+
+### 解决方案
+
+DeepSeek 按同任务 Prompt 1-R1 修正 R1–R6，Codex 复验后再进入 007。不在 Review 中悄悄实现 Runtime 或重写整个数据集。
+
+### 如何避免再次出现
+
+同时校验数据结构和语义条件；区分场景真值与运行时实际可获得证据；分离共同质量评分与基线编排指标；审批注入主体、版本、时刻和权限；并发归并使用稳定事件标识。
+
+---
+
 ## [2026-11-03] conda activate 报 GBK UnicodeEncodeError
 
 - **关联任务**：001

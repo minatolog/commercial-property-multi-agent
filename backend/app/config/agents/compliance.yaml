@@ -1,0 +1,37 @@
+# Compliance Agent 配置
+# 示例：默认禁用。禁用后该能力会从可用能力清单中消失，
+# 调用方必须显式处理 AgentDisabledError，不允许静默忽略。
+
+name: compliance
+version: 0.1.0
+enabled: false
+description: 合同合规检查与租约风险提示（默认禁用）
+
+capabilities:
+  - compliance.check
+
+model_provider: deepseek
+model_name: deepseek-chat
+temperature: 0.0
+max_tokens: 2048
+api_key_env: DEEPSEEK_API_KEY
+
+timeout_seconds: 45
+max_retries: 1
+prompt_path: app/agents/compliance/prompts/system.md
+
+allowed_tools:
+  - compliance.checklist.read
+  - lease.term_extract
+
+retrieval_settings:
+  enabled: true
+  top_k: 8
+  rerank_top_n: 4
+  vector_store: chroma
+  embedding_model: BAAI/bge-base-zh-v1.5
+  bm25_weight: 0.5
+  vector_weight: 0.5
+  min_score: 0.15
+
+log_level: INFO

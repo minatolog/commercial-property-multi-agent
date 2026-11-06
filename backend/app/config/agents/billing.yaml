@@ -1,0 +1,30 @@
+# Billing Agent 配置
+# 与 lease.yaml 完全独立：改本文件不会影响 Lease Agent。
+
+name: billing
+version: 0.1.0
+enabled: true
+description: 物业账单查询、费用构成说明与欠费核对
+
+capabilities:
+  - billing.statement
+  - billing.arrears_check
+
+model_provider: deepseek
+model_name: deepseek-chat
+temperature: null
+max_tokens: 1024
+api_key_env: DEEPSEEK_API_KEY
+
+timeout_seconds: 20
+max_retries: 1
+prompt_path: app/agents/billing/prompts/system.md
+
+allowed_tools:
+  - billing.statement.read
+  - billing.arrears.calculate
+
+retrieval_settings:
+  enabled: false
+
+log_level: WARNING

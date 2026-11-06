@@ -25,10 +25,11 @@ pip-wheel-metadata/
 
 # ---------------------------------------------------------------------------
 # Virtual environments (conda envs live outside the repo, e.g. D:\anacada\envs)
+# 注意：仅锚定根目录的 env/，避免误伤任意层级的 Python 包（如 app/env/）
 # ---------------------------------------------------------------------------
 .venv/
 venv/
-env/
+/env/
 
 # ---------------------------------------------------------------------------
 # Tooling caches / test & coverage output
