@@ -30,6 +30,7 @@ from .demo import DEFAULT_SCRIPT, build_demo_bundle, run_demo
 from .fixtures.repository import FixtureRepository
 from .investigation_demo import run_investigation
 from .orchestration.approval import ApprovalStore
+from .rag.library import fixture_catalog
 from .runtime.types import RuntimeResult
 from .tools.fixture_tools import build_fixture_tools
 from .tools.registry import ToolRegistry
@@ -242,15 +243,17 @@ def build_parser() -> argparse.ArgumentParser:
 def _tool_registry(repository: FixtureRepository) -> ToolRegistry:
     """与真实运行一致的只读工具集合（含可用的条款检索工具）。"""
 
-    from .rag.library import build_knowledge_library
+    from .rag.library import build_knowledge_library, fixture_catalog
     from .tools.knowledge_tools import DocumentSearchTool
 
     registry = ToolRegistry()
     for tool in build_fixture_tools(repository):
         registry.register(tool)
-    library = build_knowledge_library(repository)
+    library = build_knowledge_library(
+        fixture_catalog(repository), as_of_date=repository.as_of_date
+    )
     if library.indexed:
-        registry.register(DocumentSearchTool(library.service))
+        registry.register(DocumentSearchTool(library.service, library=library))
     return registry
 
 
@@ -536,6 +539,7 @@ async def _approve_async(args: argparse.Namespace) -> int:
                 decision=args.decision,
                 draft_version=args.draft_version,
                 principal_id=args.principal,
+                reason=args.reason,
             )
         except ApprovalError as exc:
             print(f"[approval-error] {exc.code}: {exc.message}", file=sys.stderr)
@@ -623,7 +627,11 @@ def _cmd_search(args: argparse.Namespace) -> int:
     from .rag.library import build_knowledge_library
 
     repository = FixtureRepository.load()
-    library = build_knowledge_library(repository, document_dir=args.dir)
+    library = build_knowledge_library(
+        fixture_catalog(repository),
+        as_of_date=repository.as_of_date,
+        document_dir=args.dir,
+    )
     principal = repository.principal(args.principal)
     project_ids = frozenset(principal.get("project_ids") or [])
     hits = library.service.search(

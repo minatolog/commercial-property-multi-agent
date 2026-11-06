@@ -412,9 +412,11 @@ class ApprovalStore:
     ) -> ApprovalDecisionOutcome:
         """记录一次审批决定。
 
-        校验顺序固定，且**先校验后写入**，任何一项失败都不留下审计噪声：
-        请求存在 → 未终态 → 未过期 → 版本匹配 → 身份/权限/项目 → 非自批 →
-        非重复审批人 → 阶段顺序。
+        校验顺序（Task 016 / S1 修正）：**先验证身份、范围、版本，再判定是否幂等重放**。
+
+        旧顺序把"已终态"放在最前面，于是批准 v2 之后，同一主体用
+        `draft_version=999` 重放仍返回 approved——错误的版本看起来被批准了。
+        现在任何重放都必须通过同样的授权与版本校验，才可能被判为幂等。
         """
 
         if decision not in {"approve", "reject"}:
@@ -432,33 +434,10 @@ class ApprovalStore:
                 request = _row_to_request(row)
                 moment = _now(now)
 
-                if request.status in {"approved", "rejected"}:
-                    # 同一角色重复提交同一结论视为幂等重放，其余情况一律冲突
-                    stage = request.stage(_role_of(principal))
-                    if stage and stage.status == _stage_status(decision) and stage.decided_by == principal_id:
-                        connection.execute("ROLLBACK")
-                        return ApprovalDecisionOutcome(
-                            request=request,
-                            decided_role=stage.role,
-                            decision=decision,
-                            idempotent=True,
-                        )
-                    raise ApprovalConflictError(
-                        f"审批请求已处于 {request.status}，不能再被修改",
-                        details={"status": request.status},
-                    )
+                # 1) 身份 / 权限 / 项目范围 / 角色（终态也要检查）
+                role = _authorised_role(request, principal_id, principal)
 
-                if _is_expired(request, moment):
-                    connection.execute(
-                        "UPDATE approval_requests SET status = 'expired' WHERE request_id = ?",
-                        (request_id,),
-                    )
-                    connection.execute("COMMIT")
-                    raise ApprovalExpiredError(
-                        f"草案已过期（{request.expires_at}），请重新生成后再次申请",
-                        details={"expires_at": request.expires_at},
-                    )
-
+                # 2) 草案版本必须匹配，重放不是绕过版本的通道
                 if int(draft_version) != request.draft_version:
                     raise DraftVersionMismatchError(
                         f"审批版本不匹配：请求为 v{request.draft_version}，提交为 v{draft_version}",
@@ -468,12 +447,11 @@ class ApprovalStore:
                         },
                     )
 
-                role = _authorised_role(request, principal_id, principal)
-
+                # 3) 请求人不得自批
                 if request.requested_by == principal_id:
                     raise SelfApprovalForbiddenError("请求人不得审批自己提交的草案")
 
-                # 该角色已有决定：可能是幂等重放，也可能是冲突，必须先判断再继续
+                # 4) 该角色是否已有决定：同人同结论 = 幂等重放，其余 = 冲突
                 recorded = connection.execute(
                     "SELECT principal_id, decision FROM approval_decisions "
                     "WHERE request_id = ? AND role = ?",
@@ -485,15 +463,33 @@ class ApprovalStore:
                         and recorded["decision"] == decision
                     ):
                         connection.execute("ROLLBACK")
-                        current = request
                         return ApprovalDecisionOutcome(
-                            request=current,
+                            request=request,
                             decided_role=role,
                             decision=decision,
                             idempotent=True,
                         )
                     raise ApprovalConflictError(
                         f"角色 {role} 已被 {recorded['principal_id']} 审批为 {recorded['decision']}"
+                    )
+
+                # 5) 已终态且本角色没有记录 → 状态与审计不一致，拒绝写入
+                if request.status in {"approved", "rejected", "expired"}:
+                    raise ApprovalConflictError(
+                        f"审批请求已处于 {request.status}，不能再被修改",
+                        details={"status": request.status},
+                    )
+
+                # 6) 只有仍在流转中的请求才判过期
+                if _is_expired(request, moment):
+                    connection.execute(
+                        "UPDATE approval_requests SET status = 'expired' WHERE request_id = ?",
+                        (request_id,),
+                    )
+                    connection.execute("COMMIT")
+                    raise ApprovalExpiredError(
+                        f"草案已过期（{request.expires_at}），请重新生成后再次申请",
+                        details={"expires_at": request.expires_at},
                     )
 
                 decided = {

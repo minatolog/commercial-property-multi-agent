@@ -17,6 +17,13 @@ from typing import Iterator
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session
 
+__all__ = [
+    "create_engine_for",
+    "enforce_read_only",
+    "session_scope",
+    "sqlite_url",
+]
+
 
 def create_engine_for(url: str, *, echo: bool = False) -> Engine:
     kwargs: dict = {"future": True, "echo": echo}
@@ -32,6 +39,15 @@ def session_scope(engine: Engine, *, read_only: bool = True) -> Iterator[Session
         if read_only:
             _enforce_read_only(session)
         yield session
+
+
+def enforce_read_only(session: Session) -> None:
+    """在给定 Session 上启用只读闸门（SQLite: PRAGMA，PostgreSQL: READ ONLY 事务）。
+
+    公开此函数是为了让装配层显式调用——"只读"必须是**实现**，而不是文档承诺。
+    """
+
+    _enforce_read_only(session)
 
 
 def _enforce_read_only(session: Session) -> None:

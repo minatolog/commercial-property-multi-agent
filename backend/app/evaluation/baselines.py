@@ -132,6 +132,34 @@ def resolve_lease(repository: FixtureRepository, principal: dict[str, Any], case
     return str(lease.get("id") or lease.get("lease_id") or "")
 
 
+_DENIAL_CODES = frozenset({"permission_denied", "project_scope_denied"})
+
+
+def derive_status(*, has_facts: bool, error_codes: list[str], errors: list[str]) -> str:
+    """三条基线**统一**的结局判定。
+
+    为什么必须统一：v1 的评分器对 `status=denied` 无条件扣分，而 C 在"全部子任务被拒绝"时
+    用的是 `failed`，于是同样守住权限边界的行为在三条基线上得到不同分数（审查 F2）。
+    现在拒绝= `denied`、其它失败= `failed`，评分按用例声明的 `expected_outcome` 判定。
+    """
+
+    if has_facts:
+        return "ok"
+    if errors and error_codes and all(code in _DENIAL_CODES for code in error_codes):
+        return "denied"
+    return "failed"
+
+
+def _error_codes(errors: list[str]) -> list[str]:
+    codes: list[str] = []
+    for error in errors:
+        for code in _DENIAL_CODES:
+            if code in error:
+                codes.append(code)
+                break
+    return codes
+
+
 def detect_intents(question: str) -> list[str]:
     """确定性意图识别。三条基线共用，保证比较的是**架构**而不是提示词运气。"""
 
@@ -179,13 +207,19 @@ class _Baseline:
 
     # 三条基线共享的只读工具集合（含合同条款检索）
     def _tools(self, repository: FixtureRepository) -> ToolRegistry:
+        from ..rag.library import build_knowledge_library, fixture_catalog
+
         registry = ToolRegistry()
         for tool in build_fixture_tools(repository):
             registry.register(tool)
         if self._knowledge is None:
-            self._knowledge = build_knowledge_library(repository)
+            self._knowledge = build_knowledge_library(
+                fixture_catalog(repository), as_of_date=repository.as_of_date
+            )
         if self._knowledge.indexed:
-            registry.register(DocumentSearchTool(self._knowledge.service))
+            registry.register(
+                DocumentSearchTool(self._knowledge.service, library=self._knowledge)
+            )
         return registry
 
     def _config(self, registry: ToolRegistry) -> Any:
@@ -261,12 +295,12 @@ class DeterministicBaseline(_Baseline):
         result.tool_calls = 1
         if not execution.ok:
             error = execution.error
-            result.status = "denied" if error and error.code.value in {
-                "permission_denied",
-                "project_scope_denied",
-            } else "failed"
-            result.errors.append(f"{error.code.value}: {error.message}" if error else "工具失败")
+            code = error.code.value if error else "tool_error"
+            result.errors.append(f"{code}: {error.message}" if error else "工具失败")
             result.approval_status = None
+            result.status = derive_status(
+                has_facts=False, error_codes=[code], errors=result.errors
+            )
             result.latency_ms = int((time.perf_counter() - started) * 1000)
             return result
 
@@ -308,7 +342,6 @@ class SingleAgentBaseline(_Baseline):
         evidence: list[str] = []
         errors: list[str] = []
         calls = 0
-        denied = False
         lease_id = resolve_lease(repository, principal, case)
         for intent in intents:
             for tool, payload in _calls_for(intent, case, repository, lease_id):
@@ -323,8 +356,6 @@ class SingleAgentBaseline(_Baseline):
                     error = execution.error
                     code = error.code.value if error else "tool_error"
                     errors.append(f"{tool}: {code}")
-                    if code in {"permission_denied", "project_scope_denied"}:
-                        denied = True
                     continue
                 facts.update(_facts_from_tool(tool, execution.data or {}, repository, case))
                 evidence.extend(item.evidence_id for item in execution.evidence)
@@ -334,8 +365,9 @@ class SingleAgentBaseline(_Baseline):
         result.evidence_ids = list(dict.fromkeys(evidence))
         result.answer = _compose_answer(facts, intents)
         result.errors = errors
-        if not facts:
-            result.status = "denied" if denied else "failed"
+        result.status = derive_status(
+            has_facts=bool(facts), error_codes=_error_codes(errors), errors=errors
+        )
         result.latency_ms = int((time.perf_counter() - started) * 1000)
         return result
 
@@ -387,6 +419,9 @@ class MultiAgentBaseline(_Baseline):
                 lease = output.get("lease") or {}
                 facts["lease_period"] = f"{lease.get('start_date')} 至 {lease.get('end_date')}"
                 facts["lease_status"] = str(lease.get("status"))
+                facts["missing_document_ids"] = [
+                    str(item) for item in output.get("missing_documents") or []
+                ]
                 for clause in output.get("clauses") or []:
                     facts.setdefault(
                         "clause_ref",
@@ -409,10 +444,12 @@ class MultiAgentBaseline(_Baseline):
         result.tool_calls = snapshot.used_tool_calls
         result.model_calls = snapshot.used_model_calls
         result.total_tokens = snapshot.used_total_tokens
-        if investigation.failures and not investigation.results:
-            result.status = "failed"
-        elif not investigation.results:
-            result.status = "failed"
+        subtask_codes = [
+            str(item.get("error_code")) for item in investigation.failures
+        ]
+        result.status = derive_status(
+            has_facts=bool(facts), error_codes=subtask_codes, errors=result.errors
+        )
         result.latency_ms = int((time.perf_counter() - started) * 1000)
         return result
 
@@ -450,6 +487,7 @@ def _facts_from_tool(
         return {
             "lease_period": f"{data.get('start_date')} 至 {data.get('end_date')}",
             "lease_status": str(data.get("status")),
+            "missing_document_ids": [str(item) for item in data.get("missing_document_ids") or []],
         }
     if tool == "property.work_orders.read":
         return {

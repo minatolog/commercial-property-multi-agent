@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS runs (
     run_id            TEXT PRIMARY KEY,
     thread_id         TEXT NOT NULL,
     principal_id      TEXT NOT NULL,
+    project_ids_json  TEXT,
     lease_id          TEXT NOT NULL,
     question          TEXT NOT NULL,
     status            TEXT NOT NULL,
@@ -93,6 +94,18 @@ class RunIndex:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._session() as connection:
             connection.executescript(_SCHEMA)
+            self._migrate(connection)
+
+    @staticmethod
+    def _migrate(connection: sqlite3.Connection) -> None:
+        """为已存在的旧库补列（Task 016 增加 `project_ids_json` 所有权字段）。"""
+
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(runs)").fetchall()
+        }
+        if "project_ids_json" not in columns:
+            connection.execute("ALTER TABLE runs ADD COLUMN project_ids_json TEXT")
 
     @contextmanager
     def _session(self) -> Iterator[sqlite3.Connection]:
@@ -109,18 +122,21 @@ class RunIndex:
         payload["updated_at"] = _now()
         with self._session() as connection:
             connection.execute(
-                "INSERT INTO runs (run_id, thread_id, principal_id, lease_id, question, status,"
-                " verdict, approval_status, approval_request_id, report_json, traces_json,"
-                " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                "INSERT INTO runs (run_id, thread_id, principal_id, project_ids_json, lease_id,"
+                " question, status, verdict, approval_status, approval_request_id, report_json,"
+                " traces_json, created_at, updated_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 " ON CONFLICT(run_id) DO UPDATE SET status=excluded.status, verdict=excluded.verdict,"
                 " approval_status=excluded.approval_status,"
                 " approval_request_id=excluded.approval_request_id,"
                 " report_json=excluded.report_json, traces_json=excluded.traces_json,"
+                " project_ids_json=excluded.project_ids_json,"
                 " updated_at=excluded.updated_at",
                 (
                     payload["run_id"],
                     payload["thread_id"],
                     payload["principal_id"],
+                    json.dumps(sorted(payload.get("project_ids") or []), ensure_ascii=False),
                     payload["lease_id"],
                     payload["question"],
                     payload["status"],
@@ -139,19 +155,41 @@ class RunIndex:
             )
         return payload
 
-    def get(self, run_id: str) -> dict[str, Any] | None:
+    def get(self, run_id: str, *, project_ids: frozenset[str] | None = None) -> dict[str, Any] | None:
+        """按 run_id 取运行。
+
+        `project_ids` 是**所有权边界**：不属于调用方项目范围的运行一律视为不存在
+        （不返回 403，避免用 ID 探测他人数据是否存在）。
+        """
+
         with self._session() as connection:
             row = connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?", (run_id,)
             ).fetchone()
-        return None if row is None else _row(row)
+        if row is None:
+            return None
+        record = _row(row)
+        if project_ids is not None and record.get("project_ids") not in (None, []):
+            if not set(record["project_ids"] or ()) & set(project_ids):
+                return None
+        return record
 
-    def list(self, *, limit: int = 50) -> list[dict[str, Any]]:
+    def list(
+        self, *, limit: int = 50, project_ids: frozenset[str] | None = None
+    ) -> list[dict[str, Any]]:
         with self._session() as connection:
             rows = connection.execute(
                 "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()
-        return [_row(row) for row in rows]
+        records = [_row(row) for row in rows]
+        if project_ids is None:
+            return records
+        scope = set(project_ids)
+        return [
+            record
+            for record in records
+            if set(record.get("project_ids") or ()) & scope
+        ]
 
     def by_approval_request(self, request_id: str) -> dict[str, Any] | None:
         with self._session() as connection:
@@ -166,6 +204,7 @@ def _row(row: sqlite3.Row) -> dict[str, Any]:
         "run_id": row["run_id"],
         "thread_id": row["thread_id"],
         "principal_id": row["principal_id"],
+        "project_ids": json.loads(row["project_ids_json"]) if row["project_ids_json"] else [],
         "lease_id": row["lease_id"],
         "question": row["question"],
         "status": row["status"],
@@ -181,13 +220,32 @@ def _row(row: sqlite3.Row) -> dict[str, Any]:
 
 @dataclass
 class WorkflowService:
-    """API 的唯一入口：把 HTTP 请求翻译成核心工作流调用。"""
+    """API 的唯一入口：把 HTTP 请求翻译成核心工作流调用。
+
+    `project_ids` 是本服务实例的**数据边界**：既用于运行记录的所有权字段，
+    也用于查询时过滤。运行 ID 是随机的，但**不允许**把随机性当权限。
+    """
 
     principal_id: str = DEFAULT_PRINCIPAL
     approver_allowlist: tuple[str, ...] = DEFAULT_APPROVER_ALLOWLIST
     index: RunIndex = field(default_factory=RunIndex)
     checkpoint_path: Path | None = None
     approval_path: Path | None = None
+    #: 本实例可信主体的项目范围；`None` 表示从 fixture 读取（测试可显式注入）
+    project_ids: frozenset[str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.project_ids is None:
+            self.project_ids = self._resolve_scope()
+
+    def _resolve_scope(self) -> frozenset[str]:
+        from ..fixtures.repository import FixtureRepository
+
+        try:
+            principal = FixtureRepository.load().principal(self.principal_id)
+        except Exception:  # noqa: BLE001 - 未知主体一律视为无范围（默认拒绝）
+            return frozenset()
+        return frozenset(principal.get("project_ids") or [])
 
     # ---------------- 提交 ----------------
 
@@ -211,6 +269,7 @@ class WorkflowService:
                 principal_id=self.principal_id,
                 max_tool_calls=max_tool_calls,
                 control_plane=plane,
+                run_id=run_id,
             )
             try:
                 result = await bundle.investigator.investigate(
@@ -225,6 +284,7 @@ class WorkflowService:
                         "run_id": run_id,
                         "thread_id": thread_id,
                         "principal_id": self.principal_id,
+                        "project_ids": sorted(self.project_ids or ()),
                         "lease_id": lease_id,
                         "question": question,
                         "status": "failed",
@@ -246,13 +306,16 @@ class WorkflowService:
     # ---------------- 查询 ----------------
 
     def get_run(self, run_id: str) -> dict[str, Any]:
-        record = self.index.get(run_id)
+        record = self.index.get(run_id, project_ids=self.project_ids)
         if record is None:
             raise ApiError("run_not_found", f"运行不存在: {run_id}", status_code=404)
         return record
 
     def list_runs(self, *, limit: int = 50) -> list[dict[str, Any]]:
-        return [self._summary(item) for item in self.index.list(limit=limit)]
+        return [
+            self._summary(item)
+            for item in self.index.list(limit=limit, project_ids=self.project_ids)
+        ]
 
     def get_traces(self, run_id: str) -> dict[str, Any]:
         record = self.get_run(run_id)
@@ -273,35 +336,43 @@ class WorkflowService:
         draft_version: int,
         reason: str | None = None,
     ) -> dict[str, Any]:
+        # 顺序很关键：先确认调用方可访问该运行（含项目所有权），再判断其审批角色。
+        # 反过来的话，跨项目主体会拿到 403/409 之类"运行确实存在"的信号。
+        record = self.get_run(run_id)
         if actor_id not in self.approver_allowlist:
             raise ApiError(
                 "permission_denied",
                 f"{actor_id} 不在服务端审批人白名单内",
                 status_code=403,
             )
-        record = self.get_run(run_id)
         request_id = record.get("approval_request_id")
         if not request_id:
             raise ApiError("approval_not_found", "该运行没有待审批请求", status_code=409)
 
         async with self._control(True) as plane:
-            bundle = build_investigation_bundle(control_plane=plane)
+            # 恢复时也要用同一条运行身份（批准人不是请求人，不能借 resume 换 run_id）
+            bundle = build_investigation_bundle(
+                control_plane=plane, run_id=record.get("run_id")
+            )
             try:
                 result = await bundle.investigator.resume(
                     request_id=request_id,
                     decision=decision,
                     draft_version=draft_version,
                     principal_id=actor_id,
+                    reason=reason,
                 )
             except ApprovalError as exc:
                 raise ApiError(exc.code.value, exc.message, status_code=409) from exc
-            updated = self.index.get(run_id) or record
+            updated = self.index.get(run_id, project_ids=self.project_ids) or record
             updated.update(
                 {
                     "status": "completed" if result.approval_status in {"approved", "rejected"} else "awaiting_approval",
                     "verdict": result.verdict or updated.get("verdict"),
                     "approval_status": result.approval_status,
-                    "approval_request_id": request_id,
+                    "approval_request_id": (
+                        (result.approval_request or {}).get("request_id") or request_id
+                    ),
                     "report": {
                         **(updated.get("report") or {}),
                         "approval_status": result.approval_status,
@@ -313,6 +384,7 @@ class WorkflowService:
             )
             self.index.upsert(updated)
         return self._summary(updated) | {"approved_draft": result.approved_draft}
+
     # ---------------- 内部 ----------------
 
     def _control(self, with_approval: bool):
@@ -344,6 +416,7 @@ class WorkflowService:
             "run_id": run_id,
             "thread_id": thread_id,
             "principal_id": self.principal_id,
+            "project_ids": sorted(self.project_ids or ()),
             "lease_id": lease_id,
             "question": question,
             "status": status,

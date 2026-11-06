@@ -292,5 +292,96 @@ class TestToolsBoundToDatabase(unittest.TestCase):
         self.assertGreaterEqual(len(trace_log.snapshot()), 3)
 
 
+class TestSqliteWithRag(unittest.TestCase):
+    """回归 F3：只读数据库后端必须能走完整调查（含合同条款检索）。
+
+    修复前 `build_knowledge_library(repository)` 无条件调用 `snapshot()`，
+    而 `DatabaseRepository` 没有该方法，`investigate --backend sqlite` 直接崩溃。
+    """
+
+    def test_backend_sqlite_runs_full_investigation_with_clauses(self) -> None:
+        import asyncio
+
+        from app.investigation_demo import build_investigation_bundle, run_investigation
+
+        bundle = build_investigation_bundle(backend="sqlite")
+        self.assertIsNotNone(bundle.knowledge)
+        self.assertIn("document.search", bundle.tool_registry.names())
+
+        result = asyncio.run(
+            run_investigation(
+                bundle,
+                question=(
+                    "商铺 A-301 租金金额不一致并要求减免，请核对合同条款、账单与工单。"
+                ),
+                lease_id=LEASE,
+                thread_id="thread_sqlite_rag",
+            )
+        )
+
+        self.assertEqual(result.verdict, "conflicting")
+        self.assertTrue(result.results, "数据库后端应返回子任务结果")
+
+        clause_findings = [
+            finding
+            for finding in result.report["findings"]
+            if finding.get("derivation") == "document_clause"
+        ]
+        self.assertTrue(clause_findings, "数据库后端也应产出条款证据")
+        for finding in clause_findings:
+            # F7：证据必须属于本租约（或项目级公共文档）
+            self.assertIn(
+                finding["source"]["document_id"],
+                {"doc_xh_a301_contract", "doc_xh_property_policy"},
+            )
+
+    def test_database_repository_exposes_document_catalog(self) -> None:
+        _, repository = build_sqlite_repository()
+        documents = repository.documents()
+        self.assertTrue(documents)
+        self.assertEqual(
+            {item["id"] for item in documents},
+            {
+                "doc_xh_a301_contract",
+                "doc_xh_property_policy",
+                "doc_jl_b101_contract",
+            },
+        )
+        by_id = {item["id"]: item for item in documents}
+        # 租约归属必须来自数据，而不是靠文档 ID 猜
+        self.assertEqual(
+            by_id["doc_xh_a301_contract"]["lease_id"], "lease_xh_a301_2025"
+        )
+        self.assertIsNone(by_id["doc_xh_property_policy"]["lease_id"])
+        self.assertEqual(by_id["doc_jl_b101_contract"]["project_id"], "prj_jinlan")
+        for item in documents:
+            self.assertIn("project_id", item)
+
+
+class TestReadOnlyAssembly(unittest.TestCase):
+    """回归 S2：装配出来的仓库 Session 必须**真的**是只读的。
+
+    之前 `build_sqlite_repository` 直接用 `Session(engine)`，
+    `PRAGMA query_only` 从未执行，"连接层强制只读"只是文档承诺。
+    """
+
+    def test_repository_session_rejects_writes(self) -> None:
+        from sqlalchemy import text
+        from sqlalchemy.exc import OperationalError
+
+        _, repository = build_sqlite_repository()
+        session = repository._session  # noqa: SLF001 - 断言装配结果本身
+        self.assertEqual(
+            session.execute(text("PRAGMA query_only")).scalar(), 1
+        )
+        with self.assertRaises(OperationalError):
+            session.execute(text("UPDATE invoices SET status = status WHERE 1=0"))
+
+    def test_repository_still_reads_after_gate(self) -> None:
+        _, repository = build_sqlite_repository()
+        statement = repository.statement(project_ids=SCOPE, lease_id=LEASE)
+        self.assertEqual(Decimal(statement["outstanding_total"]), Decimal("18036.00"))
+
+
 if __name__ == "__main__":
     unittest.main()

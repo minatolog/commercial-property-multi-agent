@@ -24,7 +24,9 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..agents.base.errors import AgentError
 from ..orchestration.approval import ApprovalError
@@ -41,6 +43,29 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 #: 客户端**不允许**自报的身份相关字段
 FORBIDDEN_FIELDS = frozenset({"principal_id", "permissions", "roles", "approval_roles"})
+
+
+class RunRequest(BaseModel):
+    """提交运行的请求体（Task 016 / S3：严格校验，非法输入一律 4xx）。
+
+    `extra="forbid"` 同时承担两件事：拒绝拼写错误的字段，以及
+    在出现 `principal_id` 之类的身份字段时直接被 Pydantic 拦下（再经业务层给出明确文案）。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=2000)
+    lease_id: str = Field(min_length=1, max_length=64)
+    with_approval: StrictBool = True
+    max_tool_calls: StrictInt = Field(default=12, ge=1, le=50)
+
+
+class ApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: str = Field(default="approve", pattern="^(approve|reject)$")
+    draft_version: StrictInt = Field(ge=1, le=1000)
+    reason: str | None = Field(default=None, max_length=1000)
 
 
 def _service(request: Request) -> WorkflowService:
@@ -126,21 +151,55 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
             "note": "身份由服务端注入；请求不能自报 principal 或权限",
         }
 
-    @app.post("/api/runs", status_code=201)
-    async def submit_run(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
-        leaked = FORBIDDEN_FIELDS & set(payload)
-        if leaked:
-            raise ApiError(
-                "invalid_request",
-                f"请求不得包含身份字段: {sorted(leaked)}（身份由服务端注入）",
-            )
-        result = await _service(request).submit(
-            question=str(payload.get("question", "")),
-            lease_id=str(payload.get("lease_id", "")),
-            with_approval=bool(payload.get("with_approval", True)),
-            max_tool_calls=int(payload.get("max_tool_calls", 12)),
+    @app.exception_handler(RequestValidationError)
+    async def handle_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """把 Pydantic 校验失败统一成可追踪的 422。
+
+        修复前：`max_tool_calls="abc"` / `None` / `-1` 会抛 500，
+        `question=null` 被 `str()` 成 "None" 后创建任务（S3）。
+        """
+
+        details = [
+            {
+                "field": ".".join(str(part) for part in error.get("loc", ())[1:]) or "body",
+                "message": str(error.get("msg", "")),
+            }
+            for error in exc.errors()
+        ]
+        leaked = sorted(
+            {
+                str(part)
+                for error in exc.errors()
+                for part in error.get("loc", ())
+                if str(part) in FORBIDDEN_FIELDS
+            }
         )
-        return result
+        code = "invalid_request"
+        message = "请求参数不合法"
+        if leaked:
+            message = f"请求不得包含身份字段: {leaked}（身份由服务端注入）"
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "details": details,
+                    "trace_id": getattr(request.state, "trace_id", ""),
+                }
+            },
+        )
+
+    @app.post("/api/runs", status_code=201)
+    async def submit_run(request: Request, payload: RunRequest) -> dict[str, Any]:
+        return await _service(request).submit(
+            question=payload.question,
+            lease_id=payload.lease_id,
+            with_approval=payload.with_approval,
+            max_tool_calls=payload.max_tool_calls,
+        )
 
     @app.get("/api/runs")
     async def list_runs(request: Request, limit: int = 50) -> dict[str, Any]:
@@ -156,31 +215,21 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
         return _service(request).get_traces(run_id)
 
     @app.post("/api/runs/{run_id}/approvals")
-    async def decide(request: Request, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        leaked = FORBIDDEN_FIELDS & set(payload)
-        if leaked:
-            raise ApiError(
-                "invalid_request",
-                f"请求不得包含身份字段: {sorted(leaked)}（审批人由服务端白名单决定）",
-            )
+    async def decide(
+        request: Request, run_id: str, payload: ApprovalRequest
+    ) -> dict[str, Any]:
         actor = request.headers.get("X-Actor-Id") or ""
         if not actor:
             raise ApiError(
                 "invalid_request",
                 "缺少 X-Actor-Id 请求头（只允许服务端白名单内的审批人）",
             )
-        decision = str(payload.get("decision", "approve"))
-        if decision not in {"approve", "reject"}:
-            raise ApiError("invalid_request", f"非法 decision: {decision!r}")
-        draft_version = payload.get("draft_version")
-        if not isinstance(draft_version, int):
-            raise ApiError("invalid_request", "draft_version 必须是整数")
         return await _service(request).decide(
             run_id=run_id,
             actor_id=actor,
-            decision=decision,
-            draft_version=draft_version,
-            reason=payload.get("reason"),
+            decision=payload.decision,
+            draft_version=payload.draft_version,
+            reason=payload.reason,
         )
 
     return app

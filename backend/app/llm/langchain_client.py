@@ -21,6 +21,7 @@ from ..config.schema import AgentConfig
 from .adapter import get_adapter
 from .model_client import (
     ChatMessage,
+    InvalidToolCallRecord,
     ModelInvocationError,
     ModelToolCall,
     ModelTurn,
@@ -149,9 +150,31 @@ def _to_langchain_message(message: ChatMessage) -> Any:
 def _to_model_turn(response: Any) -> ModelTurn:
     text = _text_of(response)
     tool_calls: list[ModelToolCall] = []
+    invalid: list[InvalidToolCallRecord] = []
+
+    # Task 016（F6）：LangChain 会把"参数 JSON 坏掉/缺工具名"的调用放进
+    # `invalid_tool_calls`，而不是 `tool_calls`。只读 `tool_calls` 等于把
+    # "模型想调工具但调错了"静默变成"模型给了最终答案"。
+    for raw in getattr(response, "invalid_tool_calls", None) or []:
+        invalid.append(
+            InvalidToolCallRecord(
+                call_id=str(raw.get("id") or ""),
+                name=str(raw.get("name") or ""),
+                arguments_json=str(raw.get("args") or ""),
+                error=str(raw.get("error") or "invalid tool call"),
+            )
+        )
+
     for raw in getattr(response, "tool_calls", None) or []:
         name = str(raw.get("name") or "").strip()
         if not name:
+            invalid.append(
+                InvalidToolCallRecord(
+                    call_id=str(raw.get("id") or ""),
+                    arguments_json=str(raw.get("args") or ""),
+                    error="缺少工具名",
+                )
+            )
             continue
         call_id = str(raw.get("id") or "").strip() or f"call_{uuid.uuid4().hex[:12]}"
         args = raw.get("args")
@@ -166,13 +189,22 @@ def _to_model_turn(response: Any) -> ModelTurn:
             )
         else:
             # 少数 Provider 会把 args 以字符串返回：走统一解析，避免两条路径语义不同
-            tool_calls.append(
-                parse_tool_call(
-                    call_id=call_id,
-                    name=name,
-                    arguments_json=args if isinstance(args, str) else _dump_args(args),
-                )
+            parsed = parse_tool_call(
+                call_id=call_id,
+                name=name,
+                arguments_json=args if isinstance(args, str) else _dump_args(args),
             )
+            if parsed.parse_error:
+                invalid.append(
+                    InvalidToolCallRecord(
+                        call_id=call_id,
+                        name=name,
+                        arguments_json=parsed.arguments_json,
+                        error=parsed.parse_error,
+                    )
+                )
+            else:
+                tool_calls.append(parsed)
 
     usage = _usage_of(response)
     finish_reason = None
@@ -182,6 +214,7 @@ def _to_model_turn(response: Any) -> ModelTurn:
     return ModelTurn(
         text=text,
         tool_calls=tuple(tool_calls),
+        invalid_tool_calls=tuple(invalid),
         usage=usage,
         finish_reason=str(finish_reason) if finish_reason else None,
     )

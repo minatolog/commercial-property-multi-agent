@@ -26,6 +26,7 @@ __all__ = [
     "FakeChatModelClient",
     "ModelInvocationError",
     "ModelToolCall",
+    "InvalidToolCallRecord",
     "ModelTurn",
     "ToolSpec",
     "ToolSpecBuilder",
@@ -69,6 +70,21 @@ class ModelToolCall(BaseModel):
     parse_error: str | None = None
 
 
+class InvalidToolCallRecord(BaseModel):
+    """模型返回的**非法**工具调用（Task 016 / F6）。
+
+    典型来源：JSON 参数解析失败、缺少工具名、空 id。它们不能被静默丢弃，
+    否则"模型想调工具但调错了"会被误当成"模型给出了最终答案"。
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    call_id: str = ""
+    name: str = ""
+    arguments_json: str = ""
+    error: str = ""
+
+
 class ModelTurn(BaseModel):
     """一次模型响应。"""
 
@@ -76,6 +92,8 @@ class ModelTurn(BaseModel):
 
     text: str = ""
     tool_calls: tuple[ModelToolCall, ...] = ()
+    #: 被拒绝的非法调用；调用方必须显式处理（反馈错误或失败），不得当作正常结束
+    invalid_tool_calls: tuple[InvalidToolCallRecord, ...] = ()
     usage: TokenUsage | None = None
     finish_reason: str | None = None
 

@@ -29,6 +29,10 @@ class DocumentSearchInput(_StrictModel):
     query: str = Field(min_length=1, max_length=200)
     document_id: str | None = None
     document_version: int | None = Field(default=None, ge=1)
+    #: 只允许检索这些文档（由调用方按租约解析；空列表等价于"不允许任何文档"）
+    document_ids: list[str] | None = None
+    #: 额外允许**项目级公共**文档（租约无关的制度/规范）
+    include_project_documents: bool = True
     top_k: int = Field(default=3, ge=1, le=10)
 
 
@@ -37,6 +41,9 @@ class DocumentClauseOut(_StrictModel):
     document_id: str
     document_version: int
     project_id: str
+    #: `lease`=本租约合同；`project`=项目级公共文档
+    document_scope: str
+    lease_id: str | None = None
     page: int
     clause_id: str
     excerpt: str
@@ -60,17 +67,35 @@ class DocumentSearchTool(BaseTool):
     input_model: ClassVar[type] = DocumentSearchInput
     output_model: ClassVar[type] = DocumentSearchOutput
 
-    def __init__(self, service: KnowledgeService) -> None:
+    def __init__(
+        self,
+        service: KnowledgeService,
+        *,
+        library: Any = None,
+        lease_id: str | None = None,
+    ) -> None:
         self._service = service
+        self._library = library
+        self._lease_id = lease_id
 
     async def invoke(
         self, payload: DocumentSearchInput, context: AgentContext
     ) -> ToolInvocation:
+        allowed: frozenset[str] | None = None
+        if payload.document_ids is not None:
+            allowed = frozenset(payload.document_ids)
+            if payload.include_project_documents and self._library is not None:
+                allowed = allowed | frozenset(
+                    meta.document_id
+                    for meta in self._library.documents.values()
+                    if meta.lease_id is None
+                )
         hits = self._service.search(
             payload.query,
             document_id=payload.document_id,
             document_version=payload.document_version,
             project_ids=context.project_ids,
+            document_ids=allowed,
             top_k=payload.top_k,
         )
         results: list[DocumentClauseOut] = []
@@ -86,6 +111,15 @@ class DocumentSearchTool(BaseTool):
                     document_id=hit.chunk.document_id,
                     document_version=hit.chunk.document_version,
                     project_id=project_id,
+                    document_scope=(
+                        self._service.scope_of(
+                            hit.chunk.document_id, hit.chunk.document_version
+                        )
+                        or "unknown"
+                    ),
+                    lease_id=self._service.lease_of(
+                        hit.chunk.document_id, hit.chunk.document_version
+                    ),
                     page=hit.chunk.page,
                     clause_id=hit.chunk.clause_id,
                     excerpt=hit.chunk.text,
@@ -105,6 +139,8 @@ class DocumentSearchTool(BaseTool):
                 fields={
                     "document_id": item.document_id,
                     "document_version": item.document_version,
+                    "document_scope": item.document_scope,
+                    "lease_id": item.lease_id,
                     "page": item.page,
                     "clause_id": item.clause_id,
                     "excerpt": item.excerpt,

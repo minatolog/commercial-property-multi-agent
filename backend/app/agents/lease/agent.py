@@ -39,7 +39,10 @@ class LeaseAgent(ToolBackedAgent):
             )
         }
         clauses, clause_evidence, clause_warnings = await self._retrieve_clauses(
-            request=request, context=context, lease_id=lease_id
+            request=request,
+            context=context,
+            lease_id=lease_id,
+            document_ids=[str(item) for item in data.get("document_ids") or []],
         )
         warnings = list(clause_warnings)
 
@@ -85,9 +88,18 @@ class LeaseAgent(ToolBackedAgent):
         )
 
     async def _retrieve_clauses(
-        self, *, request: AgentRequest, context: AgentContext, lease_id: str
+        self,
+        *,
+        request: AgentRequest,
+        context: AgentContext,
+        lease_id: str,
+        document_ids: list[str],
     ) -> tuple[list[dict], list[dict], list[str]]:
-        """读取合同条款作为可追溯证据。
+        """读取**本租约适用**的合同条款作为可追溯证据。
+
+        Task 016（F7）：只按项目过滤是不够的——同项目另一个租约的合同属于不同文档。
+        因此把 `lease.lookup` 返回的 `document_ids` 作为检索范围传下去，
+        项目级公共文档（政策/制度）另行放行，并在证据里标注 `document_scope`。
 
         未授权或未注册 `document.search` 时**不报错**，只降级为"无条款证据"并给出警告：
         条款检索是增强能力，不应该让租约事实查询整体失败。
@@ -98,7 +110,14 @@ class LeaseAgent(ToolBackedAgent):
             return [], [], []
         try:
             execution = await self._invoke_tool(
-                "document.search", {"query": query, "top_k": 3}, context
+                "document.search",
+                {
+                    "query": query,
+                    "top_k": 3,
+                    "document_ids": list(document_ids),
+                    "include_project_documents": True,
+                },
+                context,
             )
         except AgentError as exc:
             return [], [], [
@@ -109,6 +128,7 @@ class LeaseAgent(ToolBackedAgent):
             {
                 "document_id": item["document_id"],
                 "document_version": item["document_version"],
+                "document_scope": item.get("document_scope", "unknown"),
                 "page": item["page"],
                 "clause_id": item["clause_id"],
                 "excerpt": item["excerpt"],
@@ -116,7 +136,7 @@ class LeaseAgent(ToolBackedAgent):
             for item in payload.get("results", [])
         ]
         if not clauses:
-            return [], [], [f"租约 {lease_id} 的合同条款未检索到匹配片段"]
+            return [], [], [f"租约 {lease_id} 的适用文档未检索到匹配条款"]
         return clauses, self._evidence_payload(execution), []
 
 

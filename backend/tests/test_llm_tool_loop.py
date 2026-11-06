@@ -64,6 +64,116 @@ def _turn(text="", *, tool_name=None, arguments=None, call_id="call_1") -> Model
     )
 
 
+class TestInvalidModelResponses(unittest.TestCase):
+    """回归 F6：非法/异常模型响应不得被当成"成功回答"。
+
+    这些用例走**真实**的 LangChain 响应转换（`_to_model_turn`），
+    而不是只构造 Fake 的 ModelTurn——否则测不到 provider 适配层丢数据的问题。
+    """
+
+    def _loop(self, model):
+        return _loop_run(model)
+
+    def test_invalid_tool_call_is_not_treated_as_final_answer(self) -> None:
+        from app.llm.langchain_client import _to_model_turn
+
+        class _Msg:
+            content = ""
+            tool_calls = []
+            invalid_tool_calls = [
+                {"name": "billing.statement.read", "args": "{bad json", "id": "c1",
+                 "error": "Failed to parse tool arguments"}
+            ]
+            response_metadata = {"finish_reason": "tool_calls"}
+            usage_metadata = None
+
+        turn = _to_model_turn(_Msg())
+        self.assertEqual(turn.tool_calls, ())
+        self.assertEqual(len(turn.invalid_tool_calls), 1)
+
+        class _Model(_SingleTurnModel):
+            def _next(self, messages):  # noqa: ANN001
+                return turn
+
+        outcome = self._loop(_Model())
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.MODEL_ERROR)
+        self.assertTrue(any("非法工具调用" in item for item in outcome.warnings))
+
+    def test_truncated_output_is_not_final_answer(self) -> None:
+        class _Model(_SingleTurnModel):
+            def _next(self, messages):  # noqa: ANN001
+                return ModelTurn(text="应收 52596.00，", finish_reason="length")
+
+        outcome = self._loop(_Model())
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.MODEL_ERROR)
+        self.assertTrue(any("截断" in item for item in outcome.warnings))
+
+    def test_empty_output_without_evidence_is_not_success(self) -> None:
+        class _Model(_SingleTurnModel):
+            def _next(self, messages):  # noqa: ANN001
+                return ModelTurn(text="")
+
+        outcome = self._loop(_Model())
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.MODEL_ERROR)
+
+    def test_normal_final_answer_still_succeeds(self) -> None:
+        class _Model(_SingleTurnModel):
+            def _next(self, messages):  # noqa: ANN001
+                return ModelTurn(text="未收 18036.00", finish_reason="stop")
+
+        outcome = self._loop(_Model())
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.FINAL_ANSWER)
+        self.assertIn("18036.00", outcome.answer)
+
+
+class _SingleTurnModel:
+    """最小模型桩：只实现 `complete`（异步），供上面的用例使用。"""
+
+    provider = "fake"
+    model_name = "single-turn"
+
+    async def complete(self, messages, tools):  # noqa: ANN001
+        return self._next(messages)
+
+    def _next(self, messages):  # noqa: ANN001, pragma: no cover - 由子类实现
+        raise NotImplementedError
+
+
+def _context() -> object:
+    from app.runtime.types import TrustedContext
+
+    trusted = TrustedContext(
+        trace_id="trace_f6",
+        principal_id="principal_ops_xinghui",
+        project_ids=frozenset({"prj_xinghui"}),
+        permissions=frozenset({"lease.read", "billing.read", "property.read"}),
+    )
+    return trusted.to_agent_context(run_id="run_f6")
+
+
+def _loop_run(model: object):
+    registry = _tool_registry()
+    budget = Budget(max_tool_calls=4, max_model_calls=4)
+    executor = ToolExecutor(registry, budget, trace_log=TraceLog())
+    context = _context()
+    return asyncio.run(
+        run_tool_loop(
+            client=model,
+            messages=(ChatMessage(role="user", content="A-301 还欠多少？"),),
+            tools=ToolSpecBuilder.build(
+                registry,
+                allowed_tools=_config().allowed_tools,
+                permissions=context.permissions,  # type: ignore[attr-defined]
+            ),
+            executor=executor,
+            context=context,
+            agent_config=_config(),
+            budget=budget,
+            max_rounds=2,
+        )
+    )
+
+
 class TestToolSpecBuilder(unittest.TestCase):
     def test_only_allowed_and_permitted_tools_are_exposed(self) -> None:
         registry = _tool_registry()

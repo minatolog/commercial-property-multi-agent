@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.api.app import create_app
 from app.api.service import RunIndex, WorkflowService
+from app.orchestration.checkpointing import checkpoint_config, open_checkpointer
 
 QUESTION = (
     "商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，"
@@ -51,7 +53,7 @@ class TestIdentityBoundary(_ApiCase):
                 "/api/runs",
                 json={"question": QUESTION, "lease_id": LEASE, field: "principal_finance_jinlan"},
             )
-            self.assertEqual(response.status_code, 400, field)
+            self.assertEqual(response.status_code, 422, field)
             body = response.json()
             self.assertEqual(body["error"]["code"], "invalid_request")
             self.assertIn(field, body["error"]["message"])
@@ -68,6 +70,76 @@ class TestIdentityBoundary(_ApiCase):
         body = response.json()
         self.assertEqual(body["error"]["code"], "run_not_found")
         self.assertEqual(body["error"]["trace_id"], response.headers["X-Trace-Id"])
+
+
+class TestInputValidation(_ApiCase):
+    """回归 S3：非法参数必须 4xx 且可追踪，不能 500，也不能把 null 当字符串。"""
+
+    def test_invalid_max_tool_calls_rejected(self) -> None:
+        for value in ("abc", None, -1, 0, 999):
+            response = self.client.post(
+                "/api/runs",
+                json={"question": QUESTION, "lease_id": LEASE, "max_tool_calls": value},
+            )
+            self.assertEqual(response.status_code, 422, f"{value!r} -> {response.text}")
+            error = response.json()["error"]
+            self.assertEqual(error["code"], "invalid_request")
+            self.assertTrue(error["trace_id"])
+            self.assertTrue(error["details"])
+
+    def test_null_question_is_rejected_not_stringified(self) -> None:
+        for value in (None, ""):
+            response = self.client.post(
+                "/api/runs", json={"question": value, "lease_id": LEASE}
+            )
+            self.assertEqual(response.status_code, 422, f"{value!r} -> {response.text}")
+        # 纯空白由业务层拒绝（也是 4xx，且同样可追踪）
+        blank = self.client.post(
+            "/api/runs", json={"question": "   ", "lease_id": LEASE}
+        )
+        self.assertEqual(blank.status_code, 400)
+        self.assertEqual(blank.json()["error"]["code"], "invalid_request")
+
+    def test_non_boolean_with_approval_rejected(self) -> None:
+        response = self.client.post(
+            "/api/runs",
+            json={"question": QUESTION, "lease_id": LEASE, "with_approval": "yes"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_unknown_field_rejected(self) -> None:
+        response = self.client.post(
+            "/api/runs",
+            json={"question": QUESTION, "lease_id": LEASE, "tenant": "x"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_invalid_approval_payload_rejected(self) -> None:
+        created = self.submit()
+        version = self.client.get(f"/api/runs/{created['run_id']}").json()["report"][
+            "approval_request"
+        ]["draft_version"]
+        for payload in (
+            {"decision": "maybe", "draft_version": version},
+            {"decision": "approve", "draft_version": "2"},
+            {"decision": "approve", "draft_version": 0},
+            {"decision": "approve", "draft_version": version, "principal_id": "x"},
+        ):
+            response = self.client.post(
+                f"/api/runs/{created['run_id']}/approvals",
+                json=payload,
+                headers={"X-Actor-Id": "principal_property_manager_xinghui"},
+            )
+            self.assertEqual(response.status_code, 422, f"{payload} -> {response.text}")
+
+    def test_validation_errors_are_traceable(self) -> None:
+        response = self.client.post(
+            "/api/runs", json={"question": "", "lease_id": LEASE}
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["error"]["trace_id"], response.headers["X-Trace-Id"]
+        )
 
 
 class TestRunLifecycle(_ApiCase):
@@ -141,6 +213,8 @@ class TestApprovalThroughApi(_ApiCase):
         self.assertEqual(detail["status"], "completed")
 
     def test_actor_outside_allowlist_is_rejected(self) -> None:
+        """同项目但不在审批人白名单内 → 403（跨项目则被所有权检查挡成 404）。"""
+
         created = self.submit()
         version = self.client.get(f"/api/runs/{created['run_id']}").json()["report"][
             "approval_request"
@@ -148,7 +222,7 @@ class TestApprovalThroughApi(_ApiCase):
         response = self.client.post(
             f"/api/runs/{created['run_id']}/approvals",
             json={"decision": "approve", "draft_version": version},
-            headers={"X-Actor-Id": "principal_finance_jinlan"},
+            headers={"X-Actor-Id": "principal_ops_xinghui"},
         )
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["error"]["code"], "permission_denied")
@@ -170,6 +244,87 @@ class TestApprovalThroughApi(_ApiCase):
         )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error"]["code"], "invalid_request")
+
+
+class TestRunIdentity(_ApiCase):
+    """回归 S4：公开 run_id、checkpoint context、审批与工具 trace 必须是同一个身份。"""
+
+    def _checkpoint_context_run_id(self, thread_id: str) -> str:
+        """直接读回 checkpoint 里的 `InvestigationState.context.run_id`。"""
+
+        async def _read() -> str:
+            async with open_checkpointer(self.service.checkpoint_path) as saver:
+                snapshot = await saver.aget_tuple(checkpoint_config(thread_id))
+            self.assertIsNotNone(snapshot, "运行结束后应留下 checkpoint")
+            context = snapshot.checkpoint["channel_values"]["context"]
+            return context.run_id
+
+        return asyncio.run(_read())
+
+    def test_public_run_id_matches_traces(self) -> None:
+        created = self.submit()
+        run_id = created["run_id"]
+        traces = self.client.get(f"/api/runs/{run_id}/traces").json()["traces"]
+        self.assertTrue(traces)
+        self.assertEqual({trace["run_id"] for trace in traces}, {run_id})
+
+    def test_thread_id_is_derived_from_run_id(self) -> None:
+        created = self.submit()
+        self.assertEqual(created["thread_id"], f"thread_{created['run_id']}")
+
+    def test_checkpoint_context_shares_public_run_id(self) -> None:
+        created = self.submit()
+        self.assertEqual(
+            self._checkpoint_context_run_id(created["thread_id"]), created["run_id"]
+        )
+
+    def test_approval_request_belongs_to_same_run(self) -> None:
+        created = self.submit()
+        detail = self.client.get(f"/api/runs/{created['run_id']}").json()
+        request = detail["report"]["approval_request"]
+        self.assertEqual(request["run_id"], created["run_id"])
+        self.assertEqual(request["thread_id"], created["thread_id"])
+
+
+class TestRunOwnership(_ApiCase):
+    """回归 F8：共用索引/切换主体时不得读到别人的运行。"""
+
+    def test_other_principal_cannot_read_or_list_runs(self) -> None:
+        created = self.submit()
+        run_id = created["run_id"]
+
+        # 同一份索引，换成另一个项目的主体
+        jinlan = WorkflowService(
+            principal_id="principal_finance_jinlan",
+            index=self.service.index,
+            checkpoint_path=self.service.checkpoint_path,
+            approval_path=self.service.approval_path,
+        )
+        jinlan_client = TestClient(create_app(service=jinlan))
+
+        self.assertEqual(
+            jinlan_client.get(f"/api/runs/{run_id}").status_code, 404
+        )
+        self.assertEqual(
+            jinlan_client.get(f"/api/runs/{run_id}/traces").status_code, 404
+        )
+        self.assertEqual(jinlan_client.get("/api/runs").json()["count"], 0)
+        self.assertEqual(
+            jinlan_client.post(
+                f"/api/runs/{run_id}/approvals",
+                json={"decision": "approve", "draft_version": 2},
+                headers={"X-Actor-Id": "principal_finance_jinlan"},
+            ).status_code,
+            404,
+        )
+
+        # 原主体仍然读得到
+        self.assertEqual(self.client.get(f"/api/runs/{run_id}").status_code, 200)
+
+    def test_scope_is_recorded_with_the_run(self) -> None:
+        created = self.submit()
+        detail = self.client.get(f"/api/runs/{created['run_id']}").json()
+        self.assertEqual(detail["project_ids"], ["prj_xinghui"])
 
 
 class TestPresentationIsOptional(_ApiCase):

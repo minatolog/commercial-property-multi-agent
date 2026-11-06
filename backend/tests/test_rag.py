@@ -20,11 +20,17 @@ from app.orchestration.investigation import RuleBasedPlanner
 from app.paths import DOCUMENT_DIR, DOCUMENT_FILES
 from app.rag.bm25 import BM25Index, tokenize
 from app.rag.chunker import chunk_pages
-from app.rag.library import DocumentMismatch, build_knowledge_library, verify_snippets
+from app.rag.library import (
+    DocumentMismatch,
+    build_knowledge_library,
+    fixture_catalog,
+    verify_snippets,
+)
 from app.rag.pdf_builder import (
     CONTRACT_PAGES,
     POLICY_PAGES,
     build_contract_pdf,
+    build_pdf,
     build_policy_pdf,
 )
 from app.rag.service import KnowledgeService
@@ -81,7 +87,7 @@ class TestSnippetAlignment(unittest.TestCase):
 
     def test_committed_pdfs_align_with_fixture_snippets(self) -> None:
         repository = FixtureRepository.load()
-        library = build_knowledge_library(repository, strict=True)
+        library = build_knowledge_library(fixture_catalog(repository), strict=True)
         self.assertEqual(library.missing_documents, ("doc_jl_b101_contract",))
         self.assertIn(CONTRACT, library.indexed)
 
@@ -109,7 +115,7 @@ class TestSnippetAlignment(unittest.TestCase):
 
     def test_snippet_pages_are_the_real_pages(self) -> None:
         repository = FixtureRepository.load()
-        library = build_knowledge_library(repository)
+        library = build_knowledge_library(fixture_catalog(repository))
         service = library.service
         expected = {"5.2": 12, "7.1": 20, "附件B": 26}
         for clause_id, page in expected.items():
@@ -375,6 +381,117 @@ class TestPlannerPassesQuery(unittest.TestCase):
                 (DOCUMENT_DIR / filename).is_file(),
                 msg=f"缺少已归档 PDF: {filename}",
             )
+
+
+class TestLeaseScopedRetrieval(unittest.TestCase):
+    """回归 F7：同项目另一个租约的合同不得当作本租约证据。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name)
+
+        # A-301 合同
+        a301 = build_contract_pdf(base / "a301.pdf")
+        # A-302 合同：同项目、同页码区间，但条款金额不同
+        a302 = build_pdf(
+            base / "a302.pdf",
+            (
+                (
+                    "第五条 租金及调整",
+                    "5.2 自第二个租赁年度起，租金每十二（12）个月递增百分之二十（20%）；"
+                    "本条款仅适用于 A302。",
+                ),
+            ),
+            title="A302 租赁合同（合成）",
+        )
+        policy = build_policy_pdf(base / "policy.pdf")
+
+        from app.rag.catalog import DocumentMeta, StaticDocumentCatalog
+
+        self.catalog = StaticDocumentCatalog(
+            [
+                DocumentMeta(
+                    document_id="doc_xh_a301_contract",
+                    project_id="prj_xinghui",
+                    version=1,
+                    lease_id="lease_xh_a301_2025",
+                    filename="a301.pdf",
+                ),
+                DocumentMeta(
+                    document_id="doc_xh_a302_contract",
+                    project_id="prj_xinghui",
+                    version=1,
+                    lease_id="lease_xh_a302_2025",
+                    filename="a302.pdf",
+                ),
+                DocumentMeta(
+                    document_id="doc_xh_property_policy",
+                    project_id="prj_xinghui",
+                    version=1,
+                    lease_id=None,  # 项目级公共文档
+                    filename="policy.pdf",
+                ),
+            ]
+        )
+        self.library = build_knowledge_library(self.catalog, document_dir=base)
+
+    def test_lease_documents_exclude_other_lease_contract(self) -> None:
+        allowed = self.library.document_ids_for_lease("lease_xh_a301_2025")
+        self.assertIn("doc_xh_a301_contract", allowed)
+        self.assertNotIn("doc_xh_a302_contract", allowed)
+        # 项目级公共文档对本项目所有租约都适用
+        self.assertIn("doc_xh_property_policy", allowed)
+
+    def test_search_with_lease_scope_never_returns_other_contract(self) -> None:
+        allowed = frozenset(self.library.document_ids_for_lease("lease_xh_a301_2025"))
+        hits = self.library.service.search(
+            "租金递增百分之二十",
+            project_ids=frozenset({"prj_xinghui"}),
+            document_ids=allowed,
+            top_k=5,
+        )
+        self.assertTrue(all(hit.chunk.document_id != "doc_xh_a302_contract" for hit in hits))
+
+        unscoped = self.library.service.search(
+            "租金递增百分之二十",
+            project_ids=frozenset({"prj_xinghui"}),
+            top_k=5,
+        )
+        self.assertTrue(
+            any(hit.chunk.document_id == "doc_xh_a302_contract" for hit in unscoped),
+            "不加租约限定时应能命中 A302（用于证明上面的过滤确实生效）",
+        )
+
+    def test_document_search_tool_scopes_by_lease_documents(self) -> None:
+        import asyncio
+
+        tool = DocumentSearchTool(self.library.service, library=self.library)
+        payload = tool.input_model(
+            query="租金递增百分之二十",
+            top_k=5,
+            document_ids=list(self.library.document_ids_for_lease("lease_xh_a301_2025")),
+            include_project_documents=True,
+        )
+        invocation = asyncio.run(tool.invoke(payload, _context("prj_xinghui")))
+        ids = {item["document_id"] for item in invocation.data["results"]}
+        self.assertNotIn("doc_xh_a302_contract", ids)
+        scopes = {item["document_scope"] for item in invocation.data["results"]}
+        self.assertTrue(scopes <= {"lease", "project", "unknown"})
+
+    def test_empty_document_ids_allows_only_project_documents(self) -> None:
+        import asyncio
+
+        tool = DocumentSearchTool(self.library.service, library=self.library)
+        payload = tool.input_model(
+            query="空调故障响应时限",
+            top_k=5,
+            document_ids=[],
+            include_project_documents=True,
+        )
+        invocation = asyncio.run(tool.invoke(payload, _context("prj_xinghui")))
+        ids = {item["document_id"] for item in invocation.data["results"]}
+        self.assertEqual(ids - {"doc_xh_property_policy"}, set())
 
 
 class TestInvestigationCitations(unittest.TestCase):

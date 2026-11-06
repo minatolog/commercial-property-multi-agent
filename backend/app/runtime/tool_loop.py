@@ -152,6 +152,51 @@ async def run_tool_loop(
                 )
 
         if not turn.tool_calls:
+            # Task 016（F6）：没有任何有效调用时，必须先排除"模型想调工具但调用非法"。
+            # 否则空答案会被标成 success / final_answer，等于伪造一次成功回答。
+            if turn.invalid_tool_calls:
+                detail = "; ".join(
+                    f"{item.name or '<无工具名>'}: {item.error}"
+                    for item in turn.invalid_tool_calls
+                )
+                warnings.append(f"模型返回非法工具调用: {detail}")
+                return _outcome(
+                    answer=turn.text,
+                    stop_reason=ToolLoopStopReason.MODEL_ERROR,
+                    turns=turns,
+                    executions=executions,
+                    evidence=evidence,
+                    usage=usage,
+                    warnings=tuple(warnings),
+                    rounds=round_index,
+                )
+            truncated = (turn.finish_reason or "").lower() in {"length", "max_tokens"}
+            if truncated:
+                warnings.append(
+                    f"模型输出被截断（finish_reason={turn.finish_reason}），不能视为完整回答"
+                )
+                return _outcome(
+                    answer=turn.text,
+                    stop_reason=ToolLoopStopReason.MODEL_ERROR,
+                    turns=turns,
+                    executions=executions,
+                    evidence=evidence,
+                    usage=usage,
+                    warnings=tuple(warnings),
+                    rounds=round_index,
+                )
+            if not turn.text.strip() and not executions and not evidence:
+                warnings.append("模型既没有给出答案，也没有产生任何工具证据")
+                return _outcome(
+                    answer="",
+                    stop_reason=ToolLoopStopReason.MODEL_ERROR,
+                    turns=turns,
+                    executions=executions,
+                    evidence=evidence,
+                    usage=usage,
+                    warnings=tuple(warnings),
+                    rounds=round_index,
+                )
             return _outcome(
                 answer=turn.text,
                 stop_reason=ToolLoopStopReason.FINAL_ANSWER,

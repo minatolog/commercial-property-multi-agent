@@ -161,6 +161,20 @@ class DatabaseRepository:
             "missing_documents": _missing_documents(lease, documents),
         }
 
+    # ---------------- 查询：文档目录（Task 016 / F3） ----------------
+
+    def documents(self) -> list[dict[str, Any]]:
+        """列出全部文档元数据（供知识库装配使用，不含正文）。
+
+        不做权限判断：项目/租约范围由调用方（检索时的 `project_ids`）决定，
+        与 fixture 仓库的目录接口保持一致。
+        """
+
+        return [
+            _document_dict(document)
+            for document in self._session.scalars(select(Document))
+        ]
+
     # ---------------- 查询：Billing ----------------
 
     def statement(self, *, project_ids: frozenset[str], lease_id: str) -> dict[str, Any]:

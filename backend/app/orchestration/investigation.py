@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import operator
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Annotated, Any, Callable, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -81,9 +81,13 @@ class InvestigationState(TypedDict, total=False):
     results: Annotated[list[dict[str, Any]], operator.add]
     failures: Annotated[list[dict[str, Any]], operator.add]
     warnings: Annotated[list[str], operator.add]
-    conflicts: Annotated[list[dict[str, Any]], operator.add]
-    missing: Annotated[list[str], operator.add]
+    #: verify 每轮**重新计算**当前冲突与缺口，因此是"覆盖"语义（不是追加）。
+    #: 用追加会让补查成功后仍残留上一轮的 missing（审查 F4）。
+    conflicts: list[dict[str, Any]]
+    missing: list[str]
     revision: int
+    #: 补查时只重跑这些子任务（空表示"按原计划全部执行"）
+    retry_subtasks: list[str]
     verdict: str
     report: dict[str, Any]
     #: Task 012：审批门相关通道
@@ -186,6 +190,32 @@ class InvestigationResult:
     approved_draft: dict[str, Any] | None = None
 
 
+def approved_draft_payload(request: ApprovalRequest) -> dict[str, Any]:
+    """已批准草案的唯一构造点（图节点与 `resume()` 共用，避免两处口径不一）。
+
+    注意：这里**只**产出草案状态，不含任何业务副作用。
+    """
+
+    return {
+        "draft_id": request.draft_id,
+        "draft_version": request.draft_version,
+        "action_type": request.action_type,
+        "amount": request.amount,
+        "currency": request.currency,
+        "project_id": request.project_id,
+        "target": request.payload.get("target", {}),
+        "evidence_ids": list(request.evidence_ids),
+        "status": "approved_draft_only",
+        "executed_side_effects": [],
+        "request_id": request.request_id,
+        "approved_stages": [
+            {"role": stage.role, "decided_by": stage.decided_by, "decided_at": stage.decided_at}
+            for stage in request.stages
+            if stage.status == "approved"
+        ],
+    }
+
+
 def _safe_snapshot(repository: Any) -> dict[str, Any]:
     """fixture 仓库有 `snapshot()`；只读数据库仓库没有。
 
@@ -241,25 +271,37 @@ def verify_results(
     plan: list[dict[str, Any]],
     results: list[dict[str, Any]],
     failures: list[dict[str, Any]],
+    expected_subtasks: list[str] | None = None,
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
     """确定性证据核验。
 
     返回 (verdict, conflicts, missing)：
 
-    - `insufficient`：有子任务失败、或租约引用的文档缺失；
+    - `insufficient`：有**未解决**的子任务失败、或租约引用的文档缺失；
     - `conflicting`：账单租金与合同规则存在差额（必须并列呈现，不得擅自选边）；
     - `supported`：上述都不成立。
+
+    Task 016（F4）：补查成功后，"历史尝试"不应继续被当成当前失败。
+
+    - 期望集合用 `expected_subtasks`（**原始**计划），不受补查后 plan 收缩影响；
+    - 失败的判定改为"该 `subtask_id` 没有任何结果"：一旦重跑成功，历史失败自动失效，
+      但仍可从 trace 审计（trace 是 append-only，不会被清掉）。
     """
 
     conflicts: list[dict[str, Any]] = []
     missing: list[str] = []
 
-    expected = {item["subtask_id"] for item in plan}
+    expected = set(expected_subtasks or [item["subtask_id"] for item in plan])
     completed = {item["subtask_id"] for item in results}
     for subtask_id in sorted(expected - completed):
         missing.append(f"未获得子任务结果: {subtask_id}")
 
-    for failure in failures:
+    unresolved = [
+        failure
+        for failure in failures
+        if failure.get("subtask_id") not in completed
+    ]
+    for failure in {item.get("subtask_id"): item for item in unresolved}.values():
         missing.append(
             f"子任务 {failure.get('subtask_id')} 失败: {failure.get('error_code')}"
         )
@@ -320,7 +362,10 @@ def build_investigation_graph(
     planner: Planner | None = None,
     max_revisions: int = 1,
     approval_rule: ApprovalRule | None = None,
-    approval_hook: Callable[[ApprovalRequest], str] | None = None,
+    #: 创建/读取审批请求：返回**权威**请求（已存在则返回既有记录，不新建 ID）
+    approval_hook: Callable[[ApprovalRequest], ApprovalRequest] | None = None,
+    #: 按 ID 读取权威请求（恢复后回读台账状态）
+    approval_reader: Callable[[str], ApprovalRequest | None] | None = None,
     draft_resolver: Callable[[InvestigationState, list[dict[str, Any]]], dict[str, Any] | None]
     | None = None,
     budget_snapshot: Callable[[], Any] | None = None,
@@ -349,9 +394,14 @@ def build_investigation_graph(
         return "deterministic_answer" if state.get("route") == "deterministic" else "dispatch"
 
     def dispatch(state: InvestigationState) -> list[Send]:
-        return [
-            Send("run_subtask", {**state, "subtask": subtask})
+        retry = set(state.get("retry_subtasks") or ())
+        subtasks = [
+            subtask
             for subtask in state.get("plan", [])
+            if not retry or subtask["subtask_id"] in retry
+        ]
+        return [
+            Send("run_subtask", {**state, "subtask": subtask}) for subtask in subtasks
         ]
 
     async def run_subtask(state: dict[str, Any]) -> dict[str, Any]:
@@ -423,30 +473,41 @@ def build_investigation_graph(
             plan=state.get("plan", []),
             results=_latest_by_subtask(state.get("results", [])),
             failures=state.get("failures", []),
+            expected_subtasks=state.get("expected_subtasks") or None,
         )
         return {"verdict": verdict, "conflicts": conflicts, "missing": missing}
 
     def route_after_verify(state: InvestigationState) -> str:
         # 只有"子任务失败"才值得补查；文档缺失无法通过重跑补齐，重跑只是浪费预算
+        resolved = {item["subtask_id"] for item in state.get("results", [])}
+        retryable = [
+            failure
+            for failure in state.get("failures", [])
+            if failure.get("subtask_id") not in resolved
+        ]
         if (
             state.get("verdict") == "insufficient"
-            and state.get("failures")
+            and retryable
             and state.get("revision", 0) < max_revisions
         ):
             return "revise"
         return "report"
 
     def revise_node(state: InvestigationState) -> dict[str, Any]:
-        """补查：只补"计划内但没有结果"的子任务，不新增未计划的能力。"""
+        """补查：只补"计划内但没有结果"的子任务，不新增未计划的能力。
+
+        `plan` 保持**原始**计划不变（供核验与报告引用完整任务集），
+        真正需要重跑的子任务放进 `retry_subtasks`。
+        """
 
         completed = {item["subtask_id"] for item in state.get("results", [])}
         pending = [
-            subtask
+            subtask["subtask_id"]
             for subtask in state.get("plan", [])
             if subtask["subtask_id"] not in completed
         ]
         return {
-            "plan": pending or state.get("plan", []),
+            "retry_subtasks": pending,
             "revision": state.get("revision", 0) + 1,
             "warnings": [f"触发第 {state.get('revision', 0) + 1} 次补查"],
         }
@@ -455,6 +516,20 @@ def build_investigation_graph(
         results = _latest_by_subtask(state.get("results", []))
         findings = _build_findings(results)
         draft = draft_resolver(state, findings) if draft_resolver is not None else None
+        completed = {item["subtask_id"] for item in results}
+        unresolved = [
+            failure
+            for failure in state.get("failures", [])
+            if failure.get("subtask_id") not in completed
+        ]
+        expected = set(
+            state.get("expected_subtasks")
+            or [item["subtask_id"] for item in state.get("plan", [])]
+        )
+        missing = sorted(
+            set(state.get("missing", []))
+            | {f"未获得子任务结果: {item}" for item in expected - completed}
+        )
         report = {
             "question": state.get("question"),
             "lease_id": state.get("lease_id"),
@@ -464,12 +539,11 @@ def build_investigation_graph(
             "findings": findings,
             # conflicts/missing 是 append 通道，补查会让同一结论重复出现，报告必须去重
             "conflicts": _dedupe(list(state.get("conflicts", []))),
-            "missing_information": sorted(set(state.get("missing", []))),
+            "missing_information": missing,
             # verdict 回答"证据是否自相矛盾"，completeness 回答"调查是否跑全"。
             # 两个维度必须分开：既有真实冲突又有子任务失败时，只报一个会丢掉另一半信息。
-            "completeness": (
-                "partial" if state.get("failures") or state.get("missing") else "complete"
-            ),
+            # Task 016（F4）：补查成功后 unresolved 应为空，不再残留"历史失败"。
+            "completeness": "partial" if unresolved or missing else "complete",
             "agent_results": [
                 {
                     "subtask_id": item["subtask_id"],
@@ -479,7 +553,13 @@ def build_investigation_graph(
                 }
                 for item in results
             ],
-            "failures": state.get("failures", []),
+            # 报告只列**当前未解决**的失败；历史尝试保留在 trace 中供审计
+            "failures": unresolved,
+            "resolved_failures": [
+                failure
+                for failure in state.get("failures", [])
+                if failure.get("subtask_id") in completed
+            ],
             "requires_human_review": state.get("verdict") != "supported",
             "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
         }
@@ -518,7 +598,7 @@ def build_investigation_graph(
             }
 
         context = state["context"]
-        request = build_approval_request(
+        candidate = build_approval_request(
             draft=draft,
             rule=rule,
             thread_id=state.get("thread_id") or context.run_id or "thread_unknown",
@@ -526,11 +606,19 @@ def build_investigation_graph(
             trace_id=context.trace_id,
             requested_by=context.principal_id or "principal_unknown",
         )
-        status = approval_hook(request)
-        if status != "pending":
+        # Task 016（F5）：钩子返回**权威**请求。恢复时节点会重新执行，
+        # 若沿用新构造的随机 request_id，报告引用的审批记录在台账里根本不存在。
+        request = approval_hook(candidate)
+
+        if request.status != "pending":
             return {
-                "approval_status": status,
+                "approval_status": request.status,
                 "approval_request": request.as_dict(),
+                "approved_draft": (
+                    approved_draft_payload(request)
+                    if request.status == "approved"
+                    else None
+                ),
             }
 
         decision = interrupt(
@@ -546,6 +634,24 @@ def build_investigation_graph(
             }
         )
         outcome = decision if isinstance(decision, dict) else {}
+        # 恢复后以**台账**为准，而不是以恢复载荷为准：载荷只用于传递 request_id
+        authoritative = (
+            approval_reader(str(outcome.get("request_id") or request.request_id))
+            if approval_reader is not None
+            else None
+        )
+        if authoritative is not None:
+            status = authoritative.status
+            approved = (
+                approved_draft_payload(authoritative)
+                if status == "approved"
+                else None
+            )
+            return {
+                "approval_status": status,
+                "approval_request": authoritative.as_dict(),
+                "approved_draft": approved,
+            }
         status = str(outcome.get("status", "unknown"))
         approved = outcome.get("approved_draft")
         return {
@@ -681,12 +787,16 @@ class Investigator:
 
     def __post_init__(self) -> None:
         hook = None
+        reader = None
         if self.approval_store is not None:
             store = self.approval_store
 
-            def hook(request: ApprovalRequest) -> str:  # noqa: ANN001 - 局部闭包
-                store.create(request)
-                return "pending"
+            def hook(request: ApprovalRequest) -> ApprovalRequest:
+                # create() 对 (thread, draft, version) 幂等：恢复时返回既有记录
+                return store.create(request)
+
+            def reader(request_id: str) -> ApprovalRequest | None:
+                return store.get(request_id)
 
         rule = self.approval_rule or self._rule_from_fixture()
         self._graph = build_investigation_graph(
@@ -695,6 +805,7 @@ class Investigator:
             max_revisions=self.max_revisions,
             approval_rule=rule,
             approval_hook=hook,
+            approval_reader=reader,
             draft_resolver=self._resolve_draft,
             budget_snapshot=self.budget_snapshot,
             checkpointer=self.checkpointer,
@@ -767,6 +878,7 @@ class Investigator:
         decision: str,
         draft_version: int,
         principal_id: str,
+        reason: str | None = None,
         dry_run: bool = False,
     ) -> InvestigationResult:
         """人工决定后恢复被中断的图。
@@ -775,6 +887,9 @@ class Investigator:
         1. 校验通过才允许恢复（权限/版本/过期/阶段顺序，见 `ApprovalStore.decide`）；
         2. `resume_ledger` 以 `request_id` 唯一，重复恢复直接返回首次结果，不重放节点；
         3. 恢复后只产出 `approved_draft`，不执行任何业务写操作。
+
+        Task 016：`reason` 会写入审批审计；恢复后 `approval_request` 一律回读台账，
+        保证返回的 request_id / version / status / stages 与持久记录一致（F5）。
         """
 
         if self.approval_store is None:
@@ -791,6 +906,7 @@ class Investigator:
             decision=decision,
             draft_version=draft_version,
             principal=principal,
+            reason=reason,
         )
         updated = outcome.request
 
@@ -810,20 +926,7 @@ class Investigator:
             return self._result_from_snapshot(previous)
 
         approved_draft = (
-            {
-                "draft_id": updated.draft_id,
-                "draft_version": updated.draft_version,
-                "action_type": updated.action_type,
-                "amount": updated.amount,
-                "currency": updated.currency,
-                "project_id": updated.project_id,
-                "target": updated.payload.get("target", {}),
-                "evidence_ids": list(updated.evidence_ids),
-                "status": "approved_draft_only",
-                "executed_side_effects": [],
-            }
-            if updated.status == "approved"
-            else None
+            approved_draft_payload(updated) if updated.status == "approved" else None
         )
         if dry_run:
             return InvestigationResult(
@@ -847,12 +950,20 @@ class Investigator:
             thread_id=updated.thread_id,
         )
         result = await self._to_result(state, updated.thread_id)
+        # F5：恢复结果的审批请求一律以台账为准，避免出现"报告引用不存在的请求"
+        authoritative = store.get(request_id) or updated
+        result = replace(
+            result,
+            approval_request=authoritative.as_dict(),
+            approval_status=authoritative.status,
+        )
         store.record_resume(
             request_id,
             updated.thread_id,
             {
                 "verdict": result.verdict,
                 "approval_status": result.approval_status,
+                "approval_request": result.approval_request,
                 "approved_draft": result.approved_draft,
                 "report": result.report,
                 "thread_id": result.thread_id,
@@ -916,7 +1027,10 @@ class Investigator:
             verdict=verdict,
             report=report,
             results=results,
-            failures=tuple(state.get("failures", [])),
+            # 报告里的 `failures` 只含**未解决**的失败；历史尝试见 `resolved_failures`
+            failures=tuple(
+                report["failures"] if "failures" in report else state.get("failures", [])
+            ),
             # 以报告中的去重结果为准：conflicts 是 append 通道，补查会重复
             conflicts=tuple(report.get("conflicts", [])),
             missing=tuple(sorted(set(state.get("missing", [])))),
@@ -935,6 +1049,7 @@ class Investigator:
             report=snapshot.get("report", {}) or {},
             thread_id=str(snapshot.get("thread_id", "")),
             approval_status=str(snapshot.get("approval_status", "")),
+            approval_request=snapshot.get("approval_request"),
             approved_draft=snapshot.get("approved_draft"),
             warnings=("重复恢复：返回首次恢复结果，未再次执行节点",),
         )

@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from app.investigation_demo import build_investigation_bundle, run_investigation
 from app.orchestration.investigation import RuleBasedPlanner, verify_results
+from app.tools.base import BaseTool
 
 C03_QUESTION = (
     "商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，"
@@ -20,6 +21,42 @@ C03_QUESTION = (
 ARREARS_QUESTION = "A-301 现在还有多少钱没交？"
 RENT_FREE_QUESTION = "A-301 合同里有没有免租期？"
 CROSS_PROJECT_QUESTION = "看一下 B-101 的租金和欠费情况"
+
+
+class _FlakyTool(BaseTool):
+    """第一次超时、之后成功的工具包装（模拟可恢复故障）。
+
+    必须继承 `BaseTool`：工具注册表显式拒绝"看起来像工具"的对象，
+    这条约束本身也是安全边界（不允许鸭子类型混入）。
+    """
+
+    def __init__(self, inner: BaseTool) -> None:
+        self._inner = inner
+        self.calls = 0
+        self.name = inner.name
+        self.version = inner.version
+        self.description = inner.description
+        self.required_permissions = inner.required_permissions
+        self.timeout_seconds = inner.timeout_seconds
+        self.max_attempts = 1
+        self.input_model = inner.input_model
+        self.output_model = inner.output_model
+
+    async def invoke(self, payload: object, context: object):
+        from app.agents.base.errors import AgentError, ErrorCode
+
+        self.calls += 1
+        if self.calls == 1:
+            raise AgentError("第一次调用超时", code=ErrorCode.TOOL_TIMEOUT)
+        return await self._inner.invoke(payload, context)
+
+
+class _AlwaysFailingTool(_FlakyTool):
+    async def invoke(self, payload: object, context: object):
+        from app.agents.base.errors import AgentError, ErrorCode
+
+        self.calls += 1
+        raise AgentError("持续超时", code=ErrorCode.TOOL_TIMEOUT)
 
 
 class TestPlanner(unittest.TestCase):
@@ -249,6 +286,76 @@ class TestInvestigationGraph(unittest.TestCase):
         self.assertEqual(result.revision, 0)
         traces = bundle.trace_log.snapshot()
         self.assertEqual({trace.subtask_id for trace in traces}, {"st_1_lease"})
+
+    def test_successful_retry_clears_unresolved_failure(self) -> None:
+        """回归 F4：第一次失败、补查成功后，最终状态不得仍判"不完整"。
+
+        修复前 `failures` 是 append 通道且核验把它们当作当前失败，
+        补查成功后依然 `insufficient` / `partial`，缺失列表还写着"未获得子任务结果"。
+
+        用 `v_oct_rent_corrected` 变体消除金额差额，让 verdict 走
+        `insufficient → 补查` 这条路（有冲突时按设计优先呈现冲突）。
+        """
+
+        bundle = build_investigation_bundle(
+            variant="v_oct_rent_corrected", max_revisions=1
+        )
+        flaky = _FlakyTool(bundle.tool_registry.get("property.work_orders.read"))
+        bundle.tool_registry.register(flaky, replace=True)
+
+        result = asyncio.run(
+            run_investigation(
+                bundle, question=C03_QUESTION, lease_id="lease_xh_a301_2025"
+            )
+        )
+
+        self.assertEqual(flaky.calls, 2, "应恰好重试一次")
+        self.assertEqual(result.revision, 1)
+        self.assertEqual(len(result.results), 3, "补查后三个子任务都应有结果")
+        # 当前失败已解决
+        self.assertEqual(result.report["failures"], [])
+        self.assertEqual(result.failures, ())
+        self.assertFalse(
+            any("未获得子任务结果" in item for item in result.missing),
+            f"缺失列表不应再提未完成子任务: {result.missing}",
+        )
+        self.assertFalse(
+            any("tool_timeout" in item for item in result.missing),
+            "已恢复的失败不应留在缺失列表里",
+        )
+        # 「合同引用但未电子化的文档」是真实资料缺失：verdict 仍为 insufficient，
+        # 但这是**文档**缺口，不是补查没跑完（两者必须在报告里可区分）。
+        self.assertEqual(result.verdict, "insufficient")
+        self.assertEqual(result.report["completeness"], "partial")
+        self.assertTrue(
+            any("doc_xh_a301_annex_b" in item for item in result.missing)
+        )
+        # 历史失败仍可审计
+        self.assertTrue(result.report["resolved_failures"])
+
+    def test_persistent_failure_stays_insufficient(self) -> None:
+        """对照：补查后仍失败时，必须继续报不完整（不能因为重试过就当成功）。"""
+
+        bundle = build_investigation_bundle(
+            variant="v_oct_rent_corrected", max_revisions=1
+        )
+        always_failing = _AlwaysFailingTool(
+            bundle.tool_registry.get("property.work_orders.read")
+        )
+        bundle.tool_registry.register(always_failing, replace=True)
+
+        result = asyncio.run(
+            run_investigation(
+                bundle, question=C03_QUESTION, lease_id="lease_xh_a301_2025"
+            )
+        )
+        self.assertEqual(always_failing.calls, 2)
+        codes = {failure["error_code"] for failure in result.failures}
+        self.assertIn("tool_timeout", codes)
+        self.assertEqual(result.report["completeness"], "partial")
+        self.assertTrue(
+            any("未获得子任务结果" in item for item in result.missing)
+        )
 
     def test_report_is_json_serialisable(self) -> None:
         import json

@@ -413,6 +413,170 @@ class TestPausedAndResumedFlow(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(plane.approval_store.pending(), [])
 
 
+class TestApprovalIdentityAndAudit(unittest.IsolatedAsyncioTestCase):
+    async def test_resume_reuses_persisted_request_id(self) -> None:
+        """回归 F5：恢复后返回的审批请求必须就是台账里那条，不能是新随机 ID。"""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                bundle = build_investigation_bundle(control_plane=plane)
+                await bundle.investigator.investigate(
+                    question=QUESTION, lease_id=LEASE, context=bundle.context,
+                    thread_id="thread_identity",
+                )
+                request = plane.approval_store.pending()[0]
+
+                first = await bundle.investigator.resume(
+                    request_id=request.request_id,
+                    decision="approve",
+                    draft_version=request.draft_version,
+                    principal_id="principal_property_manager_xinghui",
+                )
+                self.assertEqual(
+                    first.approval_request["request_id"], request.request_id
+                )
+
+                second = await bundle.investigator.resume(
+                    request_id=request.request_id,
+                    decision="approve",
+                    draft_version=request.draft_version,
+                    principal_id="principal_finance_xinghui",
+                )
+
+                # 1) 返回的 ID 必须在台账里真实存在
+                returned_id = second.approval_request["request_id"]
+                self.assertEqual(returned_id, request.request_id)
+                stored = plane.approval_store.get(returned_id)
+                self.assertIsNotNone(stored, "返回的审批请求必须能在台账中查到")
+                assert stored is not None
+
+                # 2) ID / 版本 / 状态 / 阶段与持久记录完全一致
+                self.assertEqual(second.approval_status, stored.status)
+                self.assertEqual(stored.status, "approved")
+                self.assertEqual(second.approval_request["draft_version"], stored.draft_version)
+                self.assertEqual(
+                    [stage["status"] for stage in second.approval_request["stages"]],
+                    ["approved", "approved"],
+                )
+                self.assertEqual(
+                    second.approved_draft["request_id"], stored.request_id
+                )
+                self.assertEqual(
+                    [item["decided_by"] for item in second.approved_draft["approved_stages"]],
+                    ["principal_property_manager_xinghui", "principal_finance_xinghui"],
+                )
+
+    async def test_approval_reason_is_persisted(self) -> None:
+        """审批意见必须落到审计表（API/CLI 传递 `reason` 的落点）。"""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                bundle = build_investigation_bundle(control_plane=plane)
+                await bundle.investigator.investigate(
+                    question=QUESTION, lease_id=LEASE, context=bundle.context,
+                    thread_id="thread_reason",
+                )
+                request = plane.approval_store.pending()[0]
+                await bundle.investigator.resume(
+                    request_id=request.request_id,
+                    decision="reject",
+                    draft_version=request.draft_version,
+                    principal_id="principal_property_manager_xinghui",
+                    reason="证据不足，需补充附件B",
+                )
+                decisions = plane.approval_store.decisions(request.request_id)
+                self.assertEqual(decisions[0]["reason"], "证据不足，需补充附件B")
+
+
+class TestTerminalIdempotencyIsGuarded(unittest.IsolatedAsyncioTestCase):
+    """回归 S1：终态审批的幂等分支不得绕过版本与授权校验。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.base = Path(self._tmp.name)
+
+    async def _approved_request(self):
+        async with control_plane(
+            checkpoint_path=self.base / "graph.sqlite",
+            approval_path=self.base / "approval.sqlite",
+        ) as plane:
+            bundle = build_investigation_bundle(control_plane=plane)
+            await bundle.investigator.investigate(
+                question=QUESTION, lease_id=LEASE, context=bundle.context,
+                thread_id="thread_s1",
+            )
+            request = plane.approval_store.pending()[0]
+            for principal in (
+                "principal_property_manager_xinghui",
+                "principal_finance_xinghui",
+            ):
+                await bundle.investigator.resume(
+                    request_id=request.request_id,
+                    decision="approve",
+                    draft_version=request.draft_version,
+                    principal_id=principal,
+                )
+            return plane.approval_store.get(request.request_id)
+
+    async def test_wrong_version_cannot_replay_as_approved(self) -> None:
+        stored = await self._approved_request()
+        assert stored is not None
+        async with control_plane(
+            checkpoint_path=self.base / "graph.sqlite",
+            approval_path=self.base / "approval.sqlite",
+        ) as plane:
+            bundle = build_investigation_bundle(control_plane=plane)
+            with self.assertRaises(DraftVersionMismatchError):
+                await bundle.investigator.resume(
+                    request_id=stored.request_id,
+                    decision="approve",
+                    draft_version=999,
+                    principal_id="principal_finance_xinghui",
+                )
+
+    async def test_unauthorised_principal_cannot_replay(self) -> None:
+        stored = await self._approved_request()
+        assert stored is not None
+        async with control_plane(
+            checkpoint_path=self.base / "graph.sqlite",
+            approval_path=self.base / "approval.sqlite",
+        ) as plane:
+            bundle = build_investigation_bundle(control_plane=plane)
+            with self.assertRaises(PermissionDeniedForApprovalError):
+                await bundle.investigator.resume(
+                    request_id=stored.request_id,
+                    decision="approve",
+                    draft_version=stored.draft_version,
+                    principal_id="principal_billing_xinghui_readonly",
+                )
+
+    async def test_correct_replay_is_still_idempotent(self) -> None:
+        stored = await self._approved_request()
+        assert stored is not None
+        async with control_plane(
+            checkpoint_path=self.base / "graph.sqlite",
+            approval_path=self.base / "approval.sqlite",
+        ) as plane:
+            bundle = build_investigation_bundle(control_plane=plane)
+            replay = await bundle.investigator.resume(
+                request_id=stored.request_id,
+                decision="approve",
+                draft_version=stored.draft_version,
+                principal_id="principal_finance_xinghui",
+            )
+            self.assertEqual(replay.approval_status, "approved")
+            self.assertIsNotNone(replay.approved_draft)
+
+
 class TestNoApprovalWithoutControlPlane(unittest.IsolatedAsyncioTestCase):
     async def test_offline_bundle_keeps_approval_unavailable(self) -> None:
         bundle = build_investigation_bundle()

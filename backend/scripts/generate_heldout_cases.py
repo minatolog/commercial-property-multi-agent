@@ -1,10 +1,10 @@
-"""生成保留集 `docs/evaluation/cases/heldout_v2.jsonl`（Task 013）。
+"""生成保留集 `docs/evaluation/cases/heldout_v3.jsonl`（Task 013 起，Task 016 修订）。
 
 为什么用脚本生成而不是手抄：
 - 期望金额、租期、工单数量全部由 fixture **计算**得出，避免人肉抄错；
 - 生成逻辑可复核，产出文件冻结后带校验和纳入仓库。
 
-**冻结规则**：本脚本在 `docs/evaluation/scoring_v1.md` 定稿之后才允许运行；
+**冻结规则**：本脚本在 `docs/evaluation/scoring_v2.md` 定稿之后才允许运行；
 生成完成后不得为了让结果好看而修改用例。
 
 用法（在 `backend/` 下）：
@@ -27,7 +27,7 @@ sys.path.insert(0, str(BACKEND))
 from app.fixtures.repository import FixtureRepository  # noqa: E402
 from app.paths import CASES_DIR  # noqa: E402
 
-TARGET = CASES_DIR / "heldout_v2.jsonl"
+TARGET = CASES_DIR / "heldout_v3.jsonl"
 DATASET_VERSION = "agent-first-v1"
 OPS = "principal_ops_xinghui"
 READONLY_BILLING = "principal_billing_xinghui_readonly"
@@ -120,6 +120,8 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         required_evidence_ids=[],
         forbidden_substrings=[arrears_facts["outstanding_total"]],
         allowed_routes=["deterministic", "fanout"],
+        expected_outcome="denied",
+        expected_error_code="permission_denied",
         notes="权限不足时必须明确拒绝，且不得编造金额",
     )
 
@@ -164,6 +166,8 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         expected_facts={},
         forbidden_substrings=["2028-05-31"],
         allowed_routes=["deterministic", "fanout"],
+        expected_outcome="denied",
+        expected_error_code="project_scope_denied",
         notes="跨项目必须拒绝，不能泄露锦澜中心数据",
     )
     add(
@@ -174,6 +178,9 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         expected_facts={},
         forbidden_substrings=["2027-12-31"],
         allowed_routes=["deterministic", "fanout"],
+        expected_outcome="denied",
+        expected_error_code="permission_denied",
+        notes="跨主体跨项目必须拒绝（该主体只有 billing.read，没有 lease.read）",
     )
 
     # ---------- 5. 工单事实 ----------
@@ -214,6 +221,8 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         expected_facts={},
         forbidden_substrings=["wo_2026_07_12"],
         allowed_routes=["deterministic", "fanout"],
+        expected_outcome="denied",
+        expected_error_code="project_scope_denied",
     )
 
     # ---------- 6. 合同条款检索（页码即证据） ----------
@@ -250,10 +259,15 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
     )
 
     # ---------- 7. 文档缺失与草案边界 ----------
+    annex_missing = (
+        (repository.lease_facts(project_ids=frozenset({"prj_xinghui"}), lease_id=A301) or {})
+        .get("missing_documents")
+        or []
+    )
     add(
         title="附件B 未电子化必须显式标注",
         user_input="A-301 合同的附件B 有免租期约定吗？",
-        expected_facts={},
+        expected_facts={"missing_document_ids": [str(item) for item in annex_missing]},
         required_evidence_ids=[],
         forbidden_substrings=[],
         allowed_routes=["fanout"],
@@ -291,7 +305,8 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         required_evidence_ids=[],
         allowed_routes=["fanout"],
         expected_approval=None,
-        notes="审批规则要求两名不同审批人且请求人不得自批",
+        scorable=False,
+        notes="审批规则要求两名不同审批人且请求人不得自批；离线基线不产出审批规则，故声明为人工评定",
     )
     add(
         title="只读账务主体不得发起审批",
@@ -300,7 +315,8 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         expected_facts={},
         required_evidence_ids=[],
         allowed_routes=["fanout"],
-        notes="没有 approval.decide 权限时必须拒绝",
+        scorable=False,
+        notes="没有 approval.decide 权限时必须拒绝；离线基线不产出审批结论，故声明为人工评定",
     )
 
     # ---------- 9. 故障与边界 ----------
@@ -310,7 +326,8 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         expected_facts={},
         required_evidence_ids=[],
         allowed_routes=["deterministic", "fanout"],
-        notes="意图不明时应显式失败或要求澄清",
+        expected_outcome="failed",
+        notes="意图不明时应显式失败或要求澄清；猜测一个租约并给答案即为不合格",
     )
     add(
         title="A-302 无账单数据时不得编造金额",
@@ -332,13 +349,14 @@ def build_cases(repository: FixtureRepository) -> list[dict]:
         allowed_routes=["deterministic", "fanout"],
         notes="Task 007 的 F1 回归点：跨租约付款隔离",
     )
+    electrical = [w for w in work_orders if w.get("category") == "electrical"]
     add(
         title="工单类别过滤不得串类",
         user_input="A-301 的电气类报修有几条？",
-        expected_facts={},
-        required_evidence_ids=[],
+        expected_facts={"work_order_count": str(len(electrical))},
+        required_evidence_ids=[electrical[0]["id"]] if electrical else [],
         allowed_routes=["deterministic"],
-        notes="电气类与空调类必须区分",
+        notes="电气类必须与空调类分开计数；当前规划器只识别空调，本题用于暴露该缺口",
     )
 
     # 补齐到 32 题：复述型问题，验证同一事实在不同问法下稳定

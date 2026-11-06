@@ -30,9 +30,13 @@ __all__ = [
 ]
 
 SMOKE_CASES: Path = CASES_DIR / "smoke_v1.jsonl"
-#: 保留集当前版本。v1 因生成脚本的嵌套取值缺陷（租期为 None 至 None）作废并保留存档，
-#: 详见 `docs/issues/issue_log.md`；报告只引用这里指向的版本。
-HELDOUT_CASES: Path = CASES_DIR / "heldout_v2.jsonl"
+#: 保留集当前版本。
+#: - v1：生成脚本嵌套取值缺陷（租期为 `None 至 None`），作废存档；
+#: - v2：修正期望值；
+#: - v3（当前）：新增 `expected_outcome`（拒绝/失败是否算对）与 `scorable` 声明，
+#:   并补齐 H22/H27/H30 的机械断言。
+#: 历史版本与对应报告全部保留，见 `docs/evaluation/scoring_v2.md`。
+HELDOUT_CASES: Path = CASES_DIR / "heldout_v3.jsonl"
 
 _KNOWN_KINDS = frozenset(
     {
@@ -43,6 +47,8 @@ _KNOWN_KINDS = frozenset(
         "forbidden",
         "route",
         "rubric",
+        # Task 016：结局断言（是否按预期被拒绝）
+        "outcome",
         # 开发集（Task 006 冻结写法）：programmatic=可机械复核；efficiency=路由效率
         "programmatic",
         "efficiency",
@@ -68,6 +74,13 @@ class EvalCase:
     forbidden_substrings: tuple[str, ...] = ()
     allowed_routes: tuple[str, ...] = ()
     expected_approval: dict[str, Any] | None = None
+    #: 该题**预期**的结局：`ok`（默认，应给出答案）、`denied`（应被权限/范围拒绝）、
+    #: `failed`（应明确失败，例如意图不明）
+    expected_outcome: str = "ok"
+    #: 预期错误码（`expected_outcome="denied"` 时用于精确核对，可选）
+    expected_error_code: str | None = None
+    #: `False` 表示该题**声明为人工评定**（离线基线无法机械判定），不计入自动通过率
+    scorable: bool = True
     assertions: tuple[dict[str, Any], ...] = ()
     routing_is_efficiency_only: bool = True
     notes: str = ""
@@ -95,6 +108,12 @@ class EvalCase:
 
         if not raw.get("case_id") or not raw.get("user_input"):
             raise ValueError(f"用例缺少 case_id/user_input: {raw.get('case_id', '<unknown>')}")
+        outcome = str(raw.get("expected_outcome", "ok"))
+        if outcome not in {"ok", "denied", "failed"}:
+            raise ValueError(
+                f"用例 {raw['case_id']} 的 expected_outcome 非法: {outcome!r}"
+                "（可选 ok / denied / failed）"
+            )
         trusted = raw.get("trusted_context") or {}
         principal_id = (
             raw.get("principal_id")
@@ -124,6 +143,11 @@ class EvalCase:
             forbidden_substrings=tuple(raw.get("forbidden_substrings", ())),
             allowed_routes=tuple(raw.get("allowed_routes", ())),
             expected_approval=raw.get("expected_approval"),
+            expected_outcome=str(raw.get("expected_outcome", "ok")),
+            expected_error_code=(
+                str(raw["expected_error_code"]) if raw.get("expected_error_code") else None
+            ),
+            scorable=bool(raw.get("scorable", True)),
             assertions=tuple(raw.get("assertions", ())),
             routing_is_efficiency_only=bool(raw.get("routing_is_efficiency_only", True)),
             notes=str(raw.get("notes", "")),
