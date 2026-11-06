@@ -1,9 +1,9 @@
 {
   "schema": "evaluation-report-v1",
-  "baseline": "B_single_agent",
+  "baseline": "A_deterministic",
   "split": "heldout",
   "bindings": {
-    "code_commit": "dd517b48f709887b4f46fa5e6f48f0c9a7be99aa",
+    "code_commit": "48c5b84a2ca5b6dbba1fd04e422cef34920472ab",
     "cases_path": "docs\\evaluation\\cases\\heldout_v2.jsonl",
     "cases_sha256": "acc384b4dd93f1c836706620a9bc714331989231bcd5d1440eabd0c8311279ee",
     "fixture_sha256": "bcff5ce93b9b815c1bd65f15d6bb40f9f7c598a44a54ab86a994fde4a0321ff6",
@@ -23,8 +23,8 @@
       "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具"
     }
   },
-  "started_at": "2026-11-06T11:16:04.624164+00:00",
-  "duration_ms": 133,
+  "started_at": "2026-11-06T11:23:54.945242+00:00",
+  "duration_ms": 130,
   "summary": {
     "cases": 32,
     "cases_scored": 27,
@@ -35,20 +35,20 @@
       "H27",
       "H30"
     ],
-    "cases_passed": 16,
-    "pass_rate": 0.5926,
-    "correctness_rate_mean": 0.6975,
+    "cases_passed": 15,
+    "pass_rate": 0.5556,
+    "correctness_rate_mean": 0.6481,
     "correctness_note": "自动断言通过率；不含 rubric（人工量表）与路由效率",
     "routing": {
       "cases_with_expectation": 32,
-      "route_in_allowed": 0,
+      "route_in_allowed": 24,
       "note": "仅效率指标，不参与 correctness"
     },
     "cost": {
-      "latency_ms_total": 75,
+      "latency_ms_total": 77,
       "latency_ms_p50": 0,
-      "latency_ms_max": 73,
-      "tool_calls": 38,
+      "latency_ms_max": 77,
+      "tool_calls": 27,
       "model_calls": 0,
       "total_tokens": 0,
       "cost_amount": null,
@@ -60,7 +60,7 @@
       {
         "case_id": "H06",
         "errors": [
-          "billing.statement.read: permission_denied"
+          "permission_denied: 工具 'billing.statement.read' 需要权限 ['billing.read']，当前调用方不具备"
         ]
       },
       {
@@ -74,13 +74,13 @@
       {
         "case_id": "H11",
         "errors": [
-          "lease.lookup: project_scope_denied"
+          "project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）"
         ]
       },
       {
         "case_id": "H12",
         "errors": [
-          "lease.lookup: permission_denied"
+          "permission_denied: 工具 'lease.lookup' 需要权限 ['lease.read']，当前调用方不具备"
         ]
       },
       {
@@ -90,12 +90,18 @@
       {
         "case_id": "H16",
         "errors": [
-          "property.work_orders.read: project_scope_denied"
+          "project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）"
         ]
       },
       {
-        "case_id": "H18",
+        "case_id": "H17",
         "errors": []
+      },
+      {
+        "case_id": "H18",
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ]
       },
       {
         "case_id": "H19",
@@ -107,7 +113,9 @@
       },
       {
         "case_id": "H24",
-        "errors": []
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ]
       }
     ],
     "by_case_count": 32
@@ -115,7 +123,7 @@
   "rows": [
     {
       "case_id": "H01",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -123,11 +131,11 @@
       "correctness_total": 7,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -176,7 +184,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H01",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -194,16 +202,18 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
-        "latency_ms": 73,
+        "route": "deterministic",
+        "latency_ms": 77,
         "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
@@ -214,7 +224,7 @@
     },
     {
       "case_id": "H02",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -222,11 +232,11 @@
       "correctness_total": 7,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -275,7 +285,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H02",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -293,15 +303,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -313,7 +325,7 @@
     },
     {
       "case_id": "H03",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -321,11 +333,11 @@
       "correctness_total": 7,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -374,7 +386,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H03",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -392,15 +404,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -412,7 +426,7 @@
     },
     {
       "case_id": "H04",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -420,11 +434,11 @@
       "correctness_total": 7,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -473,7 +487,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H04",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -491,15 +505,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -511,7 +527,7 @@
     },
     {
       "case_id": "H05",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -519,11 +535,11 @@
       "correctness_total": 2,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -542,7 +558,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H05",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -560,15 +576,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -580,7 +598,7 @@
     },
     {
       "case_id": "H06",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -588,12 +606,12 @@
       "correctness_total": 2,
       "correctness_rate": 0.5,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -608,23 +626,23 @@
           "assertion_id": "H06-P",
           "kind": "evidence",
           "passed": false,
-          "detail": "基线被拒绝/失败: ['billing.statement.read: permission_denied']"
+          "detail": "基线被拒绝/失败: [\"permission_denied: 工具 'billing.statement.read' 需要权限 ['billing.read']，当前调用方不具备\"]"
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H06",
         "status": "denied",
-        "answer": "（本次没有取到可用事实）",
+        "answer": "",
         "facts": {},
         "evidence_ids": [],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
         "errors": [
-          "billing.statement.read: permission_denied"
+          "permission_denied: 工具 'billing.statement.read' 需要权限 ['billing.read']，当前调用方不具备"
         ],
         "approval_status": null,
         "approval_draft_version": null
@@ -632,7 +650,7 @@
     },
     {
       "case_id": "H07",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -640,7 +658,7 @@
       "correctness_total": 2,
       "correctness_rate": 0.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -663,7 +681,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H07",
         "status": "ok",
         "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
@@ -681,7 +699,7 @@
           "rule_xh_a301_pf_all",
           "doc_xh_a301_contract"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -693,7 +711,7 @@
     },
     {
       "case_id": "H08",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -701,7 +719,7 @@
       "correctness_total": 2,
       "correctness_rate": 0.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -724,7 +742,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H08",
         "status": "ok",
         "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
@@ -742,7 +760,7 @@
           "rule_xh_a301_pf_all",
           "doc_xh_a301_contract"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -754,7 +772,7 @@
     },
     {
       "case_id": "H09",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -762,11 +780,11 @@
       "correctness_total": 3,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -791,7 +809,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H09",
         "status": "ok",
         "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
@@ -809,7 +827,7 @@
           "rule_xh_a301_pf_all",
           "doc_xh_a301_contract"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -821,7 +839,7 @@
     },
     {
       "case_id": "H10",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -829,11 +847,11 @@
       "correctness_total": 3,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -858,7 +876,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H10",
         "status": "ok",
         "answer": "租期 2025-03-01 至 2027-02-28，状态 active。",
@@ -871,7 +889,7 @@
           "unit_xh_a302",
           "ten_xh_wenju"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -883,7 +901,7 @@
     },
     {
       "case_id": "H11",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -891,12 +909,12 @@
       "correctness_total": 2,
       "correctness_rate": 0.5,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -911,23 +929,23 @@
           "assertion_id": "H11-P",
           "kind": "evidence",
           "passed": false,
-          "detail": "基线被拒绝/失败: ['lease.lookup: project_scope_denied']"
+          "detail": "基线被拒绝/失败: [\"project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）\"]"
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H11",
         "status": "denied",
-        "answer": "（本次没有取到可用事实）",
+        "answer": "",
         "facts": {},
         "evidence_ids": [],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
         "errors": [
-          "lease.lookup: project_scope_denied"
+          "project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）"
         ],
         "approval_status": null,
         "approval_draft_version": null
@@ -935,7 +953,7 @@
     },
     {
       "case_id": "H12",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -943,12 +961,12 @@
       "correctness_total": 2,
       "correctness_rate": 0.5,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -963,23 +981,23 @@
           "assertion_id": "H12-P",
           "kind": "evidence",
           "passed": false,
-          "detail": "基线被拒绝/失败: ['lease.lookup: permission_denied']"
+          "detail": "基线被拒绝/失败: [\"permission_denied: 工具 'lease.lookup' 需要权限 ['lease.read']，当前调用方不具备\"]"
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H12",
         "status": "denied",
-        "answer": "（本次没有取到可用事实）",
+        "answer": "",
         "facts": {},
         "evidence_ids": [],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
         "errors": [
-          "lease.lookup: permission_denied"
+          "permission_denied: 工具 'lease.lookup' 需要权限 ['lease.read']，当前调用方不具备"
         ],
         "approval_status": null,
         "approval_draft_version": null
@@ -987,7 +1005,7 @@
     },
     {
       "case_id": "H13",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -995,11 +1013,11 @@
       "correctness_total": 3,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1024,7 +1042,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H13",
         "status": "ok",
         "answer": "相关工单 4 条，未关闭 1 条。",
@@ -1038,7 +1056,7 @@
           "wo_2026_09_25",
           "wo_2026_10_20"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -1050,7 +1068,7 @@
     },
     {
       "case_id": "H14",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -1058,11 +1076,11 @@
       "correctness_total": 2,
       "correctness_rate": 0.5,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1081,7 +1099,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H14",
         "status": "ok",
         "answer": "相关工单 4 条，未关闭 1 条。",
@@ -1095,7 +1113,7 @@
           "wo_2026_09_25",
           "wo_2026_10_20"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -1107,7 +1125,7 @@
     },
     {
       "case_id": "H15",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -1115,7 +1133,7 @@
       "correctness_total": 3,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -1134,7 +1152,7 @@
           "assertion_id": "H15-F:work_order_count",
           "kind": "facts",
           "passed": true,
-          "detail": "期望 work_order_count=4，实际 facts=4"
+          "detail": "期望 work_order_count=4，实际 facts=<缺失>"
         },
         {
           "assertion_id": "H15-E",
@@ -1144,190 +1162,8 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H15",
-        "status": "ok",
-        "answer": "应收 52596.00、已收 34560.00、未收 18036.00；相关工单 4 条，未关闭 1 条。",
-        "facts": {
-          "invoiced_total": "52596.00",
-          "paid_total": "34560.00",
-          "outstanding_total": "18036.00",
-          "work_order_count": "4",
-          "open_count": "1"
-        },
-        "evidence_ids": [
-          "lease_xh_a301_2025",
-          "inv_2026_08",
-          "itm_inv08_rent",
-          "itm_inv08_pf",
-          "rule_xh_a301_rent_2026",
-          "inv_2026_09",
-          "itm_inv09_rent",
-          "itm_inv09_pf",
-          "inv_2026_10",
-          "itm_inv10_rent",
-          "itm_inv10_pf",
-          "pay_2026_08_28",
-          "pay_2026_09_28",
-          "alloc_001",
-          "alloc_002",
-          "wo_2026_07_12",
-          "wo_2026_08_18",
-          "wo_2026_09_25",
-          "wo_2026_10_20"
-        ],
-        "route": "single_agent",
-        "latency_ms": 0,
-        "tool_calls": 2,
-        "model_calls": 0,
-        "total_tokens": 0,
-        "errors": [],
-        "approval_status": null,
-        "approval_draft_version": null
-      }
-    },
-    {
-      "case_id": "H16",
-      "baseline": "B_single_agent",
-      "split": "heldout",
-      "passed": false,
-      "applicable": true,
-      "correctness_passed": 1,
-      "correctness_total": 2,
-      "correctness_rate": 0.5,
-      "efficiency": {
-        "route": "single_agent",
-        "allowed_routes": [
-          "deterministic",
-          "fanout"
-        ],
-        "route_in_allowed": false,
-        "routed_by": "efficiency_only"
-      },
-      "manual_queue": [],
-      "assertions": [
-        {
-          "assertion_id": "H16-N:wo_2026_07_12",
-          "kind": "evidence",
-          "passed": true,
-          "detail": "未出现禁用内容"
-        },
-        {
-          "assertion_id": "H16-P",
-          "kind": "evidence",
-          "passed": false,
-          "detail": "基线被拒绝/失败: ['property.work_orders.read: project_scope_denied']"
-        }
-      ],
-      "result": {
-        "baseline": "B_single_agent",
-        "case_id": "H16",
-        "status": "denied",
-        "answer": "（本次没有取到可用事实）",
-        "facts": {},
-        "evidence_ids": [],
-        "route": "single_agent",
-        "latency_ms": 0,
-        "tool_calls": 1,
-        "model_calls": 0,
-        "total_tokens": 0,
-        "errors": [
-          "property.work_orders.read: project_scope_denied"
-        ],
-        "approval_status": null,
-        "approval_draft_version": null
-      }
-    },
-    {
-      "case_id": "H17",
-      "baseline": "B_single_agent",
-      "split": "heldout",
-      "passed": true,
-      "applicable": true,
-      "correctness_passed": 1,
-      "correctness_total": 1,
-      "correctness_rate": 1.0,
-      "efficiency": {
-        "route": "single_agent",
-        "allowed_routes": [
-          "deterministic",
-          "fanout"
-        ],
-        "route_in_allowed": false,
-        "routed_by": "efficiency_only"
-      },
-      "manual_queue": [],
-      "assertions": [
-        {
-          "assertion_id": "H17-E",
-          "kind": "evidence",
-          "passed": true,
-          "detail": "证据齐全"
-        }
-      ],
-      "result": {
-        "baseline": "B_single_agent",
-        "case_id": "H17",
-        "status": "ok",
-        "answer": "租期 2025-01-01 至 2027-12-31，状态 active；依据 合同第 13 页 5.3 条。",
-        "facts": {
-          "lease_period": "2025-01-01 至 2027-12-31",
-          "lease_status": "active",
-          "clause_ref": "合同第 13 页 5.3 条"
-        },
-        "evidence_ids": [
-          "lease_xh_a301_2025",
-          "unit_xh_a301",
-          "ten_xh_yunduan",
-          "rule_xh_a301_rent_2025",
-          "rule_xh_a301_rent_2026",
-          "rule_xh_a301_rent_2027",
-          "rule_xh_a301_pf_all",
-          "doc_xh_a301_contract",
-          "doc_xh_a301_contract#v1#p13#5.3",
-          "doc_xh_a301_contract#v1#p24#9.3",
-          "doc_xh_a301_contract#v1#p12#5.2"
-        ],
-        "route": "single_agent",
-        "latency_ms": 1,
-        "tool_calls": 2,
-        "model_calls": 0,
-        "total_tokens": 0,
-        "errors": [],
-        "approval_status": null,
-        "approval_draft_version": null
-      }
-    },
-    {
-      "case_id": "H18",
-      "baseline": "B_single_agent",
-      "split": "heldout",
-      "passed": false,
-      "applicable": true,
-      "correctness_passed": 0,
-      "correctness_total": 1,
-      "correctness_rate": 0.0,
-      "efficiency": {
-        "route": "single_agent",
-        "allowed_routes": [
-          "deterministic",
-          "fanout"
-        ],
-        "route_in_allowed": false,
-        "routed_by": "efficiency_only"
-      },
-      "manual_queue": [],
-      "assertions": [
-        {
-          "assertion_id": "H18-E",
-          "kind": "evidence",
-          "passed": false,
-          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p20#7.1']"
-        }
-      ],
-      "result": {
-        "baseline": "B_single_agent",
-        "case_id": "H18",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
         "facts": {
@@ -1344,15 +1180,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -1363,8 +1201,60 @@
       }
     },
     {
-      "case_id": "H19",
-      "baseline": "B_single_agent",
+      "case_id": "H16",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H16-N:wo_2026_07_12",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H16-P",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "基线被拒绝/失败: [\"project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）\"]"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H16",
+        "status": "denied",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H17",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -1372,12 +1262,114 @@
       "correctness_total": 1,
       "correctness_rate": 0.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H17-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p12#5.2']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H17",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H18",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H18-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p20#7.1']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H18",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 0,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H19",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1390,14 +1382,13 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H19",
         "status": "ok",
-        "answer": "租期 2025-01-01 至 2027-12-31，状态 active；依据 合同第 16 页 6.5 条。",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
         "facts": {
           "lease_period": "2025-01-01 至 2027-12-31",
-          "lease_status": "active",
-          "clause_ref": "合同第 16 页 6.5 条"
+          "lease_status": "active"
         },
         "evidence_ids": [
           "lease_xh_a301_2025",
@@ -1407,14 +1398,11 @@
           "rule_xh_a301_rent_2026",
           "rule_xh_a301_rent_2027",
           "rule_xh_a301_pf_all",
-          "doc_xh_a301_contract",
-          "doc_xh_a301_contract#v1#p16#6.5",
-          "doc_xh_a301_contract#v1#p16#6.6",
-          "doc_xh_a301_contract#v1#p14#第六条"
+          "doc_xh_a301_contract"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
-        "tool_calls": 2,
+        "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
         "errors": [],
@@ -1424,7 +1412,7 @@
     },
     {
       "case_id": "H20",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
@@ -1432,12 +1420,12 @@
       "correctness_total": 1,
       "correctness_rate": 0.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1450,7 +1438,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H20",
         "status": "ok",
         "answer": "相关工单 4 条，未关闭 1 条。",
@@ -1464,7 +1452,7 @@
           "wo_2026_09_25",
           "wo_2026_10_20"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -1476,7 +1464,7 @@
     },
     {
       "case_id": "H21",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -1484,12 +1472,12 @@
       "correctness_total": 2,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1508,14 +1496,13 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H21",
         "status": "ok",
-        "answer": "租期 2025-01-01 至 2027-12-31，状态 active；依据 合同第 16 页 6.5 条。",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
         "facts": {
           "lease_period": "2025-01-01 至 2027-12-31",
-          "lease_status": "active",
-          "clause_ref": "合同第 16 页 6.5 条"
+          "lease_status": "active"
         },
         "evidence_ids": [
           "lease_xh_a301_2025",
@@ -1525,14 +1512,11 @@
           "rule_xh_a301_rent_2026",
           "rule_xh_a301_rent_2027",
           "rule_xh_a301_pf_all",
-          "doc_xh_a301_contract",
-          "doc_xh_a301_contract#v1#p16#6.5",
-          "doc_xh_a301_contract#v1#p24#9.3",
-          "doc_xh_a301_contract#v1#p7#4.6"
+          "doc_xh_a301_contract"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
-        "tool_calls": 2,
+        "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
         "errors": [],
@@ -1542,7 +1526,7 @@
     },
     {
       "case_id": "H22",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": null,
       "applicable": false,
@@ -1550,7 +1534,7 @@
       "correctness_total": 0,
       "correctness_rate": null,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -1560,7 +1544,7 @@
       "manual_queue": [],
       "assertions": [],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H22",
         "status": "ok",
         "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
@@ -1578,7 +1562,7 @@
           "rule_xh_a301_pf_all",
           "doc_xh_a301_contract"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -1590,7 +1574,7 @@
     },
     {
       "case_id": "H23",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -1598,7 +1582,7 @@
       "correctness_total": 2,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -1621,18 +1605,14 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H23",
         "status": "ok",
-        "answer": "应收 52596.00、已收 34560.00、未收 18036.00；租期 2025-01-01 至 2027-12-31，状态 active；相关工单 4 条，未关闭 1 条。",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
         "facts": {
           "invoiced_total": "52596.00",
           "paid_total": "34560.00",
-          "outstanding_total": "18036.00",
-          "lease_period": "2025-01-01 至 2027-12-31",
-          "lease_status": "active",
-          "work_order_count": "4",
-          "open_count": "1"
+          "outstanding_total": "18036.00"
         },
         "evidence_ids": [
           "lease_xh_a301_2025",
@@ -1643,27 +1623,19 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
-          "alloc_002",
-          "unit_xh_a301",
-          "ten_xh_yunduan",
-          "rule_xh_a301_rent_2025",
-          "rule_xh_a301_rent_2027",
-          "rule_xh_a301_pf_all",
-          "doc_xh_a301_contract",
-          "wo_2026_07_12",
-          "wo_2026_08_18",
-          "wo_2026_09_25",
-          "wo_2026_10_20"
+          "alloc_002"
         ],
-        "route": "single_agent",
-        "latency_ms": 1,
-        "tool_calls": 3,
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
         "model_calls": 0,
         "total_tokens": 0,
         "errors": [],
@@ -1673,15 +1645,15 @@
     },
     {
       "case_id": "H24",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": false,
       "applicable": true,
-      "correctness_passed": 1,
+      "correctness_passed": 0,
       "correctness_total": 3,
-      "correctness_rate": 0.3333,
+      "correctness_rate": 0.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -1693,8 +1665,8 @@
         {
           "assertion_id": "H24-E",
           "kind": "evidence",
-          "passed": true,
-          "detail": "证据齐全"
+          "passed": false,
+          "detail": "缺少证据: ['itm_inv10_rent']"
         },
         {
           "assertion_id": "H24-A:status",
@@ -1710,45 +1682,27 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H24",
-        "status": "ok",
-        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
-        "facts": {
-          "invoiced_total": "52596.00",
-          "paid_total": "34560.00",
-          "outstanding_total": "18036.00"
-        },
-        "evidence_ids": [
-          "lease_xh_a301_2025",
-          "inv_2026_08",
-          "itm_inv08_rent",
-          "itm_inv08_pf",
-          "rule_xh_a301_rent_2026",
-          "inv_2026_09",
-          "itm_inv09_rent",
-          "itm_inv09_pf",
-          "inv_2026_10",
-          "itm_inv10_rent",
-          "itm_inv10_pf",
-          "pay_2026_08_28",
-          "pay_2026_09_28",
-          "alloc_001",
-          "alloc_002"
-        ],
-        "route": "single_agent",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
         "latency_ms": 0,
-        "tool_calls": 1,
+        "tool_calls": 0,
         "model_calls": 0,
         "total_tokens": 0,
-        "errors": [],
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
         "approval_status": null,
         "approval_draft_version": null
       }
     },
     {
       "case_id": "H25",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": null,
       "applicable": false,
@@ -1756,7 +1710,7 @@
       "correctness_total": 0,
       "correctness_rate": null,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -1766,45 +1720,27 @@
       "manual_queue": [],
       "assertions": [],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H25",
-        "status": "ok",
-        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
-        "facts": {
-          "invoiced_total": "52596.00",
-          "paid_total": "34560.00",
-          "outstanding_total": "18036.00"
-        },
-        "evidence_ids": [
-          "lease_xh_a301_2025",
-          "inv_2026_08",
-          "itm_inv08_rent",
-          "itm_inv08_pf",
-          "rule_xh_a301_rent_2026",
-          "inv_2026_09",
-          "itm_inv09_rent",
-          "itm_inv09_pf",
-          "inv_2026_10",
-          "itm_inv10_rent",
-          "itm_inv10_pf",
-          "pay_2026_08_28",
-          "pay_2026_09_28",
-          "alloc_001",
-          "alloc_002"
-        ],
-        "route": "single_agent",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
         "latency_ms": 0,
-        "tool_calls": 1,
+        "tool_calls": 0,
         "model_calls": 0,
         "total_tokens": 0,
-        "errors": [],
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
         "approval_status": null,
         "approval_draft_version": null
       }
     },
     {
       "case_id": "H26",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": null,
       "applicable": false,
@@ -1812,7 +1748,7 @@
       "correctness_total": 0,
       "correctness_rate": null,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "fanout"
         ],
@@ -1822,45 +1758,27 @@
       "manual_queue": [],
       "assertions": [],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H26",
-        "status": "ok",
-        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
-        "facts": {
-          "invoiced_total": "52596.00",
-          "paid_total": "34560.00",
-          "outstanding_total": "18036.00"
-        },
-        "evidence_ids": [
-          "lease_xh_a301_2025",
-          "inv_2026_08",
-          "itm_inv08_rent",
-          "itm_inv08_pf",
-          "rule_xh_a301_rent_2026",
-          "inv_2026_09",
-          "itm_inv09_rent",
-          "itm_inv09_pf",
-          "inv_2026_10",
-          "itm_inv10_rent",
-          "itm_inv10_pf",
-          "pay_2026_08_28",
-          "pay_2026_09_28",
-          "alloc_001",
-          "alloc_002"
-        ],
-        "route": "single_agent",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
         "latency_ms": 0,
-        "tool_calls": 1,
+        "tool_calls": 0,
         "model_calls": 0,
         "total_tokens": 0,
-        "errors": [],
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
         "approval_status": null,
         "approval_draft_version": null
       }
     },
     {
       "case_id": "H27",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": null,
       "applicable": false,
@@ -1868,56 +1786,38 @@
       "correctness_total": 0,
       "correctness_rate": null,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
       "assertions": [],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H27",
-        "status": "ok",
-        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
-        "facts": {
-          "invoiced_total": "52596.00",
-          "paid_total": "34560.00",
-          "outstanding_total": "18036.00"
-        },
-        "evidence_ids": [
-          "lease_xh_a301_2025",
-          "inv_2026_08",
-          "itm_inv08_rent",
-          "itm_inv08_pf",
-          "rule_xh_a301_rent_2026",
-          "inv_2026_09",
-          "itm_inv09_rent",
-          "itm_inv09_pf",
-          "inv_2026_10",
-          "itm_inv10_rent",
-          "itm_inv10_pf",
-          "pay_2026_08_28",
-          "pay_2026_09_28",
-          "alloc_001",
-          "alloc_002"
-        ],
-        "route": "single_agent",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
         "latency_ms": 0,
-        "tool_calls": 1,
+        "tool_calls": 0,
         "model_calls": 0,
         "total_tokens": 0,
-        "errors": [],
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
         "approval_status": null,
         "approval_draft_version": null
       }
     },
     {
       "case_id": "H28",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -1925,12 +1825,12 @@
       "correctness_total": 2,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1949,7 +1849,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H28",
         "status": "ok",
         "answer": "应收 0.00、已收 0.00、未收 0.00。",
@@ -1961,7 +1861,7 @@
         "evidence_ids": [
           "lease_xh_a302_2025"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -1973,7 +1873,7 @@
     },
     {
       "case_id": "H29",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -1981,12 +1881,12 @@
       "correctness_total": 1,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic",
           "fanout"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -1999,7 +1899,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H29",
         "status": "ok",
         "answer": "应收 0.00、已收 0.00、未收 0.00。",
@@ -2011,7 +1911,7 @@
         "evidence_ids": [
           "lease_xh_a302_2025"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -2023,7 +1923,7 @@
     },
     {
       "case_id": "H30",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": null,
       "applicable": false,
@@ -2031,17 +1931,17 @@
       "correctness_total": 0,
       "correctness_rate": null,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
       "assertions": [],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H30",
         "status": "ok",
         "answer": "相关工单 4 条，未关闭 1 条。",
@@ -2055,7 +1955,7 @@
           "wo_2026_09_25",
           "wo_2026_10_20"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -2067,7 +1967,7 @@
     },
     {
       "case_id": "H31",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -2075,11 +1975,11 @@
       "correctness_total": 6,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -2122,7 +2022,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H31",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -2140,15 +2040,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,
@@ -2160,7 +2062,7 @@
     },
     {
       "case_id": "H32",
-      "baseline": "B_single_agent",
+      "baseline": "A_deterministic",
       "split": "heldout",
       "passed": true,
       "applicable": true,
@@ -2168,11 +2070,11 @@
       "correctness_total": 6,
       "correctness_rate": 1.0,
       "efficiency": {
-        "route": "single_agent",
+        "route": "deterministic",
         "allowed_routes": [
           "deterministic"
         ],
-        "route_in_allowed": false,
+        "route_in_allowed": true,
         "routed_by": "efficiency_only"
       },
       "manual_queue": [],
@@ -2215,7 +2117,7 @@
         }
       ],
       "result": {
-        "baseline": "B_single_agent",
+        "baseline": "A_deterministic",
         "case_id": "H32",
         "status": "ok",
         "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
@@ -2233,15 +2135,17 @@
           "inv_2026_09",
           "itm_inv09_rent",
           "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
           "inv_2026_10",
           "itm_inv10_rent",
           "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
           "pay_2026_08_28",
           "pay_2026_09_28",
           "alloc_001",
           "alloc_002"
         ],
-        "route": "single_agent",
+        "route": "deterministic",
         "latency_ms": 0,
         "tool_calls": 1,
         "model_calls": 0,

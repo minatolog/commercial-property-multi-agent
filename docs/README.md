@@ -79,6 +79,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 012 | 2026-11-06 | 04_agents | 持久检查点、人工审批与暂停恢复（Prompt 7；本地 SQLite 控制面验证通过） | [2026-11-06_012_durable_checkpoint_and_approval.md](./prompts/04_agents/2026-11-06_012_durable_checkpoint_and_approval.md) |
 | 013 | 2026-11-06 | 06_testing | 三基线与 40 题正式评测（Prompt 8；离线三基线完成，真实模型测量受凭据限制） | [2026-11-06_013_three_baselines_evaluation.md](./prompts/06_testing/2026-11-06_013_three_baselines_evaluation.md) |
 | 014 | 2026-11-06 | 05_frontend | FastAPI 与轻量演示页（Prompt 9；本地 uvicorn 实测通过） | [2026-11-06_014_fastapi_demo_api.md](./prompts/05_frontend/2026-11-06_014_fastapi_demo_api.md) |
+| 015 | 2026-11-06 | 01_environment | 最终验收与项目展示材料（Prompt 10；版本候选，未打 Tag/发布） | [2026-11-06_015_release_candidate.md](./prompts/01_environment/2026-11-06_015_release_candidate.md) |
 
 ---
 

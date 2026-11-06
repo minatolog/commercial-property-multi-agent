@@ -420,6 +420,65 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 015 - 最终验收与项目展示材料
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 7' - 交付与验收
+- **执行者**：DeepSeek（DeepSeek Harness 会话）
+- **对应 Prompt 归档**：`docs/prompts/01_environment/2026-11-06_015_release_candidate.md`
+- **状态**：**DeepSeek 自检通过**（版本候选；未打 Tag、未发布、未部署）
+
+### 本次完成的功能
+
+- **根 README**：项目定位、快速开始、Mermaid 架构图、四类演示、评测结论、文档地图、质量证据、已知限制、后续路线。
+- **`backend/README.md` 重写**：对齐当前真实模块（rag/db/orchestration/approval/api/evaluation），删除过时表述（旧版仍把系统写成"只有单 Agent 基线"）。
+- **`.env.example`**：只含键名与缺省值，明确"未设置也能离线运行"。
+- **演示脚本** `docs/demo/demo_script.md`：场景 A/B/C（成功）、D/E（失败）、F（证据）、G（网页），每节含预期现象与讲解要点。
+- **全量复跑**：契约 57 项、单测 192 项、依赖可解析（`pip install --dry-run -e .`）、CLI 场景实测、最终评测报告归档。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 交付文档结构 | 根 README 讲"是什么/怎么用"，backend/README 讲"工程细节" | 两类读者（评审 vs 开发者）需求不同，混在一处会两边都不好用 |
+| 限制的呈现 | 单列「已知限制」表，与能力并列 | 避免"计划即已实现"；也便于评审快速判断可信度 |
+| 评测报告归档 | 只保留最终代码提交对应的 dev + heldout v2 两批 | 报告绑定 commit；中间调试批次留着只会误导 |
+| 版本动作 | 提交 + 推送，**不打 Tag / 不发布 / 不部署** | 路线图要求这些动作需项目所有者另行确认 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `README.md`、`.env.example`、`docs/demo/demo_script.md` | 新增 |
+| `backend/README.md` | 重写 |
+| `docs/evaluation/reports/*` | 保留最终两批（dev、heldout v2） |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| 全量回归 | `python -m unittest discover -s tests -p "test_*.py"` | `Ran 192 tests ... OK` |
+| 依赖可解析 | `python -m pip install --dry-run -e .` | `Would install commercial-property-multi-agent-0.1.0` |
+| 场景 A | `investigate "A-301 现在还有多少钱没交？"` | 退出码 0，`route=deterministic` |
+| 场景 D | `investigate "B-101 的租期是什么时候？"` | 退出码 0，`project_scope_denied` |
+| 最终评测 | `evaluate --split heldout` | A 0.5556 / B 0.5926 / C 0.8519 |
+| 敏感信息 | 提交前 diff 扫描 + `git check-ignore .env.example` | 无密钥；`.env` 已忽略 |
+
+### 当前项目状态
+
+**版本候选**：能运行、能演示、能解释、限制写得清楚。
+**未验证**：真实模型调用与成本、PostgreSQL 实机、向量检索、真实鉴权、人工量表评分。
+
+### 下一步开发计划
+
+- [ ] 接入 `DEEPSEEK_API_KEY` 后按冻结配置重复 3 次测量质量/成本
+- [ ] PostgreSQL 实机验证 + 混合检索/rerank
+- [ ] 数据集 v3（补全 5 道无断言题）+ 人工量表实际评分
+- [ ] 打 Tag / 发布需项目所有者确认后执行
+
+---
+
 ## [2026-11-06] 任务 014 - FastAPI 与轻量演示页
 
 - **日期**：2026-11-06

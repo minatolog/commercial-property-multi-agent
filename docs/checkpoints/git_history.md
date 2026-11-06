@@ -321,13 +321,47 @@ git show <hash> --stat
 
 ---
 
-## [2026-11-06] 里程碑 5：Task 014 FastAPI 与演示页（待提交）
+## [2026-11-06] 里程碑 6：Task 015 交付材料与版本候选（待提交）
+
+- **开发阶段**：阶段 7' 交付与验收
+- **对应任务**：015（Prompt 10）
+- **Git 分支**：`main`
+- **Commit Hash**：`Pending`
+- **推送状态**：`Pending`
+- **版本动作**：**不打 Tag、不发布、不部署**（需项目所有者确认）
+
+### 本次变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `README.md`、`.env.example`、`docs/demo/demo_script.md` | 新增 |
+| `backend/README.md` | 重写 |
+| `docs/evaluation/reports/*` | 更新为最终两批（dev、heldout v2） |
+
+### 验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests -p "test_*.py"` | `Ran 192 tests ... OK` |
+| `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| `python -m pip install --dry-run -e .` | 依赖可解析 |
+| `python -m app.cli evaluate --split heldout` | A 0.5556 / B 0.5926 / C 0.8519 |
+
+### 回滚参考命令
+
+```bash
+git revert <hash>
+```
+
+---
+
+## [2026-11-06] 里程碑 5：Task 014 FastAPI 与演示页（已提交并推送）
 
 - **开发阶段**：阶段 6' 演示与交互
 - **对应任务**：014（Prompt 9）
 - **Git 分支**：`main`
-- **Commit Hash**：`Pending`
-- **推送状态**：`Pending`
+- **Commit Hash**：`48c5b84`（父提交 `3573e0c`）
+- **推送状态**：✅ `main -> origin/main`（`3573e0c..48c5b84`）
 
 ### 本次变更
 

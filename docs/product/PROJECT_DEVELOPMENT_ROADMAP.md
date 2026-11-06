@@ -67,7 +67,7 @@
 | **7** | 012 | 持久 checkpoint、人工审批、故障恢复 | **DeepSeek 自检通过**（本地 SQLite 控制面；未宣称分布式恰好一次） | [Task 012 Prompt](../prompts/04_agents/2026-11-06_012_durable_checkpoint_and_approval.md) |
 | **8** | 013 | 40 题、三基线与真实对照评测 | **DeepSeek 自检通过**（离线三基线完成；真实模型测量受凭据限制） | [Task 013 Prompt](../prompts/06_testing/2026-11-06_013_three_baselines_evaluation.md) |
 | **9** | 014 | FastAPI 与轻量任务/Trace 演示页 | **DeepSeek 自检通过**（本地 uvicorn 实测；未做真实部署） | [Task 014 Prompt](../prompts/05_frontend/2026-11-06_014_fastapi_demo_api.md) |
-| **10** | 015 | 完整验收、复现说明与项目展示材料 | 未开始 | 待实施 |
+| **10** | 015 | 完整验收、复现说明与项目展示材料 | **DeepSeek 自检通过**（版本候选；未打 Tag/发布/部署） | [Task 015 Prompt](../prompts/01_environment/2026-11-06_015_release_candidate.md) |
 
 \* 007–015 已按 README 编号表分配；若插入其他独立任务则顺延，正式 Prompt 的顺序不变。任务 006 的返修和 Review 不新占一个开发编号。
 

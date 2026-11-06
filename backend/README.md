@@ -1,66 +1,99 @@
-# backend/ — Agent Runtime、受控只读工具与单 Agent 基线
+# backend/ — Agent 工作流、受控只读工具、知识检索、审批控制面与评测
 
-离线优先的 Agent 工程骨架：**默认不联网、不调模型、不连数据库**。
-数据来自 `../docs/evaluation/fixtures/agent_first_v1.json`（合成数据，只读）。
+离线优先：**默认不联网、不调用模型、不连数据库**。
+业务数据来自 `../docs/evaluation/fixtures/agent_first_v1.json`（合成数据，只读）。
 
-## 环境
+> 本文只描述**已经实现并验证**的能力。未安装/未验证的部分（真实 DeepSeek 调用、PostgreSQL、
+> 向量检索）在「已知限制」中明确列出，不当作已完成。
 
-- Python 3.11+
-- 已安装依赖：`pydantic` v2、`PyYAML` v6、`langchain-core` v1、`langchain-openai` v1
-- `pytest` 仅在 `pyproject.toml` 的 `dev` 可选依赖中声明；测试以标准库 `unittest` 编写并执行
-  （`Test*` / `test_*` 命名可被 pytest 原生收集）
+## 1. 环境
 
-## 常用命令（在 `backend/` 目录下）
+- Python 3.11（推荐 Conda 环境 `commercial-agent`）
+- 依赖见 `pyproject.toml`：pydantic、PyYAML、langchain-core、langchain-openai、langgraph、
+  langgraph-checkpoint-sqlite、SQLAlchemy、alembic、pypdf、reportlab、fastapi、uvicorn
+- 测试以标准库 `unittest` 编写（`Test*` / `test_*` 命名，可被 pytest 直接收集）
 
 ```bash
+conda activate commercial-agent
+cd backend
+python -m pip install -e .          # 仅首次
+```
+
+## 2. 常用命令（在 `backend/` 目录下）
+
+```bash
+# 自检与清单
 python -m app.cli --help
-python -m app.cli tools
-python -m app.cli check
-python -m app.cli demo                                  # Fake Agent，无模型
-python -m app.cli demo --variant v_oct_rent_corrected
-python -m app.cli demo --budget-tool-calls 1            # 预算耗尽 -> 退出码 2
-python -m app.cli ask "A-301 现在还有多少钱没交？"        # 单 Agent + Tools，默认 fake
-python -m app.cli ask "..." --provider deepseek         # 真实调用，需 DEEPSEEK_API_KEY
+python -m app.cli tools                    # 已注册只读工具（含 document.search）
+python -m app.cli check                     # Agent 配置 vs 白名单 vs 工具注册表
+python tests/smoke_agent_contracts.py       # 契约自检（57 项）
+
+# 单 Agent 路径（Fake 模型，可切换真实模型）
+python -m app.cli ask "A-301 现在还有多少钱没交？"
+python -m app.cli ask "..." --provider deepseek     # 需 DEEPSEEK_API_KEY
+
+# 多 Agent 图（规则规划 → 并发子 Agent → 确定性核验）
+python -m app.cli investigate
+python -m app.cli investigate --backend sqlite      # 用只读数据库后端（本机 SQLite）
+
+# 合同条款检索（真实 PDF、真实页码）
+python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁年度起租金递增百分之五"
+
+# 审批（持久 checkpoint + 独立审批台账）
+python -m app.cli investigate --with-approval --thread-id thread_demo
+python -m app.cli pending
+python -m app.cli approve <request_id> --principal principal_property_manager_xinghui --draft-version 2
+python -m app.cli approve <request_id> --principal principal_finance_xinghui --draft-version 2
+
+# 评测（三基线）
+python -m app.cli evaluate --split dev
+python -m app.cli evaluate --split heldout
+
+# 演示 API + 页面
+python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
+
+# 回归测试
+python -m unittest discover -s tests -p "test_*.py"
 ```
 
-回归测试：
-
-```bash
-python tests/smoke_agent_contracts.py          # 骨架契约自检（57 项）
-python -m unittest discover -s tests -v        # Runtime / Tool / 模型适配 测试
-```
-
-## 模块职责
+## 3. 模块职责
 
 | 路径 | 职责 |
 |---|---|
-| `app/agents/base/` | Agent 契约（`AgentRequest/Context/Result`）、Registry、BaseAgent |
-| `app/agents/factory.py` | 配置 → 实例的静态白名单；K2 配置/实现一致性校验 |
+| `app/agents/base/` | Agent 契约（`AgentRequest/Context/Output`）、Registry、`BaseAgent`、`ToolBackedAgent` |
+| `app/agents/factory.py` | 配置 → 实例的**静态白名单**；K2 配置/实现一致性校验；按签名依赖注入 |
+| `app/agents/{lease,billing,property}/` | 领域 Agent：只做受控工具调用并返回事实 + 证据 |
 | `app/agents/single/` | 单 Agent + Tools 基线（`single.investigate`） |
-| `app/config/` | Agent YAML 与 Schema（拒绝密钥字段） |
+| `app/config/` | 每个 Agent 独立 YAML + Schema（拒绝密钥字段） |
 | `app/fixtures/repository.py` | fixture 只读仓库：项目范围、`Decimal` 金额、变体 overlay |
-| `app/llm/adapter.py` | 厂商参数裁剪与密钥来源（环境变量） |
-| `app/llm/model_client.py` | 与厂商无关的消息/工具/响应类型；`FakeChatModelClient` |
-| `app/llm/langchain_client.py` | LangChain ↔ DeepSeek（OpenAI 兼容）适配器 |
-| `app/runtime/types.py` | `TrustedContext`、`Evidence`、Trace、`RuntimeResult` |
-| `app/runtime/budget.py` | 共享预算：原子预留 / 结算 / 释放（按 `call_id` 幂等） |
-| `app/runtime/tool_loop.py` | 有限轮次工具调用循环（轮次/预算/deadline 上限） |
-| `app/runtime/agent_runtime.py` | Runtime 边界：拒绝 payload 授能给、解析 Agent、汇总结果 |
-| `app/tools/registry.py` | 工具静态白名单（拒绝重名、拒绝非 `BaseTool`） |
-| `app/tools/executor.py` | 统一执行器：白名单、权限、参数/结果校验、超时、有限重试、预算、Trace |
-| `app/tools/fixture_tools.py` | Lease / Billing / Property 只读工具 |
-| `app/demo.py` | Fake Agent（`ScriptedToolAgent`）端到端接线，**不调用模型** |
-| `app/single_demo.py` | 单 Agent + Tools 装配（fake / deepseek 可切换） |
-| `app/cli.py` | 命令行入口 |
+| `app/llm/` | 厂商无关消息类型、`Fake` 客户端、DeepSeek（OpenAI 兼容）适配、参数裁剪 |
+| `app/runtime/` | `TrustedContext`/`Evidence`/`Trace`、共享预算、有限轮次循环、Runtime 边界 |
+| `app/tools/` | 工具白名单、六道闸执行器、fixture 只读工具、`document.search` |
+| `app/orchestration/investigation.py` | LangGraph：规划 → 并发扇出 → 合流核验 → 限次补查 → 报告 → 审批门 |
+| `app/orchestration/approval.py` | 审批规则、审计台账、校验链、幂等与并发（独立 SQLite） |
+| `app/orchestration/checkpointing.py` | `AsyncSqliteSaver` 装配与 serde 白名单 |
+| `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验 |
+| `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（本机用 SQLite 验证） |
+| `app/evaluation/` | 用例装载、三基线、确定性评分、报告绑定 |
+| `app/api/` | FastAPI 适配层 + 同源演示页（**可整体删除**，CLI/评测不依赖它） |
+| `app/cli.py` | 命令行入口（tools/check/demo/ask/investigate/search/approve/pending/evaluate） |
 
-## 安全边界
+## 4. 安全边界
 
 - 权限与项目范围只来自 `TrustedContext`；payload 出现 `permissions` / `project_ids` / `principal_id` 等保留键直接拒绝
-- 工具无法伪造证据来源：`Evidence` 的 `source_tool` 与 `tool_call_id` 由执行器写入
+- 工具无法伪造证据来源：`Evidence.source_tool` / `tool_call_id` 由执行器写入
 - 不提供任意 SQL / Python / Shell / 文件系统 / 网络工具
-- Trace 只记录参数摘要（SHA-256 前缀），不记录原始参数，避免泄露密钥
-- API Key 只从环境变量读取；缺失时明确报错，不静默降级
+- 文档正文是**不可信数据**：条款检索只把它当返回值，不改变工具策略或权限
+- 审批只产出 `approved_draft`（`executed_side_effects=[]`），**不执行**调账/派单
+- API 请求不能自报身份；审批人只能从服务端白名单选择（`X-Actor-Id` 只是选择，不是认证）
 
-## 尚未实现（Task 009+）
+## 5. 已知限制（不夸大）
 
-LangGraph 多 Agent 图、PostgreSQL 数据层、RAG/PDF、审批与持久 checkpoint、FastAPI 与前端。
+| 未完成/未验证 | 说明 |
+|---|---|
+| 真实 DeepSeek 调用 | 缺 `DEEPSEEK_API_KEY`；`ask --provider deepseek` 与真实工具调用闭环**未实测** |
+| PostgreSQL | 本机无服务；迁移与查询仅在 SQLite 上验证，`EXCLUDE`/RLS/NUMERIC 未实测 |
+| 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20） |
+| 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |
+| 演示鉴权 | `DEMO_PRINCIPAL_ID` + 白名单仅为演示，非真实认证 |
+| 人工量表 | 评测 rubric 仍为人工待评队列 |
