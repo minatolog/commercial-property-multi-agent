@@ -1,0 +1,34 @@
+# Single Agent 配置（单 Agent + Tools 基线，Task 008）
+# 与 lease/billing/compliance 完全独立：改本文件不影响其他 Agent。
+
+name: single
+version: 1.0.0
+enabled: true
+description: 单 Agent + 受控工具调用（基线实现，可接 Fake 或真实 Provider）
+
+capabilities:
+  - single.investigate
+
+model_provider: deepseek
+model_name: deepseek-chat
+temperature: 0.0
+max_tokens: 1024
+api_key_env: DEEPSEEK_API_KEY
+
+timeout_seconds: 60
+max_retries: 0
+# 工具调用循环的硬上限：超过即明确停止，不允许无限自我调用
+max_tool_rounds: 3
+
+prompt_path: app/agents/single/prompts/system.md
+
+allowed_tools:
+  - lease.lookup
+  - billing.statement.read
+  - billing.arrears.calculate
+  - property.work_orders.read
+
+retrieval_settings:
+  enabled: false
+
+log_level: INFO

@@ -64,6 +64,7 @@ class AgentConfig(BaseModel):
 
     timeout_seconds: float = Field(default=30.0, gt=0.0, le=600.0)
     max_retries: int = Field(default=1, ge=0, le=5)
+    max_tool_rounds: int = Field(default=3, ge=1, le=8)
     prompt_path: str = Field(min_length=1)
     allowed_tools: tuple[str, ...] = ()
     retrieval_settings: RetrievalSettings | None = None

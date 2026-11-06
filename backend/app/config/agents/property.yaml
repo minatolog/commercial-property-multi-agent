@@ -1,0 +1,28 @@
+# Property Agent 配置（Task 009）
+# 与 lease/billing 独立：改本文件不影响其他 Agent。
+
+name: property
+version: 1.0.0
+enabled: true
+description: 维修工单与投诉记录查询
+
+capabilities:
+  - property.work_orders
+
+model_provider: deepseek
+model_name: deepseek-chat
+temperature: null
+max_tokens: 1024
+api_key_env: DEEPSEEK_API_KEY
+
+timeout_seconds: 20
+max_retries: 1
+prompt_path: app/agents/property/prompts/system.md
+
+allowed_tools:
+  - property.work_orders.read
+
+retrieval_settings:
+  enabled: false
+
+log_level: INFO

@@ -80,6 +80,8 @@ class AgentContext(BaseModel):
     permissions: frozenset[str] = frozenset()
     principal_id: str | None = None
     project_ids: frozenset[str] = frozenset()
+    #: Task 009：图中并发子任务的标识，仅用于 Trace 归属与结果归并
+    subtask_id: str | None = None
     deadline_at: datetime | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 

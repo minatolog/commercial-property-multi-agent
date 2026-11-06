@@ -266,7 +266,13 @@ class FixtureRepository:
                 }
             )
 
-        paid_total = _quantize(sum((money(p["amount"]) for p in valid_payments), _ZERO))
+        # 已收额必须按**核销到本租约账单的金额**累计，而不是按付款整笔金额。
+        # 一笔付款可能拆分核销到不同租约的账单（同项目），按付款金额累计会把
+        # 他租约的部分算成本租约已收，导致未收被少算（F1 同类缺陷的隐蔽形式）。
+        paid_total = _quantize(sum((money(alloc["amount"]) for alloc in allocations), _ZERO))
+        outstanding_total = _quantize(
+            sum((view["outstanding"] for view in invoice_views), _ZERO)
+        )
         outstanding_invoices = [
             view["invoice"]["id"] for view in invoice_views if view["outstanding"] > _ZERO
         ]
@@ -277,7 +283,7 @@ class FixtureRepository:
             "allocations": allocations,
             "invoiced_total": _quantize(invoiced_total),
             "paid_total": paid_total,
-            "outstanding_total": _quantize(invoiced_total - paid_total),
+            "outstanding_total": outstanding_total,
             "outstanding_invoice_ids": outstanding_invoices,
             "rent_variance_total": _quantize(rent_variance_total),
         }

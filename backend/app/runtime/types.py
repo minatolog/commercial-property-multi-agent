@@ -234,6 +234,7 @@ class ToolTrace(BaseModel):
     call_id: str
     trace_id: str
     run_id: str | None = None
+    subtask_id: str | None = None
     tool_name: str
     args_digest: str
     status: str

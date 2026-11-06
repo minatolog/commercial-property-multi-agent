@@ -39,6 +39,7 @@ from app.agents.base import (
 from app.agents.base.errors import (
     AgentConfigError,
     AgentDisabledError,
+    AgentError,
     AgentNotRegisteredError,
     CapabilityConflictError,
     CapabilityUnavailableError,
@@ -105,6 +106,22 @@ class _ShadowAgent(BaseAgent):
         return AgentOutput()
 
 
+class _VoidAgent(BaseAgent):
+    """永远返回 NOT_IMPLEMENTED 的契约测试替身。"""
+
+    name = "void"
+    version = "0.1.0"
+    description = "test-only"
+    capabilities = frozenset({"void.noop"})
+
+    async def _execute(self, request: AgentRequest, context: AgentContext) -> AgentOutput:
+        raise AgentError(
+            "test-only not implemented",
+            code=ErrorCode.NOT_IMPLEMENTED,
+            retryable=False,
+        )
+
+
 class _FakeTool:
     name = "billing.arrears.calculate"
     description = "test-only"
@@ -117,7 +134,7 @@ class _FakeTool:
 def main() -> int:
     section("1. 配置加载与 Schema 校验")
     configs = load_all_agent_configs(Path(__file__).resolve().parents[1] / "app" / "config" / "agents")
-    check("加载到 3 个 Agent 配置", set(configs) == {"lease", "billing", "compliance"})
+    check("加载到 5 个 Agent 配置", set(configs) == {"lease", "billing", "compliance", "property", "single"})
     check("lease 启用", configs["lease"].enabled is True)
     check("compliance 默认禁用", configs["compliance"].enabled is False)
     check(
@@ -126,7 +143,7 @@ def main() -> int:
     )
     check(
         "每个 Agent 的 prompt_path 互不相同",
-        len({c.prompt_path for c in configs.values()}) == 3,
+        len({c.prompt_path for c in configs.values()}) == len(configs),
     )
 
     bad_cases = [
@@ -180,8 +197,8 @@ def main() -> int:
     report = build_registry()
     registry = report.registry
     check(
-        "全部 3 个 Agent 已注册",
-        set(report.registered) == {"lease", "billing", "compliance"},
+        "全部 5 个 Agent 已注册",
+        set(report.registered) == {"lease", "billing", "compliance", "property", "single"},
     )
     check("无配置被跳过", report.skipped == ())
     check(
@@ -193,6 +210,8 @@ def main() -> int:
                 "lease.renewal_evaluation",
                 "billing.statement",
                 "billing.arrears_check",
+                "property.work_orders",
+                "single.investigate",
             }
         ),
     )
@@ -239,12 +258,15 @@ def main() -> int:
     )
 
     section("3. Agent 执行与错误约定")
-    lease = build_agent(configs["lease"])
-    result = run_agent(lease, "lease.query")
+    # 契约层检查不依赖具体业务 Agent 是否已实现：用专门的最小 stub 验证
+    # "AgentError -> FAILED 结果"的转换语义。
+    stub = _VoidAgent(configs["lease"].model_copy(update={"name": "void"}))
+    lease = stub
+    result = run_agent(stub, "void.noop")
     check("未实现的 Agent 返回 FAILED 而非抛异常", result.status is TaskStatus.FAILED)
     check("错误码为 NOT_IMPLEMENTED", result.error is not None and result.error.code == ErrorCode.NOT_IMPLEMENTED)
     check("错误可重试标记为 False", result.error is not None and result.error.retryable is False)
-    check("结果携带 agent_name / version", result.metadata.agent_name == "lease" and result.metadata.agent_version == "0.1.0")
+    check("结果携带 agent_name / version", result.metadata.agent_name == "void" and result.metadata.agent_version == "0.1.0")
     check("结果携带 trace_id", result.metadata.trace_id == "trace-smoke")
     check("结果记录 latency_ms", result.metadata.latency_ms >= 0)
 
@@ -341,7 +363,7 @@ def main() -> int:
     check("空结果聚合为 FAILED", summarize_results([], allow_partial=True) is TaskStatus.FAILED)
 
     section("7. 工厂白名单")
-    check("白名单包含三个 Agent", set(AGENT_IMPLEMENTATIONS) == {"lease", "billing", "compliance"})
+    check("白名单包含五个 Agent", set(AGENT_IMPLEMENTATIONS) == {"lease", "billing", "compliance", "property", "single"})
     non_whitelisted = configs["lease"].model_copy(update={"name": "not_whitelisted"})
     expect_error(
         "白名单外的 name 无法实例化（不触发动态导入）",

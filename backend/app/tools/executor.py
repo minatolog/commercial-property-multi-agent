@@ -114,6 +114,7 @@ class ToolExecutor:
                 call_id=call_id,
                 trace_id=context.trace_id,
                 run_id=context.run_id,
+                subtask_id=context.subtask_id,
                 tool_name=tool_name,
                 args_digest=args_digest,
                 status=status,

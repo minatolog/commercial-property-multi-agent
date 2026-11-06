@@ -5,13 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "commercial-property-multi-agent"
 version = "0.1.0"
-description = "Agent-first 商业地产多 Agent 工作流：Task 007 的离线 Runtime 与受控只读工具"
+description = "Agent-first 商业地产多 Agent 工作流：Runtime、受控只读工具与 LangChain 模型适配"
 readme = "README.md"
 requires-python = ">=3.11"
-# 只声明当前源码真实使用的依赖；不引入 LangChain / LangGraph / 数据库 / 向量库 / Web / 模型 SDK
+# 只声明当前源码真实使用的依赖；不引入 LangGraph / 数据库 / 向量库 / Web 框架
 dependencies = [
     "pydantic>=2.6,<3",
     "PyYAML>=6.0,<7",
+    # Task 008：LangChain 模型适配层（DeepSeek 走 OpenAI 兼容端点）
+    "langchain-core>=1.0,<2",
+    "langchain-openai>=1.0,<2",
+    # Task 009：多 Agent 图编排
+    "langgraph>=1.0,<2",
 ]
 
 [project.optional-dependencies]

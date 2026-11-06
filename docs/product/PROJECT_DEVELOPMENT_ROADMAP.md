@@ -52,14 +52,16 @@
 
 ## 3. 进度总表（每次验收后更新这里）
 
-状态只有：未开始 / 执行中 / 待审查 / 待修正 / 已验收。DeepSeek 说“完成”只进入待审查；Codex 验收通过才进入已验收。是否 Git 已提交另行记录。
+状态只有：未开始 / 执行中 / 待审查 / 待修正 / **DeepSeek 自检通过** / 已验收。
+
+> **2026-11-06 流程变更**：项目所有者取消 Codex 逐任务复核环节。此后由 DeepSeek 负责实现、验证与记录，任务完成后状态为「**DeepSeek 自检通过**」，即表示"已实现并有真实运行证据"，**不等于第三方验收**。历史「已验收」条目保持原样。
 
 | 正式 Prompt | 预计全局任务号* | 主要成果 | 当前状态 | 验收证据 |
 |---|---|---|---|---|
 | **1** | 006 | MVP 范围、契约、8 题样例 | **已验收** | [Task 006 R2 Review](../reviews/2026-11-06_task006_r2_review.md) |
-| **2** | 007 | 可测试的 Runtime 与 Tool Executor | **R1 已修复，待 Codex 复验** | [Task 007 Review R1](../reviews/2026-11-06_task007_review.md) |
-| **3** | 008 | LangChain + DeepSeek 真实工具调用闭环 | 未开始 | 待实施 |
-| **4** | 009 | 三类能力 + LangGraph 调查工作流 | 未开始 | 待实施 |
+| **2** | 007 | 可测试的 Runtime 与 Tool Executor | **DeepSeek 自检通过** | [Task 007 自检报告](../reviews/2026-11-06_task007_deepseek_selfcheck.md) |
+| **3** | 008 | LangChain + DeepSeek 真实工具调用闭环 | **DeepSeek 自检通过**（离线闭环；真实调用受凭据限制） | [Task 008 Prompt](../prompts/04_agents/2026-11-06_008_langchain_deepseek_tool_calling.md) |
+| **4** | 009 | 三类能力 + LangGraph 调查工作流 | **DeepSeek 自检通过** | [Task 009 Prompt](../prompts/04_agents/2026-11-06_009_langgraph_multi_agent_workflow.md) |
 | **5** | 010 | 精简 PostgreSQL 与只读业务工具 | 未开始 | 待实施 |
 | **6** | 011 | 合同 PDF 检索、引用与验证 | 未开始 | 待实施 |
 | **7** | 012 | 持久 checkpoint、人工审批、故障恢复 | 未开始 | 待实施 |
@@ -69,7 +71,7 @@
 
 \* 007–015 已按 README 编号表分配；若插入其他独立任务则顺延，正式 Prompt 的顺序不变。任务 006 的返修和 Review 不新占一个开发编号。
 
-**当前：Prompt 1/10 已验收；Prompt 2/10（Task 007）R1 已修复 F1/F2，待 Codex 复验。** 这不是“代码完成 20%”：各步骤工作量不同，不用步骤比例冒充整体工程完成度。独立 Python 环境、历史骨架和数据库设计属于此前基础，继续复用。
+**当前：Prompt 1/10 已验收；Prompt 2–4（Task 007–009）DeepSeek 自检通过。** 这不是“代码完成 20%”：各步骤工作量不同，不用步骤比例冒充整体工程完成度。独立 Python 环境、历史骨架和数据库设计属于此前基础，继续复用。
 
 ## 4. 每一步的内容与验收
 
@@ -82,6 +84,10 @@
 **验收**：金额与引用可独立核对；超时/权限/审批用例无自相矛盾；Graph 分支闭合；三基线不因预设路由而被偏置判分。
 
 **当前情况**：R1/R2 修正已由 Codex 独立复验；场景选择器 62/62、审批回归 30/30；范围与受保护文件 hash 检查通过。验收报告见 [Task 006 R2 Review](../reviews/2026-11-06_task006_r2_review.md)。
+
+### Prompt 2 / Task 007：Runtime 与受控工具执行 — DeepSeek 自检通过（2026-11-06）
+
+**当前情况**：R1 的 F1/F2 已修复；DeepSeek 自检另外发现 F1 遗留的聚合口径缺陷（拆分付款跨租约时 `paid_total` 按整笔付款累计），已修复并补回归测试。自检证据：57 项 smoke 通过、52 项 unittest 通过、4 个 CLI 子命令与 1 个数据变体全部 exit 0、预算耗尽 exit 2、独立脚本租约隔离 13/13 与 Trace 隔离 12/12。报告见 [Task 007 自检报告](../reviews/2026-11-06_task007_deepseek_selfcheck.md)。
 
 ### Prompt 2 / Task 007：Runtime 与受控工具执行
 
@@ -233,4 +239,5 @@ DeepSeek 修正后告诉 Codex“复查任务 006”。通过后发送 Prompt 2�
 
 | 日期 | 变更 |
 |---|---|
+| 2026-11-06 | DeepSeek 独立自检完成 Task 007（修复 R1 的 F1 遗留聚合口径缺陷，新增跨租约拆分付款回归）；取消 Codex 逐任务复核，状态新增「DeepSeek 自检通过」 |
 | 2026-11-03 | Codex 首次建立 10 次正式 Prompt 路线；006 首轮待修正；理想 10 次，计入当前已知返修后预计实际 11 次 |

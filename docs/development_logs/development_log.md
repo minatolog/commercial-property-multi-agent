@@ -420,6 +420,183 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 009 - LangGraph 多 Agent 工作流与条件路由
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 1' - 多 Agent 图编排
+- **对应 Prompt 归档**：`docs/prompts/04_agents/2026-11-06_009_langgraph_multi_agent_workflow.md`（正式 Prompt 4）
+- **状态**：**DeepSeek 自检通过**
+
+### 本次完成的功能
+
+- `LeaseAgent` / `BillingAgent` 由骨架改为工具驱动实现；新增 `PropertyAgent`（工单事实）。
+- 新增 LangGraph 调查图：条件路由（简单问题不扇出）、`Send` 并发扇出、合流、限次补查、确定性核验。
+- 新增 `completeness` 维度，把"证据是否矛盾"与"调查是否跑全"分开表达。
+- Trace 增加 `subtask_id`，并发子任务可归因；`factory` 支持依赖注入且按签名过滤。
+- CLI 新增 `investigate`（默认跑 C03 争议调查场景）。
+- 新增 17 项图测试，覆盖路由、并发、冲突、缺失、越权、能力禁用、补查有界。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 规划器 | 确定性规则（关键词 + 复杂度判定） | 无模型凭据也能复现；"简单问题不拆多 Agent"必须可被程序断言 |
+| 补查条件 | 仅"子任务失败"才补查 | 文档缺失重跑也拿不到，纯浪费预算 |
+| 结果归并 | 按 `subtask_id` 取最后一次 | 补查重跑不重复计数 |
+| 冲突 vs 完整性 | `verdict` + `completeness` 双字段 | 单一 verdict 会丢掉另一半信息 |
+| 依赖注入 | 按构造函数签名过滤 | Agent 只声明自己需要的依赖，图不被迫了解实现 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/orchestration/investigation.py` | 新增（图/规划器/核验器/门面） |
+| `backend/app/agents/base/tool_backed.py`、`agents/property/*`、`config/agents/property.yaml` | 新增 |
+| `backend/app/investigation_demo.py` | 新增 |
+| `backend/app/agents/{lease,billing}/agent.py` | 重写为工具驱动 |
+| `backend/app/agents/base/contracts.py`、`runtime/types.py`、`tools/executor.py` | `subtask_id` 维度 |
+| `backend/app/agents/factory.py`、`cli.py`、`pyproject.toml` | 注入、`investigate`、依赖 |
+| `backend/tests/test_graph_workflow.py` | 新增（17 项） |
+| `backend/tests/{smoke_agent_contracts,test_runtime}.py` | 断言同步 |
+
+### 测试和验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| 骨架自检 | ✅ 57 项 |
+| 单元测试 | ✅ `Ran 94 tests ... OK` |
+| CLI（6 条命令） | ✅ 全部退出码 0 |
+| C03 图执行 | ✅ 3 子任务并发、`conflicting`、差额 756.00、缺失 annex_b、Trace 按 subtask 归因 |
+
+### 当前项目状态
+
+多 Agent 图可运行且可解释：简单问题走确定性路径，复杂问题并发扇出并核验。尚无数据库、RAG、审批与持久 checkpoint、评测 runner 与 API。
+
+### 下一步开发计划
+
+- [ ] Task 010：PostgreSQL 只读工具与数据访问边界
+- [ ] Task 012：持久 checkpoint 与审批暂停/恢复
+
+---
+
+## [2026-11-06] 任务 008 - LangChain、DeepSeek 适配与真实工具调用闭环
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 1' - 模型接入与单 Agent 基线
+- **对应 Prompt 归档**：`docs/prompts/04_agents/2026-11-06_008_langchain_deepseek_tool_calling.md`（正式 Prompt 3）
+- **状态**：**DeepSeek 自检通过**（离线闭环已验证；真实 DeepSeek 调用受凭据限制，未验证）
+
+### 本次完成的功能
+
+- 新增厂商无关模型客户端层：`ChatMessage` / `ToolSpec` / `ModelTurn` / `ChatModelClient`，含 `FakeChatModelClient`。
+- 新增 LangChain ↔ DeepSeek（OpenAI 兼容）适配器，复用既有参数裁剪与密钥来源，`max_retries=0` 关闭隐式重试。
+- 新增有限轮次工具调用循环：轮次上限、模型/工具/token 预算、deadline 三重约束，停止原因可见。
+- 新增单 Agent + Tools 基线（`single.investigate`）与独立 YAML（`max_tool_rounds=3`）。
+- CLI 新增 `ask` 子命令（默认 fake 离线，`--provider deepseek` 走真实调用）。
+- 新增 24 项测试，覆盖工具清单裁剪、结果回传、非法参数、越权、轮次上限、预算耗尽、模型异常、用量累加、密钥缺失。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 模型抽象 | 自有窄接口 `ChatModelClient`，而非直接暴露 LangChain 类型 | Agent/图不依赖 LangChain 具体类，替换 Provider 不影响业务代码 |
+| 隐式重试 | `max_retries=0` | 重试归属只能有一层（工具层），否则多层相乘放大成本 |
+| 非法工具参数 | 作为工具调用结果回传给模型，不抛异常 | 模型可自我纠正；抛异常会让整轮失败 |
+| 工具可见范围 | `allowed_tools ∩ 实现存在 ∩ 调用方权限` | 模型根本看不到越权工具，越权在第一道闸就被挡住 |
+| Trace 共享 | Agent 注入与 Runtime 同一个 `TraceLog` | 否则出现"调用了工具但 `tool_traces` 为空"的假象 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/llm/model_client.py` / `langchain_client.py` | 新增 |
+| `backend/app/runtime/tool_loop.py` | 新增 |
+| `backend/app/agents/single/{agent.py,__init__.py,prompts/system.md}` | 新增 |
+| `backend/app/single_demo.py` | 新增 |
+| `backend/app/config/agents/single.yaml` | 新增 |
+| `backend/app/config/schema.py` | 新增 `max_tool_rounds` |
+| `backend/app/agents/factory.py` | 注册 `single` |
+| `backend/app/cli.py` | 新增 `ask` |
+| `backend/pyproject.toml` / `backend/README.md` | 依赖与文档 |
+| `backend/tests/test_llm_tool_loop.py` | 新增（24 项） |
+| `backend/tests/smoke_agent_contracts.py` | Agent 数量断言 3 → 4（仍 57 项） |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 骨架自检 | `python tests/smoke_agent_contracts.py` | ✅ 57 项，退出码 0 |
+| 单元测试 | `python -m unittest discover -s tests` | ✅ `Ran 76 tests ... OK` |
+| 单 Agent 闭环 | `python -m app.cli ask "A-301 现在还有多少钱没交？"` | ✅ success / final_answer / 2 轮 / 1 次工具 / 13 条证据 / 1 条 Trace |
+| 缺密钥 | `... --provider deepseek` | ✅ 退出码 2 + `MissingApiKeyError`，未伪造成功 |
+| 回归 | `python -m app.cli demo` | ✅ 未收 `18036.00` 不变 |
+
+### 当前项目状态
+
+单 Agent 可以真正"选择工具 → 受控执行 → 读取结果 → 作答"（离线 Fake 已验证）。尚无 LangGraph 图、数据库、RAG、审批与评测 runner。
+
+### 下一步开发计划
+
+- [ ] Task 009：LangGraph 多 Agent 图与条件路由（含子任务 `run_id`/Trace 维度复核）
+- [ ] 真实 DeepSeek 调用需 `DEEPSEEK_API_KEY` 与预算确认
+
+---
+
+## [2026-11-06] Task 007 独立自检（DeepSeek）— 通过
+
+- **任务**：007（正式 Prompt 2）Runtime 与受控工具执行
+- **状态**：**DeepSeek 自检通过**（未经 Codex 验收；项目已取消 Codex 逐任务复核）
+- **自检报告**：`docs/reviews/2026-11-06_task007_deepseek_selfcheck.md`
+
+### 本次完成的功能
+
+- 独立核对 Task 007 R1 的实际代码与测试，不依赖既有报告。
+- **发现并修复 R1 的 F1 遗留缺陷**：`statement()` 的 `paid_total` 仍按整笔付款金额累计，一笔付款拆分核销到同项目不同租约时，他租约部分会被算进本租约已收（复现：`35060.00` / 应 `34760.00`）。
+- 新增跨租约拆分付款回归测试，同时断言两个租约各自的已收与未收。
+- 独立验证 F2：连续两次与并发两次运行各 3 条 Trace，`call_id` 不相交，共享 append-only 日志保留并集。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 已收额口径 | `Σ(核销到本租约的 allocation.amount)` | 付款是资金实体，跨租约拆分时整笔金额不都属于本租约 |
+| 未收额口径 | 逐账单 `outstanding` 求合 | 与账单级余额定义保持一致，避免总额与明细口径分叉 |
+| 付款列表 | 仍返回参与核销的完整付款记录 | 保留可追溯性；金额口径与记录展示分开 |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/fixtures/repository.py` | 已收/未收按本租约核销金额计算 |
+| `backend/tests/test_runtime.py` | 新增拆分付款回归测试（1 项） |
+| `docs/reviews/2026-11-06_task007_deepseek_selfcheck.md` | 新增自检报告 |
+| `docs/prompts/04_agents/2026-11-06_007_agent_runtime_controlled_tools.md` | 状态更新 + §17 自检记录 |
+| `docs/product/PROJECT_DEVELOPMENT_ROADMAP.md` | 进度表与流程说明更新 |
+| `docs/development_logs/development_log.md` | 本条 |
+| `docs/checkpoints/git_history.md` | 检查点记录 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 既有骨架自检 | `python tests/smoke_agent_contracts.py` | ✅ 57 项通过，退出码 0 |
+| 单元测试 | `python -m unittest discover -s tests` | ✅ `Ran 52 tests ... OK` |
+| CLI | `--help` / `tools` / `check` / `demo` / `demo --variant` | ✅ 全部退出码 0；未收 `18036.00` / `17280.00` |
+| 预算耗尽 | `demo --budget-tool-calls 1` | ✅ 退出码 2、`budget_exhausted`、`tool_trace_count=2` |
+| 租约隔离（独立脚本） | 13 项断言 | ✅ 修复后 `PASS=13 FAIL=0`（修复前 11/2） |
+| Trace 隔离（独立脚本） | 12 项断言 | ✅ `PASS=12 FAIL=0` |
+
+### 当前项目状态
+
+离线 Runtime、受控 Tool Executor、4 个只读 fixture 工具、CLI 均可用且有回归覆盖。尚无真实模型、LangGraph、数据库、RAG、审批与评测 runner。
+
+### 下一步开发计划
+
+- [ ] Task 008：LangChain + DeepSeek 适配与真实 Tool Calling 闭环（`DEEPSEEK_API_KEY` 未设置，真实调用预计受凭据限制）
+- [ ] Task 009 起：LangGraph 多 Agent 图（需复核子任务 run_id / Trace 维度）
+
+---
+
 ## [2026-11-03] 任务 006 - Agent-first 基线、契约与首批评测样例
 
 - **日期**：2026-11-03

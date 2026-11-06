@@ -2,7 +2,7 @@
 # 与 lease.yaml 完全独立：改本文件不会影响 Lease Agent。
 
 name: billing
-version: 0.1.0
+version: 1.1.0
 enabled: true
 description: 物业账单查询、费用构成说明与欠费核对
 

@@ -3,7 +3,8 @@
 ## 1. 任务信息
 
 - **任务编号**：007（正式 Prompt 2）
-- **状态**：**R1 已修复，待 Codex 复验**（2026-11-06；F1/F2 见 §16）
+- **状态**：**DeepSeek 自检通过**（2026-11-06；R1 的 F1 遗留缺陷已修复；**未经 Codex 验收**，项目已取消 Codex 逐任务复核）
+- **自检报告**：[Task 007 DeepSeek 自检报告](../../reviews/2026-11-06_task007_deepseek_selfcheck.md)
 - **唯一需求基线**：[Agent-first V1.0](../../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)
 - **实现规格**：[Runtime contracts](../../architecture/agent_runtime_contracts.md)、[MVP scope](../../product/mvp_scope_v2.md)、[Evaluation plan](../../evaluation/evaluation_plan.md)
 - **前置验收**：[Task 006 R2 Review](../../reviews/2026-11-06_task006_r2_review.md)
@@ -275,3 +276,49 @@ K5 的取舍：规格建议"全 SKIPPED → FAILED（或 partial + 理由）"，
 
 **R1 文件级比对**：123 → 123 个文件，**0 新增 / 0 删除**；17 个变化（6 个源码文件 + 5 个文档 + 6 个重新生成的 `.pyc` 缓存），其余 106 个逐字节不变；`docs/architecture/database_design.md` 的 SHA-256 仍为 `1b7e37350a18ff4c17e7063558a1ab3b4be5beabbd6a94aa4efbe236a5f56db7`。`git status --porcelain` 与执行前逐行相同，HEAD 未变。
 
+
+## 17. DeepSeek 自检记录（2026-11-06，取代 Codex 复核流程）
+
+- **背景**：项目所有者取消 Codex 逐任务复核环节，由 DeepSeek 负责实现、验证、记录与推进。本任务改为**独立自检**（读源码 + 独立脚本复现 + 运行既有测试），不再等待 Codex 复验。
+- **自检报告**：[2026-11-06_task007_deepseek_selfcheck.md](../../reviews/2026-11-06_task007_deepseek_selfcheck.md)
+- **结论**：**DeepSeek 自检通过**（不代表 Codex 验收）。
+
+### 17.1 自检发现的缺陷（R1 的 F1 修复不完整）
+
+F1 已把 allocations 正确限定到本租约 invoice IDs，但 `paid_total` 仍按**整笔付款金额**累计。若一笔付款拆分核销到同项目不同租约的账单，他租约部分会被算进本租约已收。
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 500.00 付款，其中 200.00 核销 A-301、300.00 核销 A-302 | A-301 `paid_total=35060.00`、`outstanding=17536.00` | `paid_total=34760.00`、`outstanding=17836.00` |
+
+**修复**：`paid_total` 改为 `Σ(核销到本租约的 allocation.amount)`；`outstanding_total` 改为逐账单 `outstanding` 求合。
+
+### 17.2 F2 复核结论
+
+实现正确，无需修改：连续两次与并发两次运行均为各 3 条 Trace、`call_id` 不相交、共享 append-only 日志保留并集（6 条），未出现清空导致的丢数据。
+
+### 17.3 自检验证结果
+
+| # | 命令 | 退出码 | 结果 |
+|---|---|---|---|
+| 1 | `python tests/smoke_agent_contracts.py` | 0 | 57 项通过 |
+| 2 | `python -m unittest discover -s tests` | 0 | `Ran 52 tests ... OK`（R1 51 + 新增 1） |
+| 3-7 | `app.cli --help` / `tools` / `check` / `demo` / `demo --variant` | 0 | 全部正常；未收 `18036.00` / 变体 `17280.00` |
+| 8 | `app.cli demo --budget-tool-calls 1` | 2 | `budget_exhausted`、`tool_trace_count=2` |
+| 9 | 独立脚本：租约隔离 13 项断言 | 0 | `PASS=13 FAIL=0` |
+| 10 | 独立脚本：Trace 隔离 12 项断言 | 0 | `PASS=12 FAIL=0` |
+
+### 17.4 本轮修改文件
+
+| 文件 | 改动 |
+|---|---|
+| `backend/app/fixtures/repository.py` | `paid_total` 按本租约核销累计；`outstanding_total` 按账单逐项求合 |
+| `backend/tests/test_runtime.py` | 新增跨租约拆分付款回归测试 |
+| `docs/reviews/2026-11-06_task007_deepseek_selfcheck.md` | 新增自检报告 |
+
+### 17.5 遗留风险
+
+1. 无真实模型 / LangGraph / 数据库 / RAG / 审批（Task 008–012 范围）。
+2. pytest 未安装，测试以 `unittest` 编写。
+3. `git diff --check` 的 `database_design.md:1661` 为 Task 005 遗留，本任务禁区未处理。
+4. Task 009 引入多 Agent 图后需复核：子任务是否共享 `run_id`、Trace 是否需要 `subtask_id` 维度。

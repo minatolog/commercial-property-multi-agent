@@ -3,7 +3,7 @@
 # 密钥只允许通过环境变量提供，禁止在本文件写入 api_key 等敏感字段（会被 Schema 拒绝）。
 
 name: lease
-version: 0.1.0
+version: 1.0.0
 enabled: true
 description: 租约条款查询、租金结构解读与续租评估
 

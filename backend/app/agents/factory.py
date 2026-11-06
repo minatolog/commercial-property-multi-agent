@@ -19,11 +19,15 @@ from .base.registry import AgentRegistry
 from .billing.agent import BillingAgent
 from .compliance.agent import ComplianceAgent
 from .lease.agent import LeaseAgent
+from .property.agent import PropertyAgent
+from .single.agent import SingleToolAgent
 
 AGENT_IMPLEMENTATIONS: Final[dict[str, type[BaseAgent]]] = {
     "lease": LeaseAgent,
     "billing": BillingAgent,
     "compliance": ComplianceAgent,
+    "property": PropertyAgent,
+    "single": SingleToolAgent,
 }
 
 
@@ -34,7 +38,7 @@ class RegistryBuildReport:
     skipped: tuple[str, ...] = field(default=())
 
 
-def build_agent(config: AgentConfig) -> BaseAgent:
+def build_agent(config: AgentConfig, **deps: Any) -> BaseAgent:
     implementation = AGENT_IMPLEMENTATIONS.get(config.name)
     if implementation is None:
         raise AgentNotRegisteredError(
@@ -43,7 +47,37 @@ def build_agent(config: AgentConfig) -> BaseAgent:
             "新增 Agent 需要在 AGENT_IMPLEMENTATIONS 中显式登记。"
         )
     _assert_descriptor_matches_config(implementation, config)
-    return implementation(config)
+    if not deps:
+        return implementation(config)
+    # 只注入实现真正声明的依赖：每个 Agent 需要什么由它自己的构造函数决定，
+    # 无关 Agent 不必被迫接受用不到的参数。
+    accepted = _accepted_kwargs(implementation)
+    filtered = {key: value for key, value in deps.items() if key in accepted}
+    return implementation(config, **filtered)
+
+
+#: Runtime 允许注入的依赖白名单（配置字符串永远无法扩大这个集合）
+AGENT_DEPENDENCY_NAMES: Final[tuple[str, ...]] = (
+    "model_client",
+    "tool_registry",
+    "budget",
+    "trace_log",
+)
+
+
+def _accepted_kwargs(implementation: type[BaseAgent]) -> set[str]:
+    import inspect
+
+    parameters = inspect.signature(implementation.__init__).parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return set(AGENT_DEPENDENCY_NAMES)
+    return {
+        name
+        for name, param in parameters.items()
+        if name not in {"self", "config"}
+        and param.kind
+        in {inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
+    }
 
 
 def _assert_descriptor_matches_config(
@@ -74,7 +108,7 @@ def _assert_descriptor_matches_config(
 
 
 def build_registry(
-    config_dir: str | Path | None = None, *, strict: bool = False
+    config_dir: str | Path | None = None, *, strict: bool = False, **deps: Any
 ) -> RegistryBuildReport:
     from ..paths import CONFIG_DIR
 
@@ -91,7 +125,7 @@ def build_registry(
                 raise AgentNotRegisteredError(f"配置 {name!r} 没有已授权的实现")
             skipped.append(name)
             continue
-        registry.register(build_agent(config))
+        registry.register(build_agent(config, **deps))
         registered.append(name)
 
     return RegistryBuildReport(

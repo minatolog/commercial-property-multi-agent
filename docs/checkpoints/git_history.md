@@ -321,6 +321,58 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-06] Task 007 自检修复（待提交）
+
+- **开发阶段**：阶段 1' - Runtime 与受控工具执行（自检收尾）
+- **对应任务**：007（正式 Prompt 2）
+- **Git 分支**：`main`
+- **Commit Hash**：`Pending`
+- **Commit Message**：见下方
+
+### 本次变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `backend/app/fixtures/repository.py` | 修改（已收/未收按本租约核销金额） |
+| `backend/tests/test_runtime.py` | 修改（新增拆分付款回归测试） |
+| `docs/reviews/2026-11-06_task007_deepseek_selfcheck.md` | 新增 |
+| `docs/prompts/04_agents/2026-11-06_007_agent_runtime_controlled_tools.md` | 修改 |
+| `docs/product/PROJECT_DEVELOPMENT_ROADMAP.md` | 修改 |
+| `docs/development_logs/development_log.md` | 修改 |
+
+### 验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| 57 项 smoke | ✅ 退出码 0 |
+| unittest | ✅ `Ran 52 tests ... OK` |
+| CLI（5 条命令） | ✅ 全部退出码 0（预算耗尽 2） |
+| 租约隔离独立脚本 | ✅ 13/13 |
+| Trace 隔离独立脚本 | ✅ 12/12 |
+
+### 建议 Commit Message
+
+```text
+fix(billing): count statement paid amount by allocations to the lease
+
+- `FixtureRepository.statement()` summed whole payment amounts, so a
+  payment split across leases of the same project overstated paid_total
+  and understated outstanding_total (reproduced: 35060.00 vs 34760.00)
+- Derive paid_total from allocations whose invoice belongs to the lease
+- Derive outstanding_total from per-invoice outstanding
+- Add regression covering a 500.00 payment split 200/300 across A-301
+  and A-302, asserting both leases stay correct
+- Record DeepSeek self-check for Task 007 and update roadmap/logs
+
+Verified: 57 smoke checks, 52 unittests, 5 CLI commands, budget-exhaustion
+exit code 2, plus standalone lease-isolation (13/13) and trace-isolation
+(12/12) probes.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+```
+
+---
+
 ## [2026-11-03] 阶段 0' - Agent-first 基线与评测规格（待提交）
 
 - **开发阶段**：阶段 0' - 方向重定与规格化

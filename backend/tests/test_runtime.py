@@ -900,6 +900,94 @@ class TestStatementLeaseIsolation(unittest.TestCase):
             {item["id"] for item in statement["allocations"]}, {"alloc_test_a302"}
         )
 
+    def test_payment_split_across_leases_counts_only_own_allocation(self) -> None:
+        """一笔付款同时核销两个租约时，本租约已收额只能按自己的核销金额计。"""
+
+        from decimal import Decimal
+
+        data = json.loads(DEFAULT_FIXTURE_PATH.read_text(encoding="utf-8"))
+        data["invoices"].append(
+            {
+                "id": "inv_split_a302",
+                "project_id": "prj_xinghui",
+                "lease_id": "lease_xh_a302_2025",
+                "invoice_no": "XH-SPLIT-A302",
+                "period_start": "2026-09-01",
+                "period_end": "2026-09-30",
+                "issue_date": "2026-09-25",
+                "due_date": "2026-09-30",
+                "currency": "CNY",
+                "status": "issued",
+            }
+        )
+        data["invoice_items"].append(
+            {
+                "id": "itm_split_a302",
+                "invoice_id": "inv_split_a302",
+                "charge_rule_id": None,
+                "charge_type": "rent",
+                "description": "A-302 拆分测试",
+                "quantity": "1.0000",
+                "unit_price": "300.0000",
+                "amount": "300.00",
+            }
+        )
+        data["payments"].append(
+            {
+                "id": "pay_split_across_leases",
+                "project_id": "prj_xinghui",
+                "receipt_no": "XH-SPLIT-RC",
+                "payer_tenant_id": "ten_xh_yunduan",
+                "payment_method": "bank_transfer",
+                "amount": "500.00",
+                "currency": "CNY",
+                "paid_at": "2026-09-28T10:00:00+08:00",
+                "status": "confirmed",
+            }
+        )
+        data["payment_allocations"].extend(
+            [
+                {
+                    "id": "alloc_split_a301",
+                    "payment_id": "pay_split_across_leases",
+                    "invoice_id": "inv_2026_10",
+                    "amount": "200.00",
+                    "allocated_at": "2026-09-28T10:05:00+08:00",
+                    "reversed_at": None,
+                },
+                {
+                    "id": "alloc_split_a302",
+                    "payment_id": "pay_split_across_leases",
+                    "invoice_id": "inv_split_a302",
+                    "amount": "300.00",
+                    "allocated_at": "2026-09-28T10:05:00+08:00",
+                    "reversed_at": None,
+                },
+            ]
+        )
+        repository = FixtureRepository(data)
+
+        statement = repository.statement(
+            project_ids=frozenset({"prj_xinghui"}), lease_id="lease_xh_a301_2025"
+        )
+        # 34560.00 原有 + 200.00 本租约核销；不得把整笔 500.00 算进来
+        self.assertEqual(Decimal(statement["paid_total"]), Decimal("34760.00"))
+        self.assertEqual(Decimal(statement["outstanding_total"]), Decimal("17836.00"))
+        self.assertEqual(
+            {item["id"] for item in statement["allocations"]},
+            {"alloc_001", "alloc_002", "alloc_split_a301"},
+        )
+        self.assertEqual(
+            sum((Decimal(a["amount"]) for a in statement["allocations"]), Decimal("0")),
+            Decimal("34760.00"),
+        )
+
+        other = repository.statement(
+            project_ids=frozenset({"prj_xinghui"}), lease_id="lease_xh_a302_2025"
+        )
+        self.assertEqual(Decimal(other["paid_total"]), Decimal("300.00"))
+        self.assertEqual(Decimal(other["outstanding_total"]), Decimal("0.00"))
+
 
 class TestTraceIsolation(unittest.TestCase):
     """F2：RuntimeResult.tool_traces 只包含本次 run 的 Trace。"""
@@ -991,8 +1079,31 @@ class TestSecurityScan(unittest.TestCase):
         )
         self.assertIn("pydantic", text)
         self.assertIn("PyYAML", text)
-        for forbidden in ("langchain", "langgraph", "sqlalchemy", "fastapi", "chromadb"):
+        # Task 008/009 明确引入的依赖：LangChain 适配层与 LangGraph 编排
+        self.assertIn("langchain-core", text)
+        self.assertIn("langgraph", text)
+        # 仍未引入的重型/业务依赖：出现即说明越界
+        for forbidden in ("sqlalchemy", "fastapi", "chromadb", "psycopg", "torch"):
             self.assertNotIn(forbidden, text.lower())
+
+    def test_declared_dependencies_match_imports(self) -> None:
+        """声明了就必须真的被 import；否则属于"为未来预留"的无据依赖。"""
+
+        text = (BACKEND_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        app_sources = {
+            path: path.read_text(encoding="utf-8")
+            for path in (BACKEND_ROOT / "app").rglob("*.py")
+        }
+        if "langgraph" in text.lower():
+            self.assertTrue(
+                any("langgraph" in source for source in app_sources.values()),
+                "pyproject 声明了 langgraph，但 app/ 未 import",
+            )
+        if "langchain-core" in text:
+            self.assertTrue(
+                any("langchain_core" in source for source in app_sources.values()),
+                "pyproject 声明了 langchain-core，但 app/ 未 import",
+            )
 
     def test_no_network_or_db_imports_in_runtime_modules(self) -> None:
         forbidden = ("import requests", "import httpx", "import sqlalchemy", "import psycopg")
