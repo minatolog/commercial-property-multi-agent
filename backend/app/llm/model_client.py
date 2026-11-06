@@ -99,13 +99,43 @@ class ModelTurn(BaseModel):
 
 
 class ToolSpec(BaseModel):
-    """提供给模型的工具声明（JSON Schema 由工具自己的输入模型生成）。"""
+    """提供给模型的工具声明（JSON Schema 由工具自己的输入模型生成）。
+
+    两个名字必须分开（Task 020）：
+
+    - `name`：**暴露给模型**的名字。多数 provider 只接受 `^[a-zA-Z0-9_-]+$`，
+      所以内部名 `lease.lookup` 必须转成 `lease__lookup`；
+    - `tool_name`：内部注册名，真正执行时用。
+
+    为什么不是"把内部工具改名叫下划线"：`.` 分隔是项目内 capability/tool 的命名约定，
+    改全局命名会影响配置、Trace、审计与既有契约；在边界处做映射代价最小。
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
     description: str = ""
     parameters: dict[str, Any] = Field(default_factory=dict)
+    #: 内部注册名；默认与 `name` 相同（兼容不经过映射的调用）
+    tool_name: str = ""
+
+    def model_post_init(self, __context: Any) -> None:  # noqa: D105 - pydantic hook
+        if not self.tool_name:
+            object.__setattr__(self, "tool_name", self.name)
+
+    @property
+    def original_name(self) -> str:
+        return self.tool_name or self.name
+
+
+def provider_safe_name(name: str) -> str:
+    """把内部工具名转成 provider 允许的函数名（`lease.lookup` → `lease__lookup`）。
+
+    用 `__` 而不是 `_`：`a.b_c` 与 `a_b.c` 会撞成同一个名字，双下划线能显著降低歧义，
+    仍由 `ToolSpecBuilder` 做最终唯一性校验。
+    """
+
+    return name.replace(".", "__")
 
 
 @runtime_checkable
@@ -129,6 +159,7 @@ class ToolSpecBuilder:
         permissions: frozenset[str],
     ) -> tuple[ToolSpec, ...]:
         specs: list[ToolSpec] = []
+        seen: dict[str, str] = {}
         for name in allowed_tools:
             if name not in registry:
                 # 配置声明了但项目未实现的工具：不暴露给模型，避免它调一个必然失败的名字
@@ -137,11 +168,18 @@ class ToolSpecBuilder:
             if not tool.required_permissions <= permissions:
                 # 权限不足的工具不下发，模型根本不会尝试（越权在第一道闸就被挡掉）
                 continue
+            exposed = provider_safe_name(tool.name)
+            if exposed in seen and seen[exposed] != tool.name:
+                raise ValueError(
+                    f"工具名映射冲突：{seen[exposed]!r} 与 {tool.name!r} 都映射为 {exposed!r}"
+                )
+            seen[exposed] = tool.name
             specs.append(
                 ToolSpec(
-                    name=tool.name,
+                    name=exposed,
                     description=tool.description,
                     parameters=_tool_parameters(tool),
+                    tool_name=tool.name,
                 )
             )
         return tuple(specs)

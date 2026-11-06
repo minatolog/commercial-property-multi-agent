@@ -82,7 +82,13 @@ class EvaluationReport:
         }
 
 
-def _summarise(scores: list[CaseScore], results: list[BaselineResult], cases: list[EvalCase]) -> dict[str, Any]:
+def _summarise(
+    scores: list[CaseScore],
+    results: list[BaselineResult],
+    cases: list[EvalCase],
+    *,
+    model_used: bool = False,
+) -> dict[str, Any]:
     total = len(scores)
     applicable = [score for score in scores if score.applicable]
     passed = sum(1 for score in applicable if score.passed)
@@ -128,8 +134,14 @@ def _summarise(scores: list[CaseScore], results: list[BaselineResult], cases: li
             "model_calls": model_calls,
             "total_tokens": tokens,
             "cost_amount": None,
-            "cost_basis": "unavailable_offline_no_pricing",
-            "note": "离线运行不产生真实 token/费用；不得作为真实模型成本引用",
+            "cost_basis": (
+                "unavailable_no_pricing" if model_used else "unavailable_offline_no_pricing"
+            ),
+            "note": (
+                "真实调用已产生 token，但项目未内置价格表，因此不换算金额"
+                if model_used
+                else "离线运行不产生真实 token/费用；不得作为真实模型成本引用"
+            ),
         },
         "manual_queue_count": manual,
         "failed_cases": failures,
@@ -173,13 +185,10 @@ async def evaluate(
         fixture_sha256=cases_checksum(DEFAULT_FIXTURE_PATH),
         code_commit=_git_commit(),
         scoring_version=SCORING_VERSION,
-        model={
-            "provider": "offline_deterministic",
-            "model_name": "none",
-            "note": "无 DEEPSEEK_API_KEY，三基线均未调用真实模型；token/成本指标不可用于质量结论",
-        },
+        model=_model_binding(model_client),
         config={
             "max_tool_calls": max_tool_calls,
+            "max_total_tokens": runner.max_total_tokens,
             "baselines": list(BASELINES),
             "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具",
         },
@@ -189,9 +198,39 @@ async def evaluate(
             {**score.as_dict(), "result": result.as_dict()}
             for score, result in zip(scores, results)
         ],
-        summary=_summarise(scores, results, selected),
+        summary=_summarise(
+            scores, results, selected, model_used=model_client is not None
+        ),
     )
     return report
+
+
+def _model_binding(model_client: Any) -> dict[str, str]:
+    """如实描述本次评测用了什么模型（Task 020）。
+
+    以前这里硬编码 `offline_deterministic`，于是接入真实模型后报告仍然写着
+    "无 DEEPSEEK_API_KEY、未调用真实模型"——报告与事实相反，比数据错误更糟。
+    """
+
+    if model_client is None:
+        return {
+            "provider": "offline_deterministic",
+            "model_name": "none",
+            "note": "本报告未调用任何模型（确定性规则路径）；token/成本不适用",
+        }
+    provider = str(getattr(model_client, "provider", "unknown"))
+    model_name = str(getattr(model_client, "model_name", "unknown"))
+    if provider == "scripted":
+        note = (
+            "脚本化模型（非真实推理）：只能证明装配与工具链路正确，"
+            "不代表模型质量，不可用于质量对照结论"
+        )
+    else:
+        note = (
+            f"真实模型调用（{provider}/{model_name}）：token 与延迟来自实际调用；"
+            "成本未内置定价，故不换算金额"
+        )
+    return {"provider": provider, "model_name": model_name, "note": note}
 
 
 def render_markdown(reports: list[EvaluationReport]) -> str:
@@ -233,7 +272,11 @@ def render_markdown(reports: list[EvaluationReport]) -> str:
                 tc=cost["tool_calls"],
                 mc=cost["model_calls"],
                 tk=cost["total_tokens"],
-                cost="n/a（离线）",
+                cost=(
+                    "n/a（未内置定价）"
+                    if cost["cost_basis"] == "unavailable_no_pricing"
+                    else "n/a（离线）"
+                ),
                 lat=cost["latency_ms_p50"],
             )
         )

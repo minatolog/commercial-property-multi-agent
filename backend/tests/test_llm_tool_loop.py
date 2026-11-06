@@ -244,8 +244,12 @@ class TestToolSpecBuilder(unittest.TestCase):
             permissions=frozenset({"lease.read", "billing.read", "property.read"}),
         )
         self.assertEqual(
-            {spec.name for spec in all_specs},
+            {spec.tool_name for spec in all_specs},
             set(config.allowed_tools),
+        )
+        self.assertEqual(
+            {spec.name for spec in all_specs},
+            {spec.tool_name.replace(".", "__") for spec in all_specs},
         )
 
         read_only_billing = ToolSpecBuilder.build(
@@ -254,7 +258,7 @@ class TestToolSpecBuilder(unittest.TestCase):
             permissions=frozenset({"billing.read"}),
         )
         self.assertEqual(
-            {spec.name for spec in read_only_billing},
+            {spec.tool_name for spec in read_only_billing},
             {"billing.statement.read", "billing.arrears.calculate"},
         )
 
@@ -265,7 +269,7 @@ class TestToolSpecBuilder(unittest.TestCase):
             allowed_tools=("lease.lookup", "lease.term_extract"),
             permissions=frozenset({"lease.read"}),
         )
-        self.assertEqual({spec.name for spec in specs}, {"lease.lookup"})
+        self.assertEqual({spec.tool_name for spec in specs}, {"lease.lookup"})
 
     def test_spec_parameters_come_from_input_schema(self) -> None:
         registry = _tool_registry()
@@ -368,10 +372,13 @@ class TestToolLoop(unittest.TestCase):
         self.assertIn("18036.00", tool_messages[0].content)
         self.assertEqual(tool_messages[0].tool_call_id, "call_1")
 
-        # 模型第一次调用时拿到了工具清单
+        # 模型第一次调用时拿到了工具清单（暴露名必须是 provider 合法名）
         self.assertTrue(len(client.calls[0][1]) >= 1)
+        exposed = {spec.name for spec in client.calls[0][1]}
+        self.assertIn("billing__arrears__calculate", exposed)
+        self.assertNotIn(".", " ".join(exposed), "暴露给模型的工具名不得含点号")
         self.assertIn(
-            "billing.arrears.calculate", {spec.name for spec in client.calls[0][1]}
+            "billing.arrears.calculate", {spec.tool_name for spec in client.calls[0][1]}
         )
 
     def test_max_rounds_is_enforced(self) -> None:

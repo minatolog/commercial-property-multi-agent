@@ -237,8 +237,12 @@ async def run_tool_loop(
                 )
                 continue
 
+            # 模型看到的是 provider 合法名（`lease__lookup`），执行要用内部名（`lease.lookup`）。
+            # 也接受内部名，便于脚本化模型与历史测试直接用原名字。
+            spec = _spec_for(tools, call.name)
+            tool_name = spec.tool_name if spec is not None else call.name
             execution = await executor.execute(
-                call.name,
+                tool_name,
                 call.arguments,
                 context=context,
                 agent_config=agent_config,
@@ -263,6 +267,15 @@ async def run_tool_loop(
         warnings=tuple([*warnings, f"达到最大轮次 {max_rounds}，未得到最终答案"]),
         rounds=max_rounds,
     )
+
+
+def _spec_for(tools: Sequence[ToolSpec], name: str) -> ToolSpec | None:
+    """按暴露名或内部名查工具声明（两者都接受，调用方无需关心映射方向）。"""
+
+    for spec in tools:
+        if spec.name == name or spec.tool_name == name:
+            return spec
+    return None
 
 
 def _deadline_passed(context: AgentContext) -> bool:

@@ -143,6 +143,12 @@ def build_parser() -> argparse.ArgumentParser:
     investigate.add_argument("--principal", default="principal_ops_xinghui", help="可信主体 ID")
     investigate.add_argument("--variant", default=None, help="fixture 数据变体")
     investigate.add_argument("--budget-tool-calls", type=int, default=12, help="工具调用预算")
+    investigate.add_argument(
+        "--budget-tokens",
+        type=int,
+        default=20000,
+        help="token 总预算（默认 20000；仅 --model-provider 非 offline 时生效）",
+    )
     investigate.add_argument("--max-revisions", type=int, default=1, help="补查上限（默认 1）")
     investigate.add_argument(
         "--backend",
@@ -459,6 +465,9 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         engine="llm" if model_client is not None else "deterministic",
         model_client=model_client,
         max_model_calls=0 if model_client is None else 32,
+        # 0 表示"一个 token 都不许用"；模型引擎下必须给真实预算，否则第一次
+        # 结算就被判 budget_exhausted（真实调用实测踩到过）
+        max_total_tokens=getattr(args, "budget_tokens", 0) if model_client else 0,
     )
     result = asyncio.run(
         run_investigation(
@@ -493,6 +502,7 @@ async def _investigate_with_control_plane(args: argparse.Namespace) -> int:
             engine="llm" if model_client is not None else "deterministic",
             model_client=model_client,
             max_model_calls=0 if model_client is None else 32,
+            max_total_tokens=getattr(args, "budget_tokens", 0) if model_client else 0,
         )
         thread_id = args.thread_id or f"thread_{bundle.context.run_id}"
         result = await run_investigation(

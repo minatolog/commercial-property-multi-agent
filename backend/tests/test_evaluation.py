@@ -427,6 +427,37 @@ class TestRunnerBindings(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(second.name, third.name)
             self.assertTrue(first.is_file())
 
+    async def test_report_names_the_real_model_when_one_is_used(self) -> None:
+        """回归（Task 020）：接入真实/脚本模型后，报告不能仍写"未调用模型"。"""
+
+        from app.evaluation.runner import evaluate, render_markdown
+        from app.llm.scripted import scripted_client_for_tools
+
+        case = load_cases(split="heldout")[0]
+        client = scripted_client_for_tools(
+            [("billing.statement.read", {"lease_id": case.lease_id or "lease_xh_a301_2025"})],
+            summary="已核对。",
+        )
+        report = await evaluate(
+            baseline="B_single_agent",
+            cases=[case],
+            split="heldout",
+            model_client=client,
+        )
+        self.assertEqual(report.model["provider"], "scripted")
+        self.assertIn("不代表模型质量", report.model["note"])
+        markdown = render_markdown([report])
+        self.assertIn("scripted", markdown)
+        self.assertNotIn("未调用真实模型", markdown)
+
+    async def test_offline_report_still_says_offline(self) -> None:
+        from app.evaluation.runner import evaluate
+
+        case = load_cases(split="heldout")[0]
+        report = await evaluate(baseline="A_deterministic", cases=[case], split="heldout")
+        self.assertEqual(report.model["provider"], "offline_deterministic")
+        self.assertIn("未调用任何模型", report.model["note"])
+
 
 if __name__ == "__main__":
     unittest.main()

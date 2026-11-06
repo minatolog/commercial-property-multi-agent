@@ -44,6 +44,10 @@ BASELINES: tuple[str, ...] = ("A_deterministic", "B_single_agent", "C_multi_agen
 #: 全任务工具调用预算：三条基线一致，避免"多 Agent 因为多做事而被判作弊/占便宜"。
 DEFAULT_MAX_TOOL_CALLS = 12
 
+#: 每题 token 预算（仅模型路径生效）。这是"防跑飞"的护栏，不是成本控制：
+#: 0 的语义是"一个 token 都不许用"，因此模型路径必须显式给正数。
+DEFAULT_MAX_TOTAL_TOKENS = 60_000
+
 
 @dataclass
 class BaselineResult:
@@ -206,11 +210,13 @@ class _Baseline:
         *,
         max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
         model_client: Any = None,
+        max_total_tokens: int = DEFAULT_MAX_TOTAL_TOKENS,
     ) -> None:
         self.max_tool_calls = max_tool_calls
         #: 注入模型客户端时，B/C 改走**模型驱动**路径（Task 018）；
         #: `None` 保持原有的离线规则路径，历史报告仍可复现。
         self.model_client = model_client
+        self.max_total_tokens = max_total_tokens
         self._knowledge = None
 
     @property
@@ -353,6 +359,7 @@ class SingleAgentBaseline(_Baseline):
         budget = Budget(
             max_tool_calls=self.max_tool_calls,
             max_model_calls=max(4, self.max_tool_calls),
+            max_total_tokens=self.max_total_tokens,
         )
         trace_log = TraceLog()
         agent_config = _single_agent_config()
@@ -483,6 +490,9 @@ class MultiAgentBaseline(_Baseline):
             model_client=self.model_client,
             max_model_calls=(
                 0 if self.model_client is None else max(4, self.max_tool_calls * 2)
+            ),
+            max_total_tokens=(
+                0 if self.model_client is None else self.max_total_tokens
             ),
         )
         result = BaselineResult(
@@ -631,6 +641,7 @@ def build_baseline(
     *,
     max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
     model_client: Any = None,
+    max_total_tokens: int = DEFAULT_MAX_TOTAL_TOKENS,
 ) -> _Baseline:
     mapping = {
         "A_deterministic": DeterministicBaseline,
@@ -642,4 +653,8 @@ def build_baseline(
     if model_client is not None and name == "A_deterministic":
         # A 的定义就是"无 Agent、无模型"：给它接模型会改变基线含义
         raise ValueError("A_deterministic 不接受 model_client（该基线不使用模型）")
-    return mapping[name](max_tool_calls=max_tool_calls, model_client=model_client)
+    return mapping[name](
+        max_tool_calls=max_tool_calls,
+        model_client=model_client,
+        max_total_tokens=max_total_tokens,
+    )

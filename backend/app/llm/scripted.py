@@ -52,27 +52,26 @@ class ScriptedToolModel(FakeChatModelClient):
         self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
     ) -> ModelTurn:
         self.calls.append((tuple(messages), tuple(tools)))
-        exposed = [spec.name for spec in tools]
-        already = _called_tools(messages)
-        if not already:
+        # 脚本用**内部名**书写（`lease.lookup`），返回给循环的必须是暴露名（`lease__lookup`）
+        exposed = {spec.original_name: spec.name for spec in tools}
+        if not _called_tools(messages):
             # 第一轮就把所有"能用且计划内"的工具一次调用掉（并行 tool calls）。
             # 这样在 `max_tool_rounds=3` 之下仍然留得出总结轮，与真实模型的行为一致。
-            wanted = [
-                (name, args) for name, args in self._planned if name in exposed
-            ]
-            if wanted:
-                return ModelTurn(
-                    text="",
-                    tool_calls=tuple(
-                        ModelToolCall(
-                            call_id=f"scripted_{index}",
-                            name=name,
-                            arguments=args,
-                            arguments_json=json.dumps(args, ensure_ascii=False),
-                        )
-                        for index, (name, args) in enumerate(wanted, start=1)
-                    ),
+            planned: list[ModelToolCall] = []
+            for index, (internal, args) in enumerate(self._planned, start=1):
+                spec_name = exposed.get(internal)
+                if spec_name is None:
+                    continue
+                planned.append(
+                    ModelToolCall(
+                        call_id=f"scripted_{index}",
+                        name=spec_name,
+                        arguments=args,
+                        arguments_json=json.dumps(args, ensure_ascii=False),
+                    )
                 )
+            if planned:
+                return ModelTurn(text="", tool_calls=tuple(planned))
         return ModelTurn(text=self._summary, finish_reason="stop")
 
 
