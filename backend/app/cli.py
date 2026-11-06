@@ -750,6 +750,11 @@ def _cmd_search(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from .env import load_project_env
+
+    # 先加载仓库根 / backend 下的 `.env`（不覆盖已导出的环境变量），
+    # 否则用户按 .env.example 填好的密钥会静默失效。
+    load_project_env()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

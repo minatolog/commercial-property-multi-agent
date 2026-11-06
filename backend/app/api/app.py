@@ -29,6 +29,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..agents.base.errors import AgentError
+from ..env import load_project_env
 from ..orchestration.approval import ApprovalError
 from .service import (
     DEFAULT_APPROVER_ALLOWLIST,
@@ -38,6 +39,10 @@ from .service import (
 )
 
 __all__ = ["app", "create_app"]
+
+# 模块导入即加载 `.env`：`uvicorn app.api.app:app` 不会经过 CLI 入口，
+# 否则 `DEMO_PRINCIPAL_ID` / `DEEPSEEK_API_KEY` 这类配置会静默失效。
+load_project_env()
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
