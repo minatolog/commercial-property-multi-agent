@@ -11,8 +11,9 @@
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from ..agents.base.contracts import AgentContext, TokenUsage, utcnow
 from ..agents.base.errors import AgentError, ErrorCode
@@ -23,6 +24,10 @@ from .budget import Budget
 from .types import Evidence, ToolExecution
 
 __all__ = ["ToolLoopOutcome", "ToolLoopStopReason", "run_tool_loop"]
+
+#: 物理模型请求的全局序号：保证每次真实发送请求都有唯一预算 ID。
+#: 进程内单调递增即可——预算只在单进程内有意义（P0 单进程 Runtime）。
+_REQUEST_SEQ = itertools.count(1)
 
 
 class ToolLoopStopReason:
@@ -59,10 +64,19 @@ async def run_tool_loop(
     agent_config: AgentConfig,
     budget: Budget,
     max_rounds: int,
+    prepare_arguments: Callable[
+        [str, dict[str, Any]], tuple[dict[str, Any] | None, str | None]
+    ]
+    | None = None,
 ) -> ToolLoopOutcome:
     """执行有界工具循环。
 
     `messages` 不会被就地修改（返回的新消息只存在于本次循环）。
+
+    `prepare_arguments(tool_name, args)` 是调用前的**可信约束**钩子（Task 021）：
+    返回 `(最终参数, None)` 表示可执行；返回 `(None, 原因)` 表示拒绝该次调用，
+    原因会作为工具错误回传给模型让它自行纠正。目标/筛选条件因此由装配层决定，
+    而不是由模型自觉遵守。
     """
 
     conversation: list[ChatMessage] = list(messages)
@@ -85,11 +99,14 @@ async def run_tool_loop(
                 rounds=round_index - 1,
             )
 
-        # 预算按"哪一次模型调用"去重，因此 ID 必须同时包含运行、子任务与轮次。
-        # 只带 run_id + round_index 会让并发子 Agent 的第 N 轮共用一个 ID，
-        # 预算只记一次账（Task 018 引入模型驱动后暴露：3 个子任务各调 2 轮，记成 2 次）。
+        # 预算按"**一次物理模型请求**"计数（Task 021 / N1）：
+        # 加上单调递增的请求序号，绝不能让 BaseAgent 的重试或图补查复用同一个 ID——
+        # 复用会让新的真实请求被当成"已结算"，账本少记、上限失效。
         agent_scope = context.subtask_id or "root"
-        model_call_id = f"mc_{context.run_id or 'norun'}_{agent_scope}_{round_index}"
+        request_seq = next(_REQUEST_SEQ)
+        model_call_id = (
+            f"mc_{context.run_id or 'norun'}_{agent_scope}_{round_index}_{request_seq}"
+        )
         try:
             await budget.reserve_model_call(model_call_id)
         except AgentError as exc:
@@ -143,6 +160,9 @@ async def run_tool_loop(
                 await budget.reserve_tokens(token_id, turn.usage.total_tokens)
                 await budget.settle(token_id)
             except AgentError:
+                # 预留失败说明超限了，但这次响应**已经真实产生** token：
+                # 必须如实记账（超限部分单独标记），否则账本低估真实成本。
+                await budget.record_unbudgeted_tokens(turn.usage.total_tokens)
                 warnings.append("token 预算已耗尽，停止继续调用模型")
                 return _outcome(
                     answer=turn.text or _latest_text(turns),
@@ -241,9 +261,28 @@ async def run_tool_loop(
             # 也接受内部名，便于脚本化模型与历史测试直接用原名字。
             spec = _spec_for(tools, call.name)
             tool_name = spec.tool_name if spec is not None else call.name
+            arguments = dict(call.arguments)
+            if prepare_arguments is not None:
+                prepared, reason = prepare_arguments(tool_name, arguments)
+                if prepared is None:
+                    # 越界参数不执行：把原因回传，让模型在下一轮自行纠正
+                    warnings.append(f"工具 {call.name} 调用被拒绝: {reason}")
+                    conversation.append(
+                        ChatMessage(
+                            role="tool",
+                            content=_tool_error_content(
+                                call.call_id,
+                                ErrorCode.INVALID_TOOL_ARGUMENTS.value,
+                                str(reason),
+                            ),
+                            tool_call_id=call.call_id,
+                        )
+                    )
+                    continue
+                arguments = prepared
             execution = await executor.execute(
                 tool_name,
-                call.arguments,
+                arguments,
                 context=context,
                 agent_config=agent_config,
             )

@@ -585,7 +585,14 @@ def _calls_for(intent: str, case: Any, repository: FixtureRepository, lease_id: 
     if intent == "work_orders":
         return [("property.work_orders.read", {"lease_id": lease_id})]
     if intent == "clauses":
-        return [("document.search", {"query": case.user_input, "top_k": 3})]
+        # Task 021 / N3：条款检索必须先给出**可信租约**，由工具解析适用文档集合。
+        # 不带范围就等于"整个项目"，同项目其他租约的合同会混进本租约的结论。
+        return [
+            (
+                "document.search",
+                {"query": case.user_input, "top_k": 3, "lease_id": lease_id},
+            )
+        ]
     return [("lease.lookup", {"lease_id": lease_id})]
 
 

@@ -35,6 +35,7 @@ from ..agents.base.errors import (
     CapabilityUnavailableError,
     ErrorCode,
 )
+from ..agents.base.evidence import check_capability_output
 from ..agents.base.registry import AgentRegistry
 from ..fixtures.repository import FixtureRepository
 from .approval import (
@@ -154,7 +155,10 @@ class RuleBasedPlanner(Planner):
                 "billing": "billing.statement",
                 "property": "property.work_orders",
             }[domain]
-            task_payload: dict[str, Any] = {}
+            # 原问题必须下发给每个领域子任务（Task 021 / N5）：
+            # 模型只知道 "billing.statement" 这种能力名，没有原问题就无法判断"在问什么"，
+            # 只能凭猜；这在本轮实测中表现为 `question=""`。
+            task_payload: dict[str, Any] = {"question": text}
             if lease_id:
                 task_payload["lease_id"] = lease_id
             if unit_id:
@@ -323,6 +327,10 @@ def verify_results(
         documents = output.get("missing_documents") or []
         for doc_id in documents:
             missing.append(f"合同引用但未电子化的文档: {doc_id}")
+        # N4：不轻信"Agent 说自己成功"。按能力契约核对必需事实，
+        # 没有取到账单/租约/工单字段的子任务一律算证据不足。
+        for violation in check_capability_output(str(item.get("capability") or ""), output):
+            missing.append(f"子任务 {item.get('subtask_id')} {violation}")
         variance = output.get("rent_variance_total")
         if variance not in (None, "", "0.00", 0):
             conflicts.append(
@@ -564,6 +572,19 @@ def build_investigation_graph(
             set(state.get("missing", []))
             | {f"未获得子任务结果: {item}" for item in expected - completed}
         )
+        # N6：模型叙述与工具事实冲突时必须单列，不能让"内部事实正确"掩盖
+        # "用户读到的金额是错的"。这类运行一律要求人工复核。
+        narrative_discrepancies = [
+            {
+                "subtask_id": item["subtask_id"],
+                "capability": item["capability"],
+                "agent": item["agent"],
+                **check,
+            }
+            for item in results
+            if isinstance(check := (item.get("output") or {}).get("answer_check"), dict)
+            and check.get("status") == "mismatch"
+        ]
         report = {
             "question": state.get("question"),
             "lease_id": state.get("lease_id"),
@@ -597,7 +618,9 @@ def build_investigation_graph(
                     if item.get("subtask_id") in completed
                 }.values()
             ],
-            "requires_human_review": state.get("verdict") != "supported",
+            "narrative_discrepancies": narrative_discrepancies,
+            "requires_human_review": state.get("verdict") != "supported"
+            or bool(narrative_discrepancies),
             "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
         }
         if draft is not None:

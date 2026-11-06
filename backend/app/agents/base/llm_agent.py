@@ -25,7 +25,10 @@ from typing import Any, ClassVar
 from .base_agent import BaseAgent
 from .contracts import AgentContext, AgentOutput, AgentRequest, TokenUsage
 from .errors import AgentError, ErrorCode
+from .evidence import check_capability_output
 from .facts import facts_of_executions, outputs_of_executions
+from .narrative import check_answer_consistency
+from .scope import TaskScope
 from ...config.schema import AgentConfig
 from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
 from ...runtime.budget import Budget
@@ -94,6 +97,7 @@ class LLMToolAgent(BaseAgent):
 
         budget = self._budget if self._budget is not None else Budget(max_tool_calls=0)
         executor = ToolExecutor(self._tool_registry, budget, trace_log=self._trace_log)
+        scope = self._task_scope(request)
         messages = (
             ChatMessage(role="system", content=self.prompt_text),
             ChatMessage(
@@ -101,10 +105,13 @@ class LLMToolAgent(BaseAgent):
                 content=json.dumps(
                     {
                         "capability": request.capability,
-                        "question": request.payload.get("question")
+                        "question": scope.question
+                        or request.payload.get("question")
                         or request.payload.get("query")
                         or "",
-                        "lease_id": request.payload.get("lease_id"),
+                        "lease_id": scope.lease_id,
+                        "unit_id": scope.unit_id,
+                        "filters": dict(scope.filters),
                         "instruction": "只使用给定工具取数；金额与日期必须来自工具输出，不要自行计算",
                     },
                     ensure_ascii=False,
@@ -121,6 +128,9 @@ class LLMToolAgent(BaseAgent):
             agent_config=self.config,
             budget=budget,
             max_rounds=self.config.max_tool_rounds,
+            prepare_arguments=lambda tool_name, args: self._scope_arguments(
+                scope, tool_name, args
+            ),
         )
 
         error_code = _STOP_REASON_ERRORS.get(outcome.stop_reason)
@@ -137,11 +147,44 @@ class LLMToolAgent(BaseAgent):
                 },
             )
 
-        facts, per_tool = facts_of_executions(outcome.tool_executions)
-        outputs = outputs_of_executions(outcome.tool_executions)
+        # 纵深防御（N2）：即使工具被绕过、或工具自身返回了别的实体，也不能把它
+        # 绑进当前报告。只对"目标一致"的执行结果做后续事实提取。
+        accepted: list[Any] = []
+        rejected: list[str] = []
+        for execution in outcome.tool_executions:
+            reason = scope.accepts_output(execution.tool_name, execution.data or {})
+            if reason is None:
+                accepted.append(execution)
+            else:
+                rejected.append(reason)
+        facts, per_tool = facts_of_executions(tuple(accepted))
+        outputs = outputs_of_executions(tuple(accepted))
         # 统一输出契约：领域视图（lease/billing/property 字段）+ LLM 附加信息。
         # 图与报告只依赖这份领域视图，因此换模型不会改变下游语义。
         view = _domain_view(request.capability, outputs, outcome.evidence)
+        # N4：没有取到事实就不算完成。模型可以"看起来很确定"，但契约只认工具字段。
+        violations = check_capability_output(request.capability, view)
+        if violations:
+            raise AgentError(
+                "模型未取得该能力要求的事实，本次子任务不能算完成",
+                code=ErrorCode.INSUFFICIENT_EVIDENCE,
+                retryable=False,
+                details={
+                    "capability": request.capability,
+                    "violations": violations,
+                    "tool_calls": len(outcome.tool_executions),
+                    "rejected_outputs": list(rejected),
+                    "warnings": list(outcome.warnings),
+                    "answer_chars": len(outcome.answer or ""),
+                },
+            )
+        # N6：内部事实正确 ≠ 用户看到的金额正确。
+        answer_check = check_answer_consistency(outcome.answer, facts)
+        warnings = list(outcome.warnings) + list(rejected)
+        if not answer_check.ok:
+            warnings.append(
+                "模型叙述与工具事实不一致，已标记为待人工核对: " + answer_check.detail
+            )
         return AgentOutput(
             data={
                 **view,
@@ -165,8 +208,11 @@ class LLMToolAgent(BaseAgent):
                     "provider": self._model_client.provider,
                     "name": self._model_client.model_name,
                 },
+                "task_scope": scope.describe(),
+                "rejected_outputs": rejected,
+                "answer_check": answer_check.as_dict(),
             },
-            warnings=outcome.warnings,
+            warnings=tuple(warnings),
             token_usage=_usage_or_none(outcome.usage),
         )
 
@@ -177,6 +223,34 @@ class LLMToolAgent(BaseAgent):
         return tuple(
             name for name in allowed if name.startswith(self.tool_prefixes)
         )
+
+    # ---------------- 可信约束（Task 021） ----------------
+
+    @staticmethod
+    def _task_scope(request: AgentRequest) -> TaskScope:
+        """从**可信 payload**（planner 生成）构造本次任务范围。模型无法修改它。"""
+
+        payload = request.payload or {}
+        filters: dict[str, str] = {}
+        for key in ("category", "status"):
+            value = str(payload.get(key) or "").strip()
+            if value:
+                filters[key] = value
+        return TaskScope(
+            lease_id=str(payload.get("lease_id") or "").strip() or None,
+            unit_id=str(payload.get("unit_id") or "").strip() or None,
+            filters=filters,
+            question=str(payload.get("question") or payload.get("query") or "").strip(),
+        )
+
+    def _scope_arguments(
+        self, scope: TaskScope, tool_name: str, arguments: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        if self._tool_registry is None or tool_name not in self._tool_registry:
+            return dict(arguments), None
+        tool = self._tool_registry.get(tool_name)
+        fields = set(tool.input_model.model_fields)
+        return scope.apply_arguments(tool_name, fields, arguments)
 
 
 def _domain_view(

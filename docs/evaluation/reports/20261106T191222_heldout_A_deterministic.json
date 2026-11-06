@@ -1,0 +1,2517 @@
+{
+  "schema": "evaluation-report-v1",
+  "baseline": "A_deterministic",
+  "split": "heldout",
+  "bindings": {
+    "code_commit": "45af0cb06f912d7a6b0478214f71ed8d55575600",
+    "cases_path": "docs\\evaluation\\cases\\heldout_v3.jsonl",
+    "cases_sha256": "cf22fd467992f6c24d10776124f79ca88aeab773cac0e96efe09659097cd7f4f",
+    "fixture_sha256": "bcff5ce93b9b815c1bd65f15d6bb40f9f7c598a44a54ab86a994fde4a0321ff6",
+    "scoring_version": "scoring-v3",
+    "model": {
+      "provider": "offline_deterministic",
+      "model_name": "none",
+      "note": "本报告未调用任何模型（确定性规则路径）；token/成本不适用"
+    },
+    "config": {
+      "max_tool_calls": 12,
+      "max_total_tokens": 60000,
+      "baselines": [
+        "A_deterministic",
+        "B_single_agent",
+        "C_multi_agent"
+      ],
+      "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具"
+    }
+  },
+  "started_at": "2026-11-06T19:12:22.266635+00:00",
+  "duration_ms": 141,
+  "summary": {
+    "cases": 32,
+    "cases_scored": 30,
+    "cases_not_scored": [
+      "H25",
+      "H26"
+    ],
+    "cases_passed": 20,
+    "pass_rate": 0.6667,
+    "correctness_rate_mean": 0.725,
+    "correctness_note": "自动断言通过率；不含 rubric（人工量表）与路由效率",
+    "by_kind": {
+      "tool_facts": {
+        "assertions": 33,
+        "passed": 28,
+        "failed": 5,
+        "rate": 0.8485
+      },
+      "final_answer": {
+        "assertions": 9,
+        "passed": 9,
+        "failed": 0,
+        "rate": 1.0
+      },
+      "evidence": {
+        "assertions": 46,
+        "passed": 39,
+        "failed": 7,
+        "rate": 0.8478
+      },
+      "outcome": {
+        "assertions": 11,
+        "passed": 9,
+        "failed": 2,
+        "rate": 0.8182
+      },
+      "approval": {
+        "assertions": 2,
+        "passed": 0,
+        "failed": 2,
+        "rate": 0.0
+      }
+    },
+    "by_kind_note": "tool_facts=内部事实字段；final_answer=最终答案中的金额是否都来自可信事实；两者不可互相代替",
+    "routing": {
+      "cases_with_expectation": 32,
+      "route_in_allowed": 24,
+      "note": "仅效率指标，不参与 correctness"
+    },
+    "cost": {
+      "latency_ms_total": 85,
+      "latency_ms_p50": 0,
+      "latency_ms_max": 82,
+      "tool_calls": 27,
+      "model_calls": 0,
+      "total_tokens": 0,
+      "cost_amount": null,
+      "cost_basis": "unavailable_offline_no_pricing",
+      "note": "离线运行不产生真实 token/费用；不得作为真实模型成本引用"
+    },
+    "manual_queue_count": 2,
+    "failed_cases": [
+      {
+        "case_id": "H07",
+        "errors": []
+      },
+      {
+        "case_id": "H08",
+        "errors": []
+      },
+      {
+        "case_id": "H14",
+        "errors": []
+      },
+      {
+        "case_id": "H15",
+        "errors": []
+      },
+      {
+        "case_id": "H17",
+        "errors": []
+      },
+      {
+        "case_id": "H18",
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ]
+      },
+      {
+        "case_id": "H19",
+        "errors": []
+      },
+      {
+        "case_id": "H20",
+        "errors": []
+      },
+      {
+        "case_id": "H24",
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ]
+      },
+      {
+        "case_id": "H30",
+        "errors": []
+      }
+    ],
+    "by_case_count": 32
+  },
+  "rows": [
+    {
+      "case_id": "H01",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 8,
+      "correctness_total": 8,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H01-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H01-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H01-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H01-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H01-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H01-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H01-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H01-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H01",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 82,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H02",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 8,
+      "correctness_total": 8,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H02-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H02-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H02-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H02-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H02-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H02-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H02-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H02-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H02",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 1,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H03",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 8,
+      "correctness_total": 8,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H03-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H03-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H03-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H03-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H03-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H03-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H03-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H03-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H03",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H04",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 8,
+      "correctness_total": 8,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H04-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H04-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H04-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H04-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H04-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H04-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H04-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H04-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H04",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H05",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H05-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H05-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H05-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H05",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H06",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H06-N:18036.00",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H06-O",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "按预期被拒绝"
+        },
+        {
+          "assertion_id": "H06-O:code",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "期望错误码 permission_denied，实际 [\"permission_denied: 工具 'billing.statement.read' 需要权限 ['billing.read']，当前调用方不具备\"]"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H06",
+        "status": "denied",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "permission_denied: 工具 'billing.statement.read' 需要权限 ['billing.read']，当前调用方不具备"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H07",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 2,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H07-F:outstanding_total",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 outstanding_total='18036.00'，基线未提供该字段"
+        },
+        {
+          "assertion_id": "H07-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['inv_2026_10']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H07",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 1,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H08",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 2,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H08-F:invoiced_total",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 invoiced_total='52596.00'，基线未提供该字段"
+        },
+        {
+          "assertion_id": "H08-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['itm_inv10_rent']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H08",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H09",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H09-F:lease_period",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_period=2025-01-01 至 2027-12-31，实际 2025-01-01 至 2027-12-31"
+        },
+        {
+          "assertion_id": "H09-F:lease_status",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_status=active，实际 active"
+        },
+        {
+          "assertion_id": "H09-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H09",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H10",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H10-F:lease_period",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_period=2025-03-01 至 2027-02-28，实际 2025-03-01 至 2027-02-28"
+        },
+        {
+          "assertion_id": "H10-F:lease_status",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_status=active，实际 active"
+        },
+        {
+          "assertion_id": "H10-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H10",
+        "status": "ok",
+        "answer": "租期 2025-03-01 至 2027-02-28，状态 active。",
+        "facts": {
+          "lease_period": "2025-03-01 至 2027-02-28",
+          "lease_status": "active",
+          "missing_document_ids": []
+        },
+        "evidence_ids": [
+          "lease_xh_a302_2025",
+          "unit_xh_a302",
+          "ten_xh_wenju"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H11",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H11-N:2028-05-31",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H11-O",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "按预期被拒绝"
+        },
+        {
+          "assertion_id": "H11-O:code",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "期望错误码 project_scope_denied，实际 [\"project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）\"]"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H11",
+        "status": "denied",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H12",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H12-N:2027-12-31",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H12-O",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "按预期被拒绝"
+        },
+        {
+          "assertion_id": "H12-O:code",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "期望错误码 permission_denied，实际 [\"permission_denied: 工具 'lease.lookup' 需要权限 ['lease.read']，当前调用方不具备\"]"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H12",
+        "status": "denied",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "permission_denied: 工具 'lease.lookup' 需要权限 ['lease.read']，当前调用方不具备"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H13",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H13-F:open_count",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 open_count=1，实际 1"
+        },
+        {
+          "assertion_id": "H13-F:work_order_count",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 work_order_count=4，实际 4"
+        },
+        {
+          "assertion_id": "H13-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H13",
+        "status": "ok",
+        "answer": "相关工单 4 条，未关闭 1 条。",
+        "facts": {
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H14",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H14-F:work_order_count",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 work_order_count=3，实际 4"
+        },
+        {
+          "assertion_id": "H14-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H14",
+        "status": "ok",
+        "answer": "相关工单 4 条，未关闭 1 条。",
+        "facts": {
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H15",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 4,
+      "correctness_rate": 0.75,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H15-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H15-F:work_order_count",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 work_order_count='4'，基线未提供该字段"
+        },
+        {
+          "assertion_id": "H15-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H15-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H15",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H16",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H16-N:wo_2026_07_12",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H16-O",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "按预期被拒绝"
+        },
+        {
+          "assertion_id": "H16-O:code",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "期望错误码 project_scope_denied，实际 [\"project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）\"]"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H16",
+        "status": "denied",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "project_scope_denied: 无权访问租约（项目 'prj_jinlan' 不在可信上下文的项目范围内）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H17",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H17-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p12#5.2']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H17",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H18",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 2,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H18-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p20#7.1']"
+        },
+        {
+          "assertion_id": "H18-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "基线未给出答案（status=failed）: ['未能识别意图（确定性基线不做猜测）']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H18",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 0,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H19",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H19-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p14#6.1']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H19",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H20",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H20-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_property_policy#v1#p1#3.1']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H20",
+        "status": "ok",
+        "answer": "相关工单 4 条，未关闭 1 条。",
+        "facts": {
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H21",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 2,
+      "correctness_total": 2,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H21-N:押金必须",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H21-N:保证金收取",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H21",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H22",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 1,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H22-F:missing_document_ids",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 missing_document_ids=['doc_xh_a301_annex_b']，实际 ['doc_xh_a301_annex_b']"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H22",
+        "status": "ok",
+        "answer": "租期 2025-01-01 至 2027-12-31，状态 active。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H23",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H23-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H23-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H23-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H23",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 1,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H24",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 4,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H24-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['itm_inv10_rent']"
+        },
+        {
+          "assertion_id": "H24-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "基线未给出答案（status=failed）: ['未能识别意图（确定性基线不做猜测）']"
+        },
+        {
+          "assertion_id": "H24-A:status",
+          "kind": "approval",
+          "passed": false,
+          "detail": "期望 approval_status=unavailable，实际 None"
+        },
+        {
+          "assertion_id": "H24-A:version",
+          "kind": "approval",
+          "passed": false,
+          "detail": "期望草案版本 2，实际 None"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H24",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 0,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H25",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": null,
+      "applicable": false,
+      "correctness_passed": 0,
+      "correctness_total": 0,
+      "correctness_rate": null,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H25: 该题声明为人工评定（scorable=false），不参与自动通过率"
+      ],
+      "assertions": [],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H25",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 0,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H26",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": null,
+      "applicable": false,
+      "correctness_passed": 0,
+      "correctness_total": 0,
+      "correctness_rate": null,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H26: 该题声明为人工评定（scorable=false），不参与自动通过率"
+      ],
+      "assertions": [],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H26",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 0,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H27",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 1,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H27-O",
+          "kind": "outcome",
+          "passed": true,
+          "detail": "按预期明确失败"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H27",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 0,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [
+          "未能识别意图（确定性基线不做猜测）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H28",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 2,
+      "correctness_total": 2,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H28-N:18036.00",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H28-N:52596.00",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H28",
+        "status": "ok",
+        "answer": "应收 0.00、已收 0.00、未收 0.00。",
+        "facts": {
+          "invoiced_total": "0.00",
+          "paid_total": "0.00",
+          "outstanding_total": "0.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a302_2025"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H29",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 1,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H29-N:已冲抵",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H29",
+        "status": "ok",
+        "answer": "应收 0.00、已收 0.00、未收 0.00。",
+        "facts": {
+          "invoiced_total": "0.00",
+          "paid_total": "0.00",
+          "outstanding_total": "0.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a302_2025"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H30",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H30-F:work_order_count",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 work_order_count=1，实际 4"
+        },
+        {
+          "assertion_id": "H30-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H30",
+        "status": "ok",
+        "answer": "相关工单 4 条，未关闭 1 条。",
+        "facts": {
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H31",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 7,
+      "correctness_total": 7,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H31-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H31-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H31-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H31-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H31-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H31-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H31-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H31",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    },
+    {
+      "case_id": "H32",
+      "baseline": "A_deterministic",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 7,
+      "correctness_total": 7,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "efficiency": {
+        "route": "deterministic",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": true,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H32-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H32-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H32-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H32-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H32-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H32-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H32-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "A_deterministic",
+        "case_id": "H32",
+        "status": "ok",
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "deterministic",
+        "latency_ms": 0,
+        "tool_calls": 1,
+        "model_calls": 0,
+        "total_tokens": 0,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null
+      }
+    }
+  ]
+}

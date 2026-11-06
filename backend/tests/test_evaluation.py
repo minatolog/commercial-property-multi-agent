@@ -42,7 +42,13 @@ def _result(**overrides) -> BaselineResult:
         case_id="T01",
         status="ok",
         answer="应收 52596.00、已收 34560.00、未收 18036.00。",
-        facts={"outstanding_total": "18036.00"},
+        # 答案里出现的金额必须都能在 facts 中找到（N6）：夹具本身也要自洽，
+        # 否则"答案正确性"断言会因为夹具写错而误判。
+        facts={
+            "invoiced_total": "52596.00",
+            "paid_total": "34560.00",
+            "outstanding_total": "18036.00",
+        },
         evidence_ids=["inv_2026_10"],
         route="deterministic",
         latency_ms=5,
@@ -120,7 +126,8 @@ class TestScoring(unittest.TestCase):
         case = _case(expected_facts={"outstanding_total": "18036.00"})
         score = score_case(case, _result())
         self.assertTrue(score.passed)
-        self.assertEqual(score.correctness_total, 1)
+        # scoring-v3：1 条事实断言 + 1 条最终答案准确性断言
+        self.assertEqual(score.correctness_total, 2)
 
     def test_approximate_amount_fails(self) -> None:
         case = _case(expected_facts={"outstanding_total": "18036.00"})
@@ -147,7 +154,9 @@ class TestScoring(unittest.TestCase):
         case = _case(required_evidence_ids=("inv_2026_10", "itm_inv10_rent"))
         score = score_case(case, _result())
         self.assertFalse(score.passed)
-        self.assertIn("缺少证据", score.outcomes[0].detail)
+        evidence = [item for item in score.outcomes if item.kind == "evidence"]
+        self.assertTrue(evidence)
+        self.assertIn("缺少证据", evidence[0].detail)
 
     def test_forbidden_substring_fails(self) -> None:
         case = _case(forbidden_substrings=("约 ",))
@@ -176,9 +185,9 @@ class TestScoring(unittest.TestCase):
                 "valid_paid_total": "34560.00",
             }
         )
-        score = score_case(case, _result(facts={"outstanding_total": "18036.00"}))
-        self.assertEqual(score.correctness_total, 1)
-        self.assertEqual(score.correctness_passed, 1)
+        score = score_case(case, _result(facts=_result().facts))
+        self.assertEqual(score.correctness_total, 2)
+        self.assertEqual(score.correctness_passed, 2)
         self.assertTrue(score.passed)
         self.assertEqual(
             len([item for item in score.manual_queue if "契约未定义键" in item]), 2
@@ -193,7 +202,7 @@ class TestScoring(unittest.TestCase):
             ),
         )
         score = score_case(case, _result())
-        self.assertEqual(score.correctness_total, 1)
+        self.assertEqual(score.correctness_total, 2)
         self.assertTrue(any("金额表述为确定值" in item for item in score.manual_queue))
 
     def test_denied_baseline_always_fails_some_assertion(self) -> None:
@@ -203,7 +212,7 @@ class TestScoring(unittest.TestCase):
         self.assertFalse(score.passed)
 
     def test_scoring_version_is_declared(self) -> None:
-        self.assertEqual(SCORING_VERSION, "scoring-v2")
+        self.assertEqual(SCORING_VERSION, "scoring-v3")
 
 
 class TestFactFieldBinding(unittest.TestCase):
@@ -391,7 +400,7 @@ class TestRunnerBindings(unittest.IsolatedAsyncioTestCase):
         cases = load_cases(split="heldout")[:2]
         report = await evaluate(baseline="A_deterministic", cases=cases, split="heldout")
         payload = report.as_dict()
-        self.assertEqual(payload["bindings"]["scoring_version"], "scoring-v2")
+        self.assertEqual(payload["bindings"]["scoring_version"], "scoring-v3")
         self.assertEqual(payload["bindings"]["model"]["provider"], "offline_deterministic")
         self.assertEqual(len(payload["bindings"]["cases_sha256"]), 64)
         self.assertIn("code_commit", payload["bindings"])

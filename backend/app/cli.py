@@ -278,7 +278,11 @@ def _tool_registry(repository: FixtureRepository) -> ToolRegistry:
         fixture_catalog(repository), as_of_date=repository.as_of_date
     )
     if library.indexed:
-        registry.register(DocumentSearchTool(library.service, library=library))
+        # CLI 的 `search` 是人工交互式检索（用户自己指定词），允许不限定租约；
+        # Agent 调查路径由 `build_investigation_bundle` 装配，默认要求可信范围。
+        registry.register(
+            DocumentSearchTool(library.service, library=library, require_scope=False)
+        )
     return registry
 
 

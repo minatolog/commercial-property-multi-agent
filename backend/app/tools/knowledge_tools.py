@@ -31,6 +31,9 @@ class DocumentSearchInput(_StrictModel):
     document_version: int | None = Field(default=None, ge=1)
     #: 只允许检索这些文档（由调用方按租约解析；空列表等价于"不允许任何文档"）
     document_ids: list[str] | None = None
+    #: 本次任务的目标租约。给了它，工具就**自己**解析适用文档集合，
+    #: 不再依赖模型主动填 `document_ids`（Task 021 / N3）。
+    lease_id: str | None = None
     #: 额外允许**项目级公共**文档（租约无关的制度/规范）
     include_project_documents: bool = True
     #: 是否同时检索**未签署草案**（Task 017 / R4）。默认否：
@@ -78,28 +81,66 @@ class DocumentSearchTool(BaseTool):
         *,
         library: Any = None,
         lease_id: str | None = None,
+        require_scope: bool = True,
     ) -> None:
         self._service = service
         self._library = library
         self._lease_id = lease_id
+        #: Agent 调用必须能确定范围；CLI 的交互式检索才允许"全库搜索"
+        self._require_scope = require_scope
+
+    def _resolve_allowed(
+        self, payload: DocumentSearchInput, *, statuses: frozenset[str]
+    ) -> frozenset[str] | None:
+        """解析本次允许的文档集合（Task 021 / N3）。
+
+        优先级：可信的 `lease_id`（调用方/scope 注入）> 模型给的 `document_ids`。
+
+        为什么必须以租约为准：模型可以省略 `document_ids`，一省略就等于"整个项目"，
+        于是同项目另一个租约的合同会进入本租约的报告。这里由工具自己解析租约的
+        适用文档集，再与模型显式给出的集合**取交集**——模型既不能省略扩大到项目，
+        也不能点名别的租约的合同。
+
+        既没有 `lease_id` 也没有 `document_ids` 时：受控调用（`require_scope=True`）
+        返回**空集合**（默认拒绝），而不是"不限"。
+        """
+
+        if self._library is None:
+            return None if payload.document_ids is None else frozenset(payload.document_ids)
+
+        lease_id = payload.lease_id or self._lease_id
+        requested: frozenset[str] | None = (
+            None if payload.document_ids is None else frozenset(payload.document_ids)
+        )
+        if not lease_id:
+            if requested is None:
+                return frozenset() if self._require_scope else None
+            if not payload.include_project_documents:
+                return requested
+            return requested | frozenset(
+                self._library.project_document_ids(
+                    statuses=("signed", "draft") if payload.include_drafts else ("signed",)
+                )
+            )
+
+        allowed = set(self._library.document_ids_for_lease(lease_id, statuses=tuple(statuses)))
+        if not payload.include_project_documents:
+            allowed = {
+                document_id
+                for document_id in allowed
+                if self._library.scope_of(document_id) != "project"
+            }
+        if requested is not None:
+            allowed &= set(requested)
+        return frozenset(allowed)
 
     async def invoke(
         self, payload: DocumentSearchInput, context: AgentContext
     ) -> ToolInvocation:
-        allowed: frozenset[str] | None = None
-        if payload.document_ids is not None:
-            allowed = frozenset(payload.document_ids)
-            if payload.include_project_documents and self._library is not None:
-                allowed = allowed | frozenset(
-                    self._library.project_document_ids(
-                        statuses=("signed", "draft")
-                        if payload.include_drafts
-                        else ("signed",)
-                    )
-                )
         statuses = (
             frozenset({"signed", "draft"}) if payload.include_drafts else frozenset({"signed"})
         )
+        allowed = self._resolve_allowed(payload, statuses=statuses)
         hits = self._service.search(
             payload.query,
             document_id=payload.document_id,

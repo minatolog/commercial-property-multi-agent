@@ -21,6 +21,7 @@ class ErrorCode(StrEnum):
     TOOL_NOT_FOUND = "tool_not_found"
     INVALID_TOOL_ARGUMENTS = "invalid_tool_arguments"
     INVALID_TOOL_RESULT = "invalid_tool_result"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     TOOL_TIMEOUT = "tool_timeout"
     BUDGET_EXHAUSTED = "budget_exhausted"
     PERMISSION_DENIED = "permission_denied"
@@ -142,6 +143,12 @@ class InvalidToolArgumentsError(AgentError):
 
 class InvalidToolResultError(AgentError):
     default_code = ErrorCode.INVALID_TOOL_RESULT
+
+
+class InsufficientEvidenceError(AgentError):
+    """能力要求的事实没有取到（Task 021 / N4）。不可重试：重试同一模型不会凭空产生数据。"""
+
+    default_code = ErrorCode.INSUFFICIENT_EVIDENCE
 
 
 class BudgetExhaustedError(AgentError):

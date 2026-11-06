@@ -82,6 +82,24 @@ class EvaluationReport:
         }
 
 
+def _kind_stats(scores: list[CaseScore], kind: str) -> dict[str, Any]:
+    """按断言类别分开统计（N6）：工具事实准确性与最终答案准确性不能相互代表。"""
+
+    outcomes = [
+        outcome
+        for score in scores
+        for outcome in score.outcomes
+        if outcome.kind == kind and outcome.passed is not None
+    ]
+    passed = sum(1 for outcome in outcomes if outcome.passed)
+    return {
+        "assertions": len(outcomes),
+        "passed": passed,
+        "failed": len(outcomes) - passed,
+        "rate": round(passed / len(outcomes), 4) if outcomes else None,
+    }
+
+
 def _summarise(
     scores: list[CaseScore],
     results: list[BaselineResult],
@@ -121,6 +139,19 @@ def _summarise(
             round(sum(correctness) / len(correctness), 4) if correctness else None
         ),
         "correctness_note": "自动断言通过率；不含 rubric（人工量表）与路由效率",
+        # N6：把"内部工具事实对不对"与"用户看到的答案对不对"拆开报告，
+        # 避免用前者替后者背书。
+        "by_kind": {
+            "tool_facts": _kind_stats(scores, "facts"),
+            "final_answer": _kind_stats(scores, "answer"),
+            "evidence": _kind_stats(scores, "evidence"),
+            "outcome": _kind_stats(scores, "outcome"),
+            "approval": _kind_stats(scores, "approval"),
+        },
+        "by_kind_note": (
+            "tool_facts=内部事实字段；final_answer=最终答案中的金额是否都来自可信事实；"
+            "两者不可互相代替"
+        ),
         "routing": {
             "cases_with_expectation": len(route_hits),
             "route_in_allowed": sum(1 for hit in route_hits if hit),
@@ -282,6 +313,30 @@ def render_markdown(reports: list[EvaluationReport]) -> str:
         )
     lines.append("")
     lines.append("> 路由命中只作效率指标；自动断言通过率不含人工量表（rubric）。")
+    lines.append("")
+
+    lines.append("## 指标分解（工具事实 vs 最终答案）")
+    lines.append("")
+    lines.append("| 基线 | 工具事实断言 | 工具事实通过率 | 最终答案断言 | 最终答案通过率 |")
+    lines.append("|---|---|---|---|---|")
+    for report in reports:
+        by_kind = report.summary.get("by_kind") or {}
+        facts = by_kind.get("tool_facts") or {}
+        answer = by_kind.get("final_answer") or {}
+        lines.append(
+            "| {b} | {fa} | {fr} | {aa} | {ar} |".format(
+                b=report.baseline,
+                fa=facts.get("assertions", 0),
+                fr=facts.get("rate"),
+                aa=answer.get("assertions", 0),
+                ar=answer.get("rate"),
+            )
+        )
+    lines.append("")
+    lines.append(
+        "> 工具事实准确率回答\"取数对不对\"；最终答案准确率回答\"用户看到的金额对不对\"。"
+        "两者分开统计，任何一方为 `None` 表示本次没有可判定断言（不是通过）。"
+    )
     lines.append("")
 
     for report in reports:

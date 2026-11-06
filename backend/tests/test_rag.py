@@ -599,13 +599,21 @@ class TestDocumentStatusPolicy(unittest.TestCase):
         import asyncio
 
         tool = DocumentSearchTool(self.library.service, library=self.library)
-        payload = tool.input_model(query="租金递增百分之二十", top_k=5)
+        # 受控调用必须有可信范围（无范围默认拒绝，见 N3）
+        payload = tool.input_model(
+            query="租金递增百分之二十",
+            top_k=5,
+            document_ids=["doc_xh_a301_contract"],
+        )
         invocation = asyncio.run(tool.invoke(payload, _context("prj_xinghui")))
         statuses = {item["document_status"] for item in invocation.data["results"]}
         self.assertNotIn("draft", statuses)
 
         with_drafts = tool.input_model(
-            query="租金递增百分之二十", top_k=5, include_drafts=True
+            query="租金递增百分之二十",
+            top_k=5,
+            document_ids=["doc_xh_a301_contract"],
+            include_drafts=True,
         )
         invocation = asyncio.run(tool.invoke(with_drafts, _context("prj_xinghui")))
         statuses = {item["document_status"] for item in invocation.data["results"]}

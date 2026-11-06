@@ -48,6 +48,7 @@ class Budget:
         self._used: dict[str, int] = {"tool": 0, "model": 0, "tokens": 0}
         self._reserved: dict[str, _Reservation] = {}
         self._settled: dict[str, str] = {}
+        self._exceeded_tokens = 0
         self._lock = asyncio.Lock()
 
     # ---------------- 预留 ----------------
@@ -112,6 +113,23 @@ class Budget:
         async with self._lock:
             self._reserved.pop(call_id, None)
 
+    async def record_unbudgeted_tokens(self, tokens: int) -> None:
+        """记录**已经真实发生**但没能预留的 token（Task 021 / N1）。
+
+        为什么需要它：token 只有在响应返回后才知道，所以 `max_total_tokens` 无法事前
+        拦截一次调用。若超限后干脆不记账，账本就会低估真实消耗（实测：真实 30 tokens
+        只记 10）。这里选择"如实记账 + 单独标记超出量"，让上限继续阻止**后续**调用，
+        同时不歪曲已经发生的成本。
+        """
+
+        if tokens <= 0:
+            return
+        async with self._lock:
+            limit = self._max_total_tokens
+            room = max(0, limit - self._used["tokens"])
+            self._used["tokens"] += tokens
+            self._exceeded_tokens += max(0, tokens - room)
+
     # ---------------- 查询 ----------------
 
     def snapshot(self) -> BudgetUsage:
@@ -122,6 +140,7 @@ class Budget:
             used_tool_calls=self._used["tool"],
             used_model_calls=self._used["model"],
             used_total_tokens=self._used["tokens"],
+            exceeded_tokens=self._exceeded_tokens,
         )
 
     # ---------------- 内部 ----------------

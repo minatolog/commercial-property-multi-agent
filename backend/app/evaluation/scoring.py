@@ -22,6 +22,16 @@
 **变更记录（scoring-v2）**：v1 把答案与全部事实拼成一个字符串做子串匹配，
 导致"三个金额互换"仍能满分（F1），并对任何 `status=denied` 无条件扣分（F2）。
 v2 改为按字段类型化比较，并让拒绝语义由用例显式声明。
+
+**变更记录（scoring-v3，Task 021 / N6）**：v2 只比对内部 `facts`，模型可以
+"工具算出未收 18036.00、却回答未收 0.00 已结清"而仍然得分。v3 增加第五类断言
+
+| kind | 判定依据 |
+|---|---|
+| `answer` | 答案文本中出现的金额必须来自可信事实；出现事实之外的金额即失败，未提及转人工 |
+
+`answer` 断言答的是"用户看到的东西对不对"，`facts` 断言答的是"内部取数对不对"，
+两者在汇总里分开统计，不允许用前者代替后者或反之。
 """
 
 from __future__ import annotations
@@ -30,13 +40,14 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from ..agents.base.narrative import check_answer_consistency
 from .baselines import BaselineResult
 from .cases import EvalCase
 
 __all__ = ["CaseScore", "score_case", "SCORING_VERSION", "MONEY_FACT_KEYS"]
 
 #: 评分规则版本。任何判定逻辑变更都必须提升该版本，并新建报告（不覆盖历史）。
-SCORING_VERSION = "scoring-v2"
+SCORING_VERSION = "scoring-v3"
 
 #: 金额类事实键：按 Decimal 比到分（`0.01`）。浮点或字符串近似一律不接受。
 MONEY_FACT_KEYS: frozenset[str] = frozenset(
@@ -192,6 +203,8 @@ class CaseScore:
     outcomes: list[AssertionOutcome] = field(default_factory=list)
     efficiency: dict[str, Any] = field(default_factory=dict)
     manual_queue: list[str] = field(default_factory=list)
+    #: 最终答案与工具事实的一致性结论（N6）：status/trusted/unverified/missing
+    answer_check: dict[str, Any] | None = None
 
     @property
     def correctness_rate(self) -> float | None:
@@ -221,6 +234,7 @@ class CaseScore:
             "correctness_passed": self.correctness_passed,
             "correctness_total": self.correctness_total,
             "correctness_rate": self.correctness_rate,
+            "answer_check": self.answer_check,
             "efficiency": self.efficiency,
             "manual_queue": list(self.manual_queue),
             "assertions": [item.as_dict() for item in self.outcomes],
@@ -231,6 +245,14 @@ def _haystack(result: BaselineResult) -> str:
     pieces = [result.answer]
     pieces.extend(f"{key}={value}" for key, value in result.facts.items())
     return "\n".join(pieces)
+
+
+def _declares_content_expectation(case: EvalCase) -> bool:
+    """用例是否真的声明了"内容对不对"的断言（而不是只声明路由/结局）。"""
+
+    if case.required_evidence_ids:
+        return True
+    return any(key in SCORABLE_FACT_KEYS for key in case.expected_facts)
 
 
 def score_case(case: EvalCase, result: BaselineResult) -> CaseScore:
@@ -281,6 +303,19 @@ def score_case(case: EvalCase, result: BaselineResult) -> CaseScore:
             continue
         passed, detail = _compare_fact(key, expected, result.facts.get(key))
         record(f"{case.case_id}-F:{key}", "facts", passed, detail)
+
+    # 1b) 最终答案准确性（N6）：用户看到的金额必须来自可信事实。
+    # 只有用例本身声明了可判定的内容断言（事实或证据）时才登记——
+    # 只用例声明"路由"的题仍必须保持 denominator=0（路由只算效率）。
+    if _declares_content_expectation(case):
+        answer_check = check_answer_consistency(result.answer, result.facts)
+        score.answer_check = answer_check.as_dict()
+        if answer_check.status == "mismatch":
+            record(f"{case.case_id}-AN", "answer", False, answer_check.detail)
+        elif answer_check.status == "not_mentioned":
+            record(f"{case.case_id}-AN", "answer", None, answer_check.detail)
+        elif answer_check.status == "consistent":
+            record(f"{case.case_id}-AN", "answer", True, answer_check.detail)
 
     # 2) 证据与禁用内容
     if case.required_evidence_ids:

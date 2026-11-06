@@ -295,6 +295,10 @@ class BudgetUsage(BaseModel):
     used_tool_calls: int = 0
     used_model_calls: int = 0
     used_total_tokens: int = 0
+    #: 已经真实发生、但超出上限的 token（Task 021 / N1）。
+    #: token 只能事后知道，所以上限无法事前拦截；这里如实记录超出量，
+    #: 让"账本"与"真实消耗"永远一致，而不是把超出部分悄悄丢掉。
+    exceeded_tokens: int = 0
 
 
 class RuntimeResult(BaseModel):

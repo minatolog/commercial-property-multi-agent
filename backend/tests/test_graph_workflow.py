@@ -127,7 +127,17 @@ class TestVerifyResults(unittest.TestCase):
     def test_zero_variance_is_not_conflict(self) -> None:
         verdict, conflicts, _ = verify_results(
             plan=[{"subtask_id": "st_1"}],
-            results=[self._result("st_1", rent_variance_total="0.00")],
+            # N4：满足能力契约的账单结果必须带齐工具事实，缺字段属于证据不足
+            results=[
+                self._result(
+                    "st_1",
+                    lease_id="l1",
+                    invoiced_total="52596.00",
+                    paid_total="52596.00",
+                    outstanding_total="0.00",
+                    rent_variance_total="0.00",
+                )
+            ],
             failures=[],
         )
         self.assertEqual(verdict, "supported")
