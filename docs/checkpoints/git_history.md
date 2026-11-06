@@ -58,6 +58,28 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-07] 任务 019 - 让 `.env` 真正生效
+
+- **开发阶段**：环境配置 / 可用性修复。
+- **对应任务**：019（用户问"在哪里填写 key"触发的核对）。
+- **Git 分支**：`main`。
+- **Commit Hash**：提交后回填。
+- **变更**：新增 `backend/app/env.py`；CLI 与 API 入口加载 `.env`；`.env.example` / 两个 README 说明；新增 15 项测试。
+- **验证结果**：
+  - `python -m unittest discover -s tests -p "test_*.py"` → **299 项通过**；
+  - `python tests/smoke_agent_contracts.py` → **57 项通过**；
+  - `git check-ignore -v .env` → 确认不入库；
+  - `.env` 填占位值后 `build_model_client("deepseek")` 可构造客户端（证明填了就被用上）；
+  - `.env` 留空时 `--model-provider deepseek` → EXIT=2 + `MissingApiKeyError`。
+- **未完成**：真实 DeepSeek 调用（需项目所有者填入自己的 Key）。
+- **回滚参考**（仅在项目所有者确认后执行）：
+
+```powershell
+git --no-pager show <hash> --stat
+```
+
+---
+
 ## [2026-11-07] 任务 018 - 模型驱动的领域 Agent 与 B/C 真实运行入口
 
 - **开发阶段**：Agent / Runtime / 评测装配。

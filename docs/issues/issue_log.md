@@ -54,6 +54,62 @@
 
 ---
 
+## [2026-11-07] 任务 019：`.env.example` 承诺的 `.env` 支持从未实现
+
+- **关联任务**：019
+- **严重程度**：中（配置静默失效，用户会以为"key 填了没用"）
+- **状态**：已解决
+
+### 现象
+
+`.env.example` 第一条写着"复制为 .env（.env 已被 .gitignore 忽略）或直接 export"。
+用户照做，把 `DEEPSEEK_API_KEY` 填进 `.env`，然后运行 `--model-provider deepseek`：
+
+```text
+[error] MissingApiKeyError: 环境变量 DEEPSEEK_API_KEY 未设置
+```
+
+### 错误信息
+
+```text
+[error] MissingApiKeyError: 环境变量 DEEPSEEK_API_KEY 未设置；API Key 不得写入 YAML 或提交到仓库
+```
+
+### 原因分析
+
+代码只读 `os.environ`（`app/llm/adapter.py` 的 `resolve_api_key`），
+而项目**没有** `python-dotenv` 依赖，也没有任何自写的 `.env` 加载逻辑。
+`.env` 文件被创建后，对程序而言完全不存在。
+
+这类缺陷的典型特征：**模板、文档、忽略规则都齐了，只缺执行的那一行**。
+因为不会报错（只是"读不到"），所以比崩溃更难被发现。
+
+### 解决方案
+
+新增 `backend/app/env.py`：
+
+```python
+load_project_env()   # 读 REPO_ROOT/.env 与 backend/.env，只补空缺
+```
+
+并接入两个真实入口：`app/cli.py::main()` 与 `app/api/app.py` 模块导入。
+
+优先级与安全：
+
+- 已存在的环境变量优先（部署系统注入的值不会被本地文件覆盖）；
+- `.env` 空值不覆盖已导出的非空值；
+- 加载结果只返回**键名**，日志与错误里不出现值；
+- `.env` 保持被 `.gitignore` 忽略（`git check-ignore` 已验证）。
+
+### 如何避免再次出现
+
+1. **模板文件里的每条承诺都要有一条测试**：本例只需一个"填了就能读到"的断言即可拦住。
+2. 配置项存在 ≠ 配置路径可用。凡是"文档说可以"，都要有一次端到端验证。
+3. 新增启动入口（CLI / uvicorn / worker）时，把配置加载挂在**每个入口**上，
+   而不是只挂在"我平时用的那个"。
+
+---
+
 ## [2026-11-07] 任务 018：并发子任务的模型调用被预算去重吞掉
 
 - **关联任务**：018

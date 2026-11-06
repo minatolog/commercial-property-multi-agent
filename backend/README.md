@@ -19,6 +19,19 @@ cd backend
 python -m pip install -e .          # 仅首次
 ```
 
+### 配置真实模型的 Key
+
+`DEEPSEEK_API_KEY` 只从环境变量或仓库根 `.env` 读取（**不**写在 YAML/代码里）：
+
+```powershell
+cd D:\commercial-property-multi-agent
+Copy-Item .env.example .env     # 仅首次；.env 已被 .gitignore 忽略
+notepad .env                    # 填 DEEPSEEK_API_KEY=sk-...
+```
+
+CLI 与 `uvicorn` 启动时都会自动读取 `.env`；已存在的环境变量优先，`.env` 只补空缺。
+未配置时 `--model-provider deepseek` 会明确抛 `MissingApiKeyError`，不会静默降级成离线。
+
 ## 2. 常用命令（在 `backend/` 目录下）
 
 ```bash

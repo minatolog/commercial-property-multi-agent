@@ -58,6 +58,71 @@
 
 ---
 
+## [2026-11-07] 任务 019 - 让 `.env` 真正生效（密钥填写路径）
+
+- **日期**：2026-11-07
+- **开发阶段**：环境配置 / 可用性修复
+- **执行者**：AI 助手（VS Code Copilot SDK 会话）
+- **对应 Prompt 归档**：`docs/prompts/01_environment/2026-11-07_019_env_file_loading.md`
+- **起因**：用户问"在哪里填写 key"；核对发现 `.env.example` 承诺的 `.env` 支持**从未实现**（代码只读 `os.environ`）。
+
+### 本次完成的功能
+
+- 新增 `backend/app/env.py`：无第三方依赖的 `.env` 解析与加载（`parse_env_text` / `load_env_file` / `load_project_env`）。
+- 接入两个真实入口：CLI `main()` 与 `app/api/app.py` 模块导入（覆盖 `uvicorn` 启动方式）。
+- 优先级明确：**已导出的环境变量优先**，`.env` 只补空缺；空值不覆盖真值。
+- 文档更新：`.env.example` 头部说明、根 README"在哪里填 Key"、backend README 配置段。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 是否引入 `python-dotenv` | 不引入，自己写约 60 行 | 只需要 `KEY=VALUE` 子集；不为一条配置路径新增依赖 |
+| 加载位置 | CLI 入口 + API 模块导入 | 两个真实启动方式都要覆盖；只加其中一个会留下"另一种启动方式读不到"的坑 |
+| 优先级 | 环境变量 > `.env` | 部署环境（系统变量/容器注入）必须能覆盖本地文件 |
+| 空值处理 | `.env` 的空值不覆盖已存在的非空变量 | 避免模板里的空键把真实配置"清空" |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/env.py` | 新增 |
+| `backend/app/cli.py`、`backend/app/api/app.py` | 加载 `.env` |
+| `backend/tests/test_env.py` | 新增 15 项 |
+| `.env.example`、`README.md`、`backend/README.md` | 说明与填法 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 全量单元测试 | `python -m unittest discover -s tests -p "test_*.py"` | **299 项通过** |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | **57 项通过** |
+| `.env` 不入库 | `git check-ignore -v .env` | `.gitignore:4:.env` |
+| 填了就被用上 | `.env` 填占位值 → `build_model_client("deepseek")` | 构造出 `LangChainChatModelClient`（provider=deepseek） |
+| 留空仍明确失败 | `.env` 留空 → `investigate --model-provider deepseek` | EXIT=2 + `MissingApiKeyError` |
+
+真实 DeepSeek 调用**未执行**（无可用密钥），需要项目所有者填入自己的 Key。
+
+### 遇到的问题及解决方法
+
+| 问题 | 解决 |
+|---|---|
+| 模板承诺 `.env`，代码只读环境变量 | 补加载层并接入两个入口 |
+| `uvicorn app.api.app:app` 不走 CLI | 在 `app/api/app.py` 模块级加载 |
+| 单测取源码时拿到 FastAPI 实例 | 改用 `importlib.import_module("app.api.app")` |
+
+### 当前项目状态
+
+密钥填写路径**可用且有回归保护**；项目仍是版本候选（真实调用、PostgreSQL、人工量表、部署未完成）。
+
+### 下一步开发计划
+
+- [ ] 填入真实 `DEEPSEEK_API_KEY` 后跑真实调查并归档 trace
+- [ ] 真实模型下重复 3 次 B/C 测量
+- [ ] PostgreSQL 实机、人工量表、部署验证
+
+---
+
 ## [2026-11-07] 任务 018 - 模型驱动的领域 Agent 与 B/C 真实运行入口
 
 - **日期**：2026-11-07

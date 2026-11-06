@@ -53,12 +53,40 @@ python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
 
 | 变量 | 作用 | 缺省 |
 |---|---|---|
-| `DEEPSEEK_API_KEY` | 真实模型调用（`ask --provider deepseek`） | 未设置 → 只能用 Fake/离线 |
+| `DEEPSEEK_API_KEY` | 真实模型调用（`--model-provider deepseek`） | 未设置 → 只能用 Fake/离线 |
 | `DEMO_PRINCIPAL_ID` | 演示 API 的可信主体 | `principal_ops_xinghui` |
 | `DEMO_APPROVERS` | 演示 API 允许的审批人（逗号分隔） | 物业经理 + 财务 |
 | `CONTRACT_PDF_OUT` / `DOC_OUT_DIR` | 合成 PDF 输出目录 | `docs/evaluation/documents/` |
 
+**在哪里填 Key（两种方式，任选其一）**
+
+1. **推荐：写进 `.env`（一次配置，CLI 与 API 都自动读取）**
+
+```powershell
+cd D:\commercial-property-multi-agent
+Copy-Item .env.example .env      # 首次：生成 .env（已被 .gitignore 忽略）
+notepad .env                     # 找到这一行，把值填在等号后面：
+# DEEPSEEK_API_KEY=sk-你的真实密钥
+```
+
+2. **当前终端临时导出**（关掉终端即失效，适合单次验证）
+
+```powershell
+$env:DEEPSEEK_API_KEY = "sk-你的真实密钥"
+```
+
+填好之后这样验证（不会打印密钥本身）：
+
+```powershell
+cd backend
+python -m app.cli investigate --model-provider deepseek
+```
+
+未配置或填错时**会明确报错**（`MissingApiKeyError` / 鉴权失败），不会静默退回离线结果。
+`DEEPSEEK_API_KEY` 只从环境变量或 `.env` 读取，YAML / 代码 / 文档里都没有它的位置。
+
 模板见 [.env.example](.env.example)（**只有键名，无任何真实密钥**）。
+优先级：**已导出的环境变量优先**，`.env` 只补空缺。
 
 ---
 
@@ -229,7 +257,7 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **284 项通过** |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **299 项通过** |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
@@ -246,6 +274,7 @@ python -m app.cli evaluate --split heldout
 | 完成条件 | `tests/test_llm_tool_loop.py::TestInvalidModelResponses` | 调过工具但空回答 → `MODEL_ERROR` |
 | 模型驱动装配 | `tests/test_llm_agents.py`（23 项） | 同一题在确定性/LLM 引擎下判定一致；事实取自工具；并发预算逐次记账 |
 | 缺密钥不降级 | `python -m app.cli investigate --model-provider deepseek` | EXIT=2 + `MissingApiKeyError`（不静默退回离线） |
+| `.env` 真实生效 | `tests/test_env.py`（15 项） | 填了就读取；环境变量优先；值不回显；`.env` 不入库 |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
 | 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0` |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
