@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from ..agents.base.contracts import AgentContext, AgentRequest
+from ..agents.base.contracts import AgentContext, AgentRequest, TaskStatus
 from ..agents.factory import build_registry
 from ..fixtures.repository import FixtureRepository
 from ..investigation_demo import build_investigation_bundle
@@ -201,9 +201,21 @@ def _compose_answer(facts: dict[str, str], intents: Iterable[str]) -> str:
 class _Baseline:
     name: str = ""
 
-    def __init__(self, *, max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS) -> None:
+    def __init__(
+        self,
+        *,
+        max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
+        model_client: Any = None,
+    ) -> None:
         self.max_tool_calls = max_tool_calls
+        #: 注入模型客户端时，B/C 改走**模型驱动**路径（Task 018）；
+        #: `None` 保持原有的离线规则路径，历史报告仍可复现。
+        self.model_client = model_client
         self._knowledge = None
+
+    @property
+    def engine(self) -> str:
+        return "llm" if self.model_client is not None else "deterministic"
 
     # 三条基线共享的只读工具集合（含合同条款检索）
     def _tools(self, repository: FixtureRepository) -> ToolRegistry:
@@ -315,11 +327,88 @@ class DeterministicBaseline(_Baseline):
 
 
 class SingleAgentBaseline(_Baseline):
-    """一个 Agent 把**所有适用**工具结果汇总成一个答案，不做角色分解与核验。"""
+    """一个 Agent 把**所有适用**工具结果汇总成一个答案，不做角色分解与核验。
+
+    Task 018：注入 `model_client` 时改走 `SingleToolAgent`（模型决定调哪个工具，
+    事实仍取自工具输出）；未注入时沿用离线规则循环，保证历史报告可复现。
+    """
 
     name = "B_single_agent"
 
     async def run(self, *, case: Any) -> BaselineResult:
+        if self.model_client is not None:
+            return await self._run_with_model(case)
+        return await self._run_offline(case)
+
+    async def _run_with_model(self, case: Any) -> BaselineResult:
+        from ..agents.single.agent import SingleToolAgent
+
+        started = time.perf_counter()
+        repository = FixtureRepository.load(
+            variant=None if case.variant == "v_base" else case.variant
+        )
+        principal = repository.principal(case.principal_id)
+        context = self._context(principal, f"run_{case.case_id}_B_llm")
+        registry = self._tools(repository)
+        budget = Budget(
+            max_tool_calls=self.max_tool_calls,
+            max_model_calls=max(4, self.max_tool_calls),
+        )
+        trace_log = TraceLog()
+        agent_config = _single_agent_config()
+        agent = SingleToolAgent(
+            agent_config,
+            model_client=self.model_client,
+            tool_registry=registry,
+            budget=budget,
+            trace_log=trace_log,
+        )
+        lease_id = resolve_lease(repository, principal, case)
+        request = AgentRequest(
+            task_id=f"eval_{case.case_id}_B",
+            capability="single.investigate",
+            payload={"question": case.user_input, "lease_id": lease_id},
+        )
+        result = BaselineResult(
+            baseline=self.name,
+            case_id=case.case_id,
+            status="ok",
+            answer="",
+            route="single_agent",
+        )
+        agent_result = await agent.handle(request, context)
+        snapshot = budget.snapshot()
+        result.tool_calls = snapshot.used_tool_calls
+        result.model_calls = snapshot.used_model_calls
+        result.total_tokens = snapshot.used_total_tokens
+        result.latency_ms = int((time.perf_counter() - started) * 1000)
+        if agent_result.status is TaskStatus.FAILED:
+            error = agent_result.error
+            code = error.code.value if error else ErrorCode.INTERNAL_ERROR.value
+            result.errors = [f"{code}: {error.message if error else ''}"]
+            result.status = derive_status(
+                has_facts=False, error_codes=[code], errors=result.errors
+            )
+            return result
+        if agent_result.status is TaskStatus.PARTIAL:
+            # partial 不是失败：模型可能没走完总结轮，但工具事实已经拿到，
+            # 必须照常评分，否则"取到了数据"会被判成 internal_error。
+            result.errors = list(agent_result.warnings)
+        data = agent_result.output or {}
+        result.facts = dict(data.get("facts") or {})
+        result.answer = str(data.get("answer") or "")
+        result.evidence_ids = list(
+            dict.fromkeys(
+                str(item.get("evidence_id"))
+                for item in data.get("evidence") or ()
+                if isinstance(item, dict) and item.get("evidence_id")
+            )
+        )
+        result.status = derive_status(
+            has_facts=bool(result.facts), error_codes=[], errors=result.errors
+        )
+        return result
+    async def _run_offline(self, case: Any) -> BaselineResult:
         from ..tools.executor import ToolExecutor
 
         started = time.perf_counter()
@@ -376,7 +465,11 @@ class SingleAgentBaseline(_Baseline):
 
 
 class MultiAgentBaseline(_Baseline):
-    """LangGraph 图：规则规划 → 并发子 Agent → 确定性核验 → 审批门。"""
+    """LangGraph 图：规则规划 → 并发子 Agent → 确定性核验 → 审批门。
+
+    Task 018：注入 `model_client` 时领域 Agent 改由模型决定调哪个工具
+    （`engine="llm"`），核验、冲突、报告口径保持不变。
+    """
 
     name = "C_multi_agent"
 
@@ -386,6 +479,11 @@ class MultiAgentBaseline(_Baseline):
             principal_id=case.principal_id,
             variant=None if case.variant == "v_base" else case.variant,
             max_tool_calls=self.max_tool_calls,
+            engine=self.engine,
+            model_client=self.model_client,
+            max_model_calls=(
+                0 if self.model_client is None else max(4, self.max_tool_calls * 2)
+            ),
         )
         result = BaselineResult(
             baseline=self.name, case_id=case.case_id, status="ok", answer="", route=""
@@ -433,8 +531,15 @@ class MultiAgentBaseline(_Baseline):
 
         result.facts = facts
         result.evidence_ids = list(dict.fromkeys(evidence))
-        result.answer = _compose_answer(
-            facts, detect_intents(case.user_input) or ["arrears"]
+        model_answers = [
+            str((item.get("output") or {}).get("answer") or "").strip()
+            for item in investigation.results
+            if str((item.get("output") or {}).get("engine") or "") == "llm"
+        ]
+        result.answer = (
+            "；".join([item for item in model_answers if item])
+            if model_answers
+            else _compose_answer(facts, detect_intents(case.user_input) or ["arrears"])
         )
         result.errors = [
             f"{item.get('subtask_id')}: {item.get('error_code')}"
@@ -512,7 +617,21 @@ def _evidence_ids(output: dict[str, Any]) -> list[str]:
     return ids
 
 
-def build_baseline(name: str, *, max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS) -> _Baseline:
+def _single_agent_config() -> Any:
+    """B 基线（模型路径）使用的 Agent 配置：与生产同一份 YAML。"""
+
+    from ..config.loader import load_agent_config
+    from ..paths import CONFIG_DIR
+
+    return load_agent_config(CONFIG_DIR / "single.yaml")
+
+
+def build_baseline(
+    name: str,
+    *,
+    max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
+    model_client: Any = None,
+) -> _Baseline:
     mapping = {
         "A_deterministic": DeterministicBaseline,
         "B_single_agent": SingleAgentBaseline,
@@ -520,4 +639,7 @@ def build_baseline(name: str, *, max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS) -
     }
     if name not in mapping:
         raise ValueError(f"未知基线: {name!r}（可选 {BASELINES}）")
-    return mapping[name](max_tool_calls=max_tool_calls)
+    if model_client is not None and name == "A_deterministic":
+        # A 的定义就是"无 Agent、无模型"：给它接模型会改变基线含义
+        raise ValueError("A_deterministic 不接受 model_client（该基线不使用模型）")
+    return mapping[name](max_tool_calls=max_tool_calls, model_client=model_client)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from ..config.loader import load_all_agent_configs
 from ..config.schema import AgentConfig
@@ -17,9 +17,12 @@ from .base.base_agent import BaseAgent
 from .base.errors import AgentConfigMismatchError, AgentNotRegisteredError
 from .base.registry import AgentRegistry
 from .billing.agent import BillingAgent
+from .billing.llm_agent import BillingLLMAgent
 from .compliance.agent import ComplianceAgent
 from .lease.agent import LeaseAgent
+from .lease.llm_agent import LeaseLLMAgent
 from .property.agent import PropertyAgent
+from .property.llm_agent import PropertyLLMAgent
 from .single.agent import SingleToolAgent
 
 AGENT_IMPLEMENTATIONS: Final[dict[str, type[BaseAgent]]] = {
@@ -30,6 +33,29 @@ AGENT_IMPLEMENTATIONS: Final[dict[str, type[BaseAgent]]] = {
     "single": SingleToolAgent,
 }
 
+#: LLM 引擎的实现白名单（Task 018）。与上面一样是**代码内静态表**：
+#: 只在装配层选择，YAML 里的任何字符串都无法引入新类。
+AGENT_LLM_IMPLEMENTATIONS: Final[dict[str, type[BaseAgent]]] = {
+    "lease": LeaseLLMAgent,
+    "billing": BillingLLMAgent,
+    "property": PropertyLLMAgent,
+    "single": SingleToolAgent,
+}
+
+ENGINES: Final[tuple[str, ...]] = ("deterministic", "llm")
+
+
+def implementations_for(engine: str) -> dict[str, type[BaseAgent]]:
+    """按引擎返回可用实现表；未知引擎直接失败，不做静默回退。"""
+
+    if engine == "deterministic":
+        return dict(AGENT_IMPLEMENTATIONS)
+    if engine == "llm":
+        return dict(AGENT_LLM_IMPLEMENTATIONS)
+    raise AgentNotRegisteredError(
+        f"未知引擎 {engine!r}；可选: {list(ENGINES)}"
+    )
+
 
 @dataclass(frozen=True)
 class RegistryBuildReport:
@@ -38,13 +64,14 @@ class RegistryBuildReport:
     skipped: tuple[str, ...] = field(default=())
 
 
-def build_agent(config: AgentConfig, **deps: Any) -> BaseAgent:
-    implementation = AGENT_IMPLEMENTATIONS.get(config.name)
+def build_agent(config: AgentConfig, *, engine: str = "deterministic", **deps: Any) -> BaseAgent:
+    implementations = implementations_for(engine)
+    implementation = implementations.get(config.name)
     if implementation is None:
         raise AgentNotRegisteredError(
-            f"配置 {config.name!r} 没有已授权的实现；"
-            f"已授权: {sorted(AGENT_IMPLEMENTATIONS)}。"
-            "新增 Agent 需要在 AGENT_IMPLEMENTATIONS 中显式登记。"
+            f"配置 {config.name!r} 在 {engine} 引擎下没有已授权的实现；"
+            f"已授权: {sorted(implementations)}。"
+            "新增 Agent 需要在 AGENT_*_IMPLEMENTATIONS 中显式登记。"
         )
     _assert_descriptor_matches_config(implementation, config)
     if not deps:
@@ -108,24 +135,31 @@ def _assert_descriptor_matches_config(
 
 
 def build_registry(
-    config_dir: str | Path | None = None, *, strict: bool = False, **deps: Any
+    config_dir: str | Path | None = None,
+    *,
+    strict: bool = False,
+    engine: str = "deterministic",
+    **deps: Any,
 ) -> RegistryBuildReport:
     from ..paths import CONFIG_DIR
 
     directory = Path(config_dir) if config_dir is not None else CONFIG_DIR
     configs = load_all_agent_configs(directory)
+    implementations = implementations_for(engine)
 
     registry = AgentRegistry()
     registered: list[str] = []
     skipped: list[str] = []
 
     for name, config in configs.items():
-        if name not in AGENT_IMPLEMENTATIONS:
+        if name not in implementations:
             if strict:
-                raise AgentNotRegisteredError(f"配置 {name!r} 没有已授权的实现")
+                raise AgentNotRegisteredError(
+                    f"配置 {name!r} 在 {engine} 引擎下没有已授权的实现"
+                )
             skipped.append(name)
             continue
-        registry.register(build_agent(config, **deps))
+        registry.register(build_agent(config, engine=engine, **deps))
         registered.append(name)
 
     return RegistryBuildReport(

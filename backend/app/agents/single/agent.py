@@ -18,6 +18,7 @@ from typing import Any
 from ...agents.base import AgentContext, AgentOutput, AgentRequest, BaseAgent
 from ...agents.base.contracts import TokenUsage
 from ...agents.base.errors import AgentError, ErrorCode
+from ...agents.base.facts import facts_of_executions, outputs_of_executions
 from ...config.schema import AgentConfig
 from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
 from ...runtime.budget import Budget
@@ -125,11 +126,18 @@ class SingleToolAgent(BaseAgent):
                 },
             )
 
+        facts, per_tool = facts_of_executions(outcome.tool_executions)
+        outputs = outputs_of_executions(outcome.tool_executions)
+
         return AgentOutput(
             data={
                 "answer": outcome.answer,
                 "stop_reason": outcome.stop_reason,
                 "rounds": outcome.rounds,
+                # 事实来自工具输出（Task 018）：B 基线接入真实模型后仍可被同一评分器判定
+                "facts": facts,
+                "tool_facts": per_tool,
+                "tool_outputs": outputs,
                 "tool_calls": [
                     {
                         "call_id": execution.call_id,

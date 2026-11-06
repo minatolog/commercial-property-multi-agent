@@ -144,6 +144,7 @@ async def evaluate(
     cases_path: Path | None = None,
     split: str = "dev",
     max_tool_calls: int = 12,
+    model_client: Any = None,
 ) -> EvaluationReport:
     from ..paths import CASES_DIR
 
@@ -151,7 +152,9 @@ async def evaluate(
     source = Path(cases_path) if cases_path is not None else (
         CASES_DIR / ("smoke_v1.jsonl" if split == "dev" else HELDOUT_CASES.name)
     )
-    runner = build_baseline(baseline, max_tool_calls=max_tool_calls)
+    runner = build_baseline(
+        baseline, max_tool_calls=max_tool_calls, model_client=model_client
+    )
     started = datetime.now(timezone.utc)
     t0 = time.perf_counter()
 

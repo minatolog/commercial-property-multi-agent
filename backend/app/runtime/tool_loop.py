@@ -85,7 +85,11 @@ async def run_tool_loop(
                 rounds=round_index - 1,
             )
 
-        model_call_id = f"mc_{context.run_id or 'norun'}_{round_index}"
+        # 预算按"哪一次模型调用"去重，因此 ID 必须同时包含运行、子任务与轮次。
+        # 只带 run_id + round_index 会让并发子 Agent 的第 N 轮共用一个 ID，
+        # 预算只记一次账（Task 018 引入模型驱动后暴露：3 个子任务各调 2 轮，记成 2 次）。
+        agent_scope = context.subtask_id or "root"
+        model_call_id = f"mc_{context.run_id or 'norun'}_{agent_scope}_{round_index}"
         try:
             await budget.reserve_model_call(model_call_id)
         except AgentError as exc:

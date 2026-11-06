@@ -44,6 +44,10 @@ class InvestigationBundle:
     trusted: TrustedContext
     context: AgentContext
     knowledge: KnowledgeLibrary | None = None
+    #: 本次装配使用的引擎与模型（审计用；`offline` 表示没有模型参与）
+    engine: str = "deterministic"
+    model_provider: str = "offline"
+    model_name: str = "none"
 
 
 def build_investigation_bundle(
@@ -61,13 +65,24 @@ def build_investigation_bundle(
     control_plane: Any = None,
     run_id: str | None = None,
     trace_id: str | None = None,
+    engine: str = "deterministic",
+    model_client: Any = None,
 ) -> InvestigationBundle:
     """装配一次调查所需的全部依赖。
 
     `run_id` / `trace_id` 可由调用方注入（Task 016 / S4）：
     API 的公开 run_id、checkpoint 的 context.run_id、每条 ToolTrace 的 run_id
     必须是**同一个值**，否则"这次运行"在三个地方有三个身份。
+
+    `engine` / `model_client`（Task 018）：`engine="llm"` 时领域 Agent 改由模型
+    决定调用哪个工具，但事实仍取自工具输出；没有注入 `model_client` 会直接失败，
+    而不是悄悄回退到确定性实现。
     """
+
+    if engine not in ("deterministic", "llm"):
+        raise ValueError(f"未知引擎: {engine!r}（可选 deterministic / llm）")
+    if engine == "llm" and model_client is None:
+        raise ValueError("engine='llm' 必须同时注入 model_client")
     if backend == "fixture":
         repository = FixtureRepository.load(None, variant=variant)
     elif backend == "sqlite":
@@ -108,6 +123,8 @@ def build_investigation_bundle(
         tool_registry=tool_registry,
         budget=budget,
         trace_log=trace_log,
+        engine=engine,
+        model_client=model_client,
     )
     investigator = Investigator(
         registry=report.registry,
@@ -135,6 +152,9 @@ def build_investigation_bundle(
         trusted=trusted,
         context=context,
         knowledge=knowledge,
+        engine=engine,
+        model_provider=getattr(model_client, "provider", "offline"),
+        model_name=getattr(model_client, "model_name", "none"),
     )
 
 

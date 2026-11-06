@@ -166,6 +166,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="控制面数据目录（默认仓库 data/，已被 .gitignore 排除）",
     )
+    investigate.add_argument(
+        "--model-provider",
+        default="offline",
+        choices=("offline", "scripted", "deepseek"),
+        help=(
+            "领域 Agent 的引擎：offline=确定性（默认）；"
+            "scripted=脚本化模型（离线验证模型驱动装配，不代表模型质量）；"
+            "deepseek=真实模型（需 DEEPSEEK_API_KEY）"
+        ),
+    )
 
     search = sub.add_parser(
         "search",
@@ -236,6 +246,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--quiet", action="store_true", help="只输出汇总表，不打印逐题 JSON"
+    )
+    evaluate_parser.add_argument(
+        "--model-provider",
+        default="offline",
+        choices=("offline", "deepseek"),
+        help=(
+            "B/C 的引擎：offline=确定性规则（默认，历史结果口径）；"
+            "deepseek=真实模型（需 DEEPSEEK_API_KEY；A 基线始终离线）"
+        ),
     )
     return parser
 
@@ -402,17 +421,44 @@ def _summarize_single(result: RuntimeResult, bundle: Any) -> dict[str, Any]:
     }
 
 
+def _scripted_calls_for(args: argparse.Namespace) -> list[tuple[str, dict]]:
+    """脚本化模型的工具计划：只覆盖本次问题涉及的领域，且只用本租约的数据。"""
+
+    return [
+        ("lease.lookup", {"lease_id": args.lease}),
+        ("document.search", {"query": args.question, "top_k": 3}),
+        ("billing.statement.read", {"lease_id": args.lease}),
+        ("property.work_orders.read", {"lease_id": args.lease}),
+    ]
+
+
+def _model_client_for(args: argparse.Namespace) -> Any:
+    from .llm.factory import build_model_client
+
+    provider = getattr(args, "model_provider", "offline")
+    calls = _scripted_calls_for(args) if provider == "scripted" else None
+    return build_model_client(
+        provider,
+        scripted_calls=calls,
+        summary="已按受控工具结果核对；金额与日期均取自工具输出。",
+    )
+
+
 def _cmd_investigate(args: argparse.Namespace) -> int:
     if args.with_approval:
         return asyncio.run(_investigate_with_control_plane(args))
     from .investigation_demo import build_investigation_bundle
 
+    model_client = _model_client_for(args)
     bundle = build_investigation_bundle(
         principal_id=args.principal,
         variant=args.variant,
         max_tool_calls=args.budget_tool_calls,
         max_revisions=args.max_revisions,
         backend=args.backend,
+        engine="llm" if model_client is not None else "deterministic",
+        model_client=model_client,
+        max_model_calls=0 if model_client is None else 32,
     )
     result = asyncio.run(
         run_investigation(
@@ -432,6 +478,7 @@ async def _investigate_with_control_plane(args: argparse.Namespace) -> int:
     from .paths import CHECKPOINT_DB, CONTROL_DB
 
     base = Path(args.control_dir) if args.control_dir else None
+    model_client = _model_client_for(args)
     async with control_plane(
         checkpoint_path=(base / "checkpoints" / "graph.sqlite") if base else CHECKPOINT_DB,
         approval_path=(base / "control" / "approval.sqlite") if base else CONTROL_DB,
@@ -443,6 +490,9 @@ async def _investigate_with_control_plane(args: argparse.Namespace) -> int:
             max_revisions=args.max_revisions,
             backend=args.backend,
             control_plane=plane,
+            engine="llm" if model_client is not None else "deterministic",
+            model_client=model_client,
+            max_model_calls=0 if model_client is None else 32,
         )
         thread_id = args.thread_id or f"thread_{bundle.context.run_id}"
         result = await run_investigation(
@@ -591,9 +641,19 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 def _cmd_evaluate(args: argparse.Namespace) -> int:
     from .evaluation import evaluate, render_markdown, write_report
     from .evaluation.baselines import BASELINES
+    from .llm.factory import build_model_client
     from .paths import REPORT_DIR
 
     names = list(BASELINES) if args.baseline == "all" else [args.baseline]
+    provider = getattr(args, "model_provider", "offline")
+    if provider != "offline" and "A_deterministic" in names:
+        # A 的定义是"无 Agent、无模型"：混进来会改变基线含义
+        names = [name for name in names if name != "A_deterministic"]
+        if not names:
+            raise ValueError(
+                "A_deterministic 不使用模型；请显式指定 B/C 基线或改用 --model-provider offline"
+            )
+    model_client = build_model_client(provider)
     reports = []
     written: list[str] = []
     for name in names:
@@ -602,6 +662,7 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
                 baseline=name,
                 split=args.split,
                 max_tool_calls=args.max_tool_calls,
+                model_client=model_client,
             )
         )
         reports.append(report)
