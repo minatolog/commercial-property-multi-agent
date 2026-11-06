@@ -185,8 +185,14 @@ async def run_tool_loop(
                     warnings=tuple(warnings),
                     rounds=round_index,
                 )
-            if not turn.text.strip() and not executions and not evidence:
-                warnings.append("模型既没有给出答案，也没有产生任何工具证据")
+            if not turn.text.strip():
+                # Task 017（R5）：有工具证据不等于完成了用户问答。只有"确实产出了
+                # 面向用户的文本"才算 final_answer；空文本一律按未完成处理，
+                # 避免空答案 + 13 条证据被标成 success。
+                warnings.append(
+                    "模型最终回合没有给出任何回答文本"
+                    + ("（已执行工具调用，但没有生成结论）" if executions else "")
+                )
                 return _outcome(
                     answer="",
                     stop_reason=ToolLoopStopReason.MODEL_ERROR,

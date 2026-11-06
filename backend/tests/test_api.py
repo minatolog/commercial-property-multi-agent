@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -325,6 +327,155 @@ class TestRunOwnership(_ApiCase):
         created = self.submit()
         detail = self.client.get(f"/api/runs/{created['run_id']}").json()
         self.assertEqual(detail["project_ids"], ["prj_xinghui"])
+        # Task 017（R3）：创建者授权范围单独保存，供审计，不参与授权判断
+        self.assertEqual(detail["grant_project_ids"], ["prj_xinghui"])
+
+
+class TestLegacyRunScope(_ApiCase):
+    """回归 R2：旧库升级后没有范围标签的记录必须默认拒绝，而不是默认放行。"""
+
+    def _legacy_index(self, *, lease_id: str) -> RunIndex:
+        """按修复前的 schema 建库并插入一条运行，交给当前 RunIndex 迁移。"""
+
+        path = Path(self._tmp.name) / "legacy_runs.sqlite"
+        connection = sqlite3.connect(path)
+        connection.executescript(
+            """
+            CREATE TABLE runs (
+                run_id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                principal_id TEXT NOT NULL,
+                lease_id TEXT NOT NULL,
+                question TEXT NOT NULL,
+                status TEXT NOT NULL,
+                verdict TEXT,
+                approval_status TEXT,
+                approval_request_id TEXT,
+                report_json TEXT,
+                traces_json TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        connection.execute(
+            "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "run_legacy0001",
+                "thread_legacy0001",
+                "principal_ops_xinghui",
+                lease_id,
+                QUESTION,
+                "completed",
+                "conflicting",
+                None,
+                None,
+                json.dumps({"findings": [{"statement": "旧运行"}]}),
+                json.dumps([]),
+                "2026-11-05T00:00:00+00:00",
+                "2026-11-05T00:00:00+00:00",
+            ),
+        )
+        connection.commit()
+        connection.close()
+        return RunIndex(path)
+
+    def test_unscoped_legacy_run_is_backfilled_from_its_lease(self) -> None:
+        index = self._legacy_index(lease_id="lease_xh_a301_2025")
+        record = index.get("run_legacy0001")
+        self.assertIsNotNone(record)
+        self.assertEqual(record["project_ids"], [], "迁移本身不回填，交给服务层")
+
+        service = WorkflowService(
+            index=index,
+            checkpoint_path=self.service.checkpoint_path,
+            approval_path=self.service.approval_path,
+        )
+        backfilled = service.index.get("run_legacy0001")
+        self.assertEqual(backfilled["project_ids"], ["prj_xinghui"])
+
+        jinlan = WorkflowService(
+            principal_id="principal_finance_jinlan",
+            index=index,
+            checkpoint_path=self.service.checkpoint_path,
+            approval_path=self.service.approval_path,
+        )
+        client = TestClient(create_app(service=jinlan))
+        self.assertEqual(client.get("/api/runs/run_legacy0001").status_code, 404)
+        self.assertEqual(client.get("/api/runs/run_legacy0001/traces").status_code, 404)
+
+    def test_unresolvable_legacy_run_stays_quarantined(self) -> None:
+        index = self._legacy_index(lease_id="lease_not_electronic_anywhere")
+        service = WorkflowService(
+            index=index,
+            checkpoint_path=self.service.checkpoint_path,
+            approval_path=self.service.approval_path,
+        )
+        record = service.index.get("run_legacy0001")
+        self.assertEqual(record["project_ids"], [], "回填不了就必须保持空范围")
+        client = TestClient(create_app(service=service))
+        self.assertEqual(client.get("/api/runs/run_legacy0001").status_code, 404)
+        self.assertEqual(client.get("/api/runs").json()["count"], 0)
+
+    def test_empty_scope_is_denied_even_without_migration(self) -> None:
+        record = {
+            "run_id": "run_empty_scope",
+            "thread_id": "thread_empty_scope",
+            "principal_id": "principal_ops_xinghui",
+            "project_ids": [],
+            "lease_id": LEASE,
+            "question": QUESTION,
+            "status": "completed",
+            "verdict": "supported",
+            "report": {"findings": []},
+            "traces": [],
+        }
+        self.service.index.upsert(record)
+        self.assertIsNone(
+            self.service.index.get("run_empty_scope", project_ids=self.service.project_ids)
+        )
+        self.assertEqual(
+            self.client.get("/api/runs/run_empty_scope").status_code, 404
+        )
+
+
+class TestReportScopeIsNotCreatorGrant(_ApiCase):
+    """回归 R3：报告数据范围必须按目标租约解析，不能等于创建者的全部授权。"""
+
+    def test_multi_project_creator_does_not_expose_single_project_report(self) -> None:
+        service = WorkflowService(
+            index=self.service.index,
+            checkpoint_path=self.service.checkpoint_path,
+            approval_path=self.service.approval_path,
+            project_ids=frozenset({"prj_xinghui", "prj_jinlan"}),
+        )
+        client = TestClient(create_app(service=service))
+        created = client.post(
+            "/api/runs", json={"question": QUESTION, "lease_id": LEASE}
+        ).json()
+        run_id = created["run_id"]
+
+        detail = service.get_run(run_id)
+        self.assertEqual(
+            detail["project_ids"], ["prj_xinghui"], "数据范围只含报告实际所属项目"
+        )
+        self.assertEqual(
+            sorted(detail["grant_project_ids"]),
+            ["prj_jinlan", "prj_xinghui"],
+            "创建者授权范围单独留档",
+        )
+
+        # 只授权金鹭的主体不能因为"创建者有金鹭权限"而读到星汇报告
+        jinlan = WorkflowService(
+            principal_id="principal_finance_jinlan",
+            index=self.service.index,
+            checkpoint_path=self.service.checkpoint_path,
+            approval_path=self.service.approval_path,
+            project_ids=frozenset({"prj_jinlan"}),
+        )
+        jinlan_client = TestClient(create_app(service=jinlan))
+        self.assertEqual(jinlan_client.get(f"/api/runs/{run_id}").status_code, 404)
+        self.assertEqual(jinlan_client.get("/api/runs").json()["count"], 0)
 
 
 class TestPresentationIsOptional(_ApiCase):

@@ -622,5 +622,129 @@ class TestNoApprovalWithoutControlPlane(unittest.IsolatedAsyncioTestCase):
         self.assertIn("proposed_draft", result.report)
 
 
+class TestThreadIdentityBoundary(unittest.IsolatedAsyncioTestCase):
+    """回归 R1：持久 thread_id 不能被新运行复用。
+
+    `results`/`failures` 是追加通道，新一次 investigate 传空列表清不掉旧结果；
+    若允许换主体/换租约复用同一线索，旧结果会把本次的越权失败"补齐"成成功。
+    """
+
+    async def _first_run(self, plane, *, principal: str = "principal_ops_xinghui", thread: str = "shared_thread"):
+        bundle = build_investigation_bundle(
+            control_plane=plane, principal_id=principal
+        )
+        return bundle, await bundle.investigator.investigate(
+            question=QUESTION, lease_id=LEASE, context=bundle.context, thread_id=thread
+        )
+
+    async def test_new_run_cannot_reuse_existing_thread(self) -> None:
+        from app.orchestration.investigation import ThreadIdentityConflictError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                await self._first_run(plane)
+                second = build_investigation_bundle(control_plane=plane)
+                with self.assertRaises(ThreadIdentityConflictError) as ctx:
+                    await second.investigator.investigate(
+                        question=QUESTION,
+                        lease_id=LEASE,
+                        context=second.context,
+                        thread_id="shared_thread",
+                    )
+                self.assertIn("thread_id", ctx.exception.message)
+
+    async def test_other_principal_cannot_reuse_thread(self) -> None:
+        from app.orchestration.investigation import ThreadIdentityConflictError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                await self._first_run(plane)
+                intruder = build_investigation_bundle(
+                    control_plane=plane, principal_id="principal_finance_jinlan"
+                )
+                with self.assertRaises(ThreadIdentityConflictError) as ctx:
+                    await intruder.investigator.investigate(
+                        question=QUESTION,
+                        lease_id=LEASE,
+                        context=intruder.context,
+                        thread_id="shared_thread",
+                    )
+                self.assertEqual(
+                    ctx.exception.details.get("previous_principal_id"),
+                    "principal_ops_xinghui",
+                )
+
+    async def test_other_lease_cannot_reuse_thread(self) -> None:
+        from app.orchestration.investigation import ThreadIdentityConflictError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                await self._first_run(plane)
+                second = build_investigation_bundle(control_plane=plane)
+                with self.assertRaises(ThreadIdentityConflictError) as ctx:
+                    await second.investigator.investigate(
+                        question=QUESTION,
+                        lease_id="lease_xh_a302_2025",
+                        context=second.context,
+                        thread_id="shared_thread",
+                    )
+                self.assertEqual(
+                    ctx.exception.details.get("previous_lease_id"), LEASE
+                )
+
+    async def test_repeated_investigate_on_same_run_is_refused(self) -> None:
+        from app.orchestration.investigation import ThreadIdentityConflictError
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                bundle, _ = await self._first_run(plane)
+                with self.assertRaises(ThreadIdentityConflictError):
+                    await bundle.investigator.investigate(
+                        question=QUESTION,
+                        lease_id=LEASE,
+                        context=bundle.context,
+                        thread_id="shared_thread",
+                    )
+
+    async def test_fresh_thread_still_works_and_denies_intruder(self) -> None:
+        """换用新线索时，越权主体必须拿到真实的拒绝结果，而不是别人的旧数据。"""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            async with control_plane(
+                checkpoint_path=base / "graph.sqlite",
+                approval_path=base / "approval.sqlite",
+            ) as plane:
+                await self._first_run(plane)
+                intruder = build_investigation_bundle(
+                    control_plane=plane, principal_id="principal_finance_jinlan"
+                )
+                result = await intruder.investigator.investigate(
+                    question=QUESTION,
+                    lease_id=LEASE,
+                    context=intruder.context,
+                    thread_id="shared_thread_b",
+                )
+                self.assertNotEqual(result.verdict, "supported")
+                self.assertTrue(result.failures)
+                self.assertNotIn("52596.00", str(result.report))
+
+
 if __name__ == "__main__":
     unittest.main()

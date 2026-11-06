@@ -494,6 +494,143 @@ class TestLeaseScopedRetrieval(unittest.TestCase):
         self.assertEqual(ids - {"doc_xh_property_policy"}, set())
 
 
+class TestDocumentStatusPolicy(unittest.TestCase):
+    """回归 R4：未签署草案不得与已签署条款混进同一结论。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name)
+        signed = build_pdf(
+            base / "signed.pdf",
+            (
+                (
+                    "第五条 租金及调整",
+                    "5.2 自第二个租赁年度起，租金每十二（12）个月递增百分之五（5%）。",
+                ),
+            ),
+            title="A301 租赁合同（已签署）",
+        )
+        draft = build_pdf(
+            base / "draft.pdf",
+            (
+                (
+                    "第五条 租金及调整",
+                    "5.2 自第二个租赁年度起，租金每十二（12）个月递增百分之五（5%）；"
+                    "拟调整为递增百分之二十（20%），待双方签署。",
+                ),
+            ),
+            title="A301 租赁合同（未签署草案）",
+        )
+        self.assertIsNotNone(signed)
+        self.assertIsNotNone(draft)
+
+        from app.rag.catalog import DocumentMeta, StaticDocumentCatalog
+
+        self.catalog = StaticDocumentCatalog(
+            [
+                DocumentMeta(
+                    document_id="doc_xh_a301_contract",
+                    project_id="prj_xinghui",
+                    version=1,
+                    lease_id="lease_xh_a301_2025",
+                    filename="signed.pdf",
+                    document_status="signed",
+                ),
+                DocumentMeta(
+                    document_id="doc_xh_a301_contract",
+                    project_id="prj_xinghui",
+                    version=2,
+                    lease_id="lease_xh_a301_2025",
+                    filename="draft.pdf",
+                    document_status="draft",
+                ),
+            ]
+        )
+        self.library = build_knowledge_library(self.catalog, document_dir=base)
+
+    def test_default_search_excludes_draft(self) -> None:
+        hits = self.library.service.search(
+            "租金递增百分之二十",
+            project_ids=frozenset({"prj_xinghui"}),
+            top_k=5,
+        )
+        self.assertTrue(hits, "已签署版本自身应当能命中")
+        self.assertTrue(all(hit.chunk.document_version == 1 for hit in hits))
+        self.assertFalse(
+            any("百分之二十" in hit.chunk.text for hit in hits),
+            "默认检索不得返回只有草案才有的条款内容",
+        )
+
+    def test_explicit_draft_search_marks_status(self) -> None:
+        hits = self.library.service.search(
+            "租金递增百分之二十",
+            project_ids=frozenset({"prj_xinghui"}),
+            document_statuses=frozenset({"signed", "draft"}),
+            top_k=5,
+        )
+        statuses = {
+            self.library.service.status_of(hit.chunk.document_id, hit.chunk.document_version)
+            for hit in hits
+        }
+        self.assertIn("draft", statuses)
+
+    def test_lease_document_scope_is_signed_only(self) -> None:
+        allowed = self.library.document_ids_for_lease("lease_xh_a301_2025")
+        metas = [
+            self.library.meta_for("doc_xh_a301_contract", 1),
+            self.library.meta_for("doc_xh_a301_contract", 2),
+        ]
+        self.assertTrue(all(meta is not None for meta in metas))
+        self.assertEqual(metas[0].document_status, "signed")
+        self.assertEqual(metas[1].document_status, "draft")
+        self.assertTrue(allowed)
+
+    def test_versions_are_keyed_separately(self) -> None:
+        """同一 document_id 的两个版本必须各自保留元数据，不能互相覆盖。"""
+
+        self.assertIn(("doc_xh_a301_contract", 1), self.library.documents)
+        self.assertIn(("doc_xh_a301_contract", 2), self.library.documents)
+        self.assertEqual(
+            sorted(self.library.service.versions_of("doc_xh_a301_contract")), [1, 2]
+        )
+
+    def test_search_tool_hides_draft_by_default(self) -> None:
+        import asyncio
+
+        tool = DocumentSearchTool(self.library.service, library=self.library)
+        payload = tool.input_model(query="租金递增百分之二十", top_k=5)
+        invocation = asyncio.run(tool.invoke(payload, _context("prj_xinghui")))
+        statuses = {item["document_status"] for item in invocation.data["results"]}
+        self.assertNotIn("draft", statuses)
+
+        with_drafts = tool.input_model(
+            query="租金递增百分之二十", top_k=5, include_drafts=True
+        )
+        invocation = asyncio.run(tool.invoke(with_drafts, _context("prj_xinghui")))
+        statuses = {item["document_status"] for item in invocation.data["results"]}
+        self.assertIn("draft", statuses)
+
+    def test_lease_scoped_tool_call_never_returns_draft(self) -> None:
+        """Lease Agent 的调用方式：显式传本租约文档 + 默认不含草案。"""
+
+        import asyncio
+
+        tool = DocumentSearchTool(self.library.service, library=self.library)
+        payload = tool.input_model(
+            query="租金递增百分之二十",
+            top_k=5,
+            document_ids=["doc_xh_a301_contract"],
+            include_project_documents=True,
+            include_drafts=False,
+        )
+        invocation = asyncio.run(tool.invoke(payload, _context("prj_xinghui")))
+        self.assertTrue(invocation.data["results"], "已签署版本应仍能返回")
+        self.assertEqual(
+            {item["document_version"] for item in invocation.data["results"]}, {1}
+        )
+
+
 class TestInvestigationCitations(unittest.TestCase):
     def test_report_contains_page_accurate_clause_findings(self) -> None:
         import asyncio
@@ -547,6 +684,111 @@ class TestInvestigationCitations(unittest.TestCase):
         self.assertNotIn(
             "document_clause",
             {finding.get("derivation") for finding in result.report["findings"]},
+        )
+
+
+class TestFindingEvidenceBinding(unittest.TestCase):
+    """回归 R7：finding 的证据必须精确对应它引用的那一段，而不是按条款号子串匹配。"""
+
+    def _result(self, clauses, evidence_ids):
+        return [
+            {
+                "subtask_id": "st_1_lease",
+                "capability": "lease.query",
+                "agent": "lease",
+                "status": "success",
+                "output": {
+                    "evidence": [{"evidence_id": item} for item in evidence_ids],
+                    "clauses": clauses,
+                    "clause_evidence": [
+                        {"evidence_id": item} for item in evidence_ids
+                    ],
+                },
+            }
+        ]
+
+    @staticmethod
+    def _clause(chunk_id, version, clause_id, excerpt, status="signed"):
+        return {
+            "chunk_id": chunk_id,
+            "document_id": "doc_xh_a301_contract",
+            "document_version": version,
+            "document_scope": "lease",
+            "document_status": status,
+            "page": 1,
+            "clause_id": clause_id,
+            "excerpt": excerpt,
+        }
+
+    def test_two_versions_of_same_clause_bind_their_own_chunk(self) -> None:
+        from app.orchestration.investigation import _build_findings
+
+        clauses = [
+            self._clause("doc_xh_a301_contract#v1#p1#5.2", 1, "5.2", "递增百分之五"),
+            self._clause(
+                "doc_xh_a301_contract#v2#p1#5.2", 2, "5.2", "递增百分之二十", "draft"
+            ),
+        ]
+        evidence = [
+            "doc_xh_a301_contract#v1#p1#5.2",
+            "doc_xh_a301_contract#v2#p1#5.2",
+        ]
+        findings = [
+            finding
+            for finding in _build_findings(self._result(clauses, evidence))
+            if finding.get("derivation") in {"document_clause", "document_draft"}
+        ]
+        self.assertEqual(len(findings), 2)
+        by_version = {
+            finding["source"]["document_version"]: finding["evidence_ids"]
+            for finding in findings
+        }
+        self.assertEqual(by_version[1], ["doc_xh_a301_contract#v1#p1#5.2"])
+        self.assertEqual(by_version[2], ["doc_xh_a301_contract#v2#p1#5.2"])
+
+    def test_draft_clause_is_marked_as_draft(self) -> None:
+        from app.orchestration.investigation import _build_findings
+
+        clauses = [
+            self._clause(
+                "doc_xh_a301_contract#v2#p1#5.2", 2, "5.2", "递增百分之二十", "draft"
+            )
+        ]
+        findings = [
+            finding
+            for finding in _build_findings(
+                self._result(clauses, ["doc_xh_a301_contract#v2#p1#5.2"])
+            )
+            if finding.get("derivation") in {"document_clause", "document_draft"}
+        ]
+        self.assertEqual(findings[0]["derivation"], "document_draft")
+        self.assertIn("未签署草案", findings[0]["statement"])
+        self.assertEqual(findings[0]["source"]["document_status"], "draft")
+
+    def test_clause_5_1_does_not_capture_5_1_1_evidence(self) -> None:
+        from app.orchestration.investigation import _build_findings
+
+        clauses = [
+            self._clause("doc_xh_a301_contract#v1#p10#5.1", 1, "5.1", "按月计租"),
+            self._clause(
+                "doc_xh_a301_contract#v1#p10#5.1.1", 1, "5.1.1", "尾差四舍五入"
+            ),
+        ]
+        evidence = [
+            "doc_xh_a301_contract#v1#p10#5.1",
+            "doc_xh_a301_contract#v1#p10#5.1.1",
+        ]
+        findings = [
+            finding
+            for finding in _build_findings(self._result(clauses, evidence))
+            if finding.get("derivation") in {"document_clause", "document_draft"}
+        ]
+        by_clause = {
+            finding["source"]["clause_id"]: finding["evidence_ids"] for finding in findings
+        }
+        self.assertEqual(by_clause["5.1"], ["doc_xh_a301_contract#v1#p10#5.1"])
+        self.assertEqual(
+            by_clause["5.1.1"], ["doc_xh_a301_contract#v1#p10#5.1.1"]
         )
 
 

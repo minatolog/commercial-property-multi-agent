@@ -53,10 +53,22 @@ __all__ = [
     "Investigator",
     "Planner",
     "RuleBasedPlanner",
+    "ThreadIdentityConflictError",
     "build_investigation_graph",
     "build_reduction_draft",
     "verify_results",
 ]
+
+
+class ThreadIdentityConflictError(AgentError):
+    """同一 `thread_id` 被不同运行/主体/租约复用。
+
+    checkpoint 里的 `results`/`failures` 是追加通道，新一次 `investigate` 传入空列表
+    并不能清掉旧结果；如果还允许换主体或换租约复用同一线索，旧结果会把本次
+    越权或失败"补齐"成成功（审查 R1）。因此这里直接拒绝，而不是做静默合并。
+    """
+
+    default_code = ErrorCode.INVALID_CONTEXT
 
 
 DEFAULT_CAPABILITIES: tuple[str, ...] = (
@@ -424,6 +436,7 @@ def build_investigation_graph(
                         "capability": subtask["capability"],
                         "error_code": ErrorCode.CAPABILITY_UNAVAILABLE.value,
                         "message": str(exc),
+                        "run_id": context.run_id,
                     }
                 ]
             }
@@ -435,6 +448,7 @@ def build_investigation_graph(
                         "capability": subtask["capability"],
                         "error_code": ErrorCode.AGENT_NOT_ENABLED.value,
                         "message": str(exc),
+                        "run_id": context.run_id,
                     }
                 ]
             }
@@ -448,6 +462,7 @@ def build_investigation_graph(
             "status": result.status.value,
             "output": result.output,
             "warnings": list(result.warnings),
+            "run_id": context.run_id,
         }
         if result.status is TaskStatus.FAILED:
             error = result.error
@@ -458,6 +473,7 @@ def build_investigation_graph(
                         "capability": subtask["capability"],
                         "error_code": error.code.value if error else ErrorCode.INTERNAL_ERROR.value,
                         "message": error.message if error else "",
+                        "run_id": context.run_id,
                     }
                 ]
             }
@@ -468,28 +484,36 @@ def build_investigation_graph(
 
         return await run_subtask({**state, "subtask": state["plan"][0]})
 
+    def _run_id(state: InvestigationState) -> str | None:
+        context = state.get("context")
+        return getattr(context, "run_id", None)
+
     def verify_node(state: InvestigationState) -> dict[str, Any]:
+        run_id = _run_id(state)
         verdict, conflicts, missing = verify_results(
             plan=state.get("plan", []),
-            results=_latest_by_subtask(state.get("results", [])),
-            failures=state.get("failures", []),
+            results=_latest_by_subtask(_scoped_by_run(state.get("results", []), run_id)),
+            failures=_scoped_by_run(state.get("failures", []), run_id),
             expected_subtasks=state.get("expected_subtasks") or None,
         )
         return {"verdict": verdict, "conflicts": conflicts, "missing": missing}
 
     def route_after_verify(state: InvestigationState) -> str:
-        # 只有"子任务失败"才值得补查；文档缺失无法通过重跑补齐，重跑只是浪费预算
-        resolved = {item["subtask_id"] for item in state.get("results", [])}
+        run_id = _run_id(state)
+        # 只有"子任务失败"才值得补查；文档缺失无法通过重跑补齐，重跑只是浪费预算。
+        # Task 017（R6）：可恢复性按**未解决的可重试子任务**判断，不看总体 verdict——
+        # 账单差额会把 verdict 提升为 conflicting，若用它当闸门，其它领域的超时
+        # 就再也得不到补查机会。冲突本身仍然保留在报告里。
+        resolved = {
+            item["subtask_id"]
+            for item in _scoped_by_run(state.get("results", []), run_id)
+        }
         retryable = [
             failure
-            for failure in state.get("failures", [])
+            for failure in _scoped_by_run(state.get("failures", []), run_id)
             if failure.get("subtask_id") not in resolved
         ]
-        if (
-            state.get("verdict") == "insufficient"
-            and retryable
-            and state.get("revision", 0) < max_revisions
-        ):
+        if retryable and state.get("revision", 0) < max_revisions:
             return "revise"
         return "report"
 
@@ -500,7 +524,11 @@ def build_investigation_graph(
         真正需要重跑的子任务放进 `retry_subtasks`。
         """
 
-        completed = {item["subtask_id"] for item in state.get("results", [])}
+        run_id = _run_id(state)
+        completed = {
+            item["subtask_id"]
+            for item in _scoped_by_run(state.get("results", []), run_id)
+        }
         pending = [
             subtask["subtask_id"]
             for subtask in state.get("plan", [])
@@ -513,15 +541,21 @@ def build_investigation_graph(
         }
 
     def report_node(state: InvestigationState) -> dict[str, Any]:
-        results = _latest_by_subtask(state.get("results", []))
+        run_id = _run_id(state)
+        results = _latest_by_subtask(_scoped_by_run(state.get("results", []), run_id))
         findings = _build_findings(results)
         draft = draft_resolver(state, findings) if draft_resolver is not None else None
         completed = {item["subtask_id"] for item in results}
-        unresolved = [
-            failure
-            for failure in state.get("failures", [])
-            if failure.get("subtask_id") not in completed
-        ]
+        failures = _scoped_by_run(state.get("failures", []), run_id)
+        # 同一子任务可能失败多次（首轮 + 补查）；报告只保留**最后一次**失败，
+        # 否则"一个子任务挂了"会被读成"两个子任务挂了"。
+        unresolved = list(
+            {
+                failure.get("subtask_id"): failure
+                for failure in failures
+                if failure.get("subtask_id") not in completed
+            }.values()
+        )
         expected = set(
             state.get("expected_subtasks")
             or [item["subtask_id"] for item in state.get("plan", [])]
@@ -557,8 +591,11 @@ def build_investigation_graph(
             "failures": unresolved,
             "resolved_failures": [
                 failure
-                for failure in state.get("failures", [])
-                if failure.get("subtask_id") in completed
+                for failure in {
+                    item.get("subtask_id"): item
+                    for item in failures
+                    if item.get("subtask_id") in completed
+                }.values()
             ],
             "requires_human_review": state.get("verdict") != "supported",
             "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
@@ -694,6 +731,37 @@ def _latest_by_subtask(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [latest[key] for key in sorted(latest)]
 
 
+def _scoped_by_run(items: list[dict[str, Any]], run_id: str | None) -> list[dict[str, Any]]:
+    """只保留属于当前运行的结果/失败。
+
+    纵深防御（审查 R1）：即使某条 thread 上残留了别的运行写入的条目，也不能用它们
+    消除本次运行的失败或冒充本次运行的结果。没有 `run_id` 的旧条目在"有当前运行"
+    时一律丢弃；当前运行没有 `run_id`（无 checkpointer 的直连路径）时不过滤。
+    """
+
+    if not run_id:
+        return list(items)
+    return [item for item in items if item.get("run_id") == run_id]
+
+
+def _chunk_ids_for_clause(
+    clause: dict[str, Any], evidence_ids: list[str]
+) -> list[str]:
+    """回退路径：按复合键（文档 + 版本 + 页 + 条款号）重建 chunk_id 精确匹配。
+
+    只在调用方没有直接给出 `chunk_id` 时使用；绝不退回"条款号子串"匹配。
+    """
+
+    document_id = clause.get("document_id")
+    version = clause.get("document_version")
+    page = clause.get("page")
+    clause_id = clause.get("clause_id")
+    if None in (document_id, version, page, clause_id):
+        return []
+    expected = f"{document_id}#v{version}#p{page}#{clause_id}"
+    return [evidence_id for evidence_id in evidence_ids if evidence_id == expected]
+
+
 def _truncate(text: Any, limit: int = 60) -> str:
     value = "" if text is None else str(text).replace("\n", " ").strip()
     return value if len(value) <= limit else value[: limit - 1] + "…"
@@ -732,24 +800,30 @@ def _build_findings(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             clauses = output.get("clauses") or []
             clause_evidence_ids = _evidence_ids({"evidence": output.get("clause_evidence", [])})
             for clause in clauses:
+                chunk_id = clause.get("chunk_id")
+                # Task 017（R7）：证据必须与"这一条 finding 具体引用的那一段"精确对应。
+                # 用 `clause_id in evidence_id` 做子串匹配会把同条号的其他版本、
+                # 甚至 5.1 与 5.1.1 混进来，审计时无法判定哪份原文支持哪个结论。
+                clause_ids = (
+                    [chunk_id] if chunk_id else _chunk_ids_for_clause(clause, clause_evidence_ids)
+                )
+                draft = str(clause.get("document_status", "signed")) != "signed"
                 findings.append(
                     {
                         "statement": (
+                            f"{'【未签署草案，不得作为生效依据】' if draft else ''}"
                             f"合同第 {clause.get('page')} 页 {clause.get('clause_id')} 条："
                             f"{_truncate(clause.get('excerpt'))}"
                         ),
-                        "evidence_ids": [
-                            evidence_id
-                            for evidence_id in clause_evidence_ids
-                            if clause.get("clause_id") in evidence_id
-                        ]
-                        or clause_evidence_ids,
-                        "derivation": "document_clause",
+                        "evidence_ids": clause_ids,
+                        "derivation": "document_draft" if draft else "document_clause",
                         "source": {
                             "document_id": clause.get("document_id"),
                             "document_version": clause.get("document_version"),
+                            "document_status": clause.get("document_status", "signed"),
                             "page": clause.get("page"),
                             "clause_id": clause.get("clause_id"),
+                            "chunk_id": chunk_id,
                         },
                     }
                 )
@@ -855,7 +929,20 @@ class Investigator:
         context: AgentContext,
         thread_id: str | None = None,
     ) -> InvestigationResult:
+        """开始一次**新运行**。
+
+        `thread_id` 指向一条持久线索；若该线索上已有状态（上一次运行的 checkpoint
+        或等待审批的中断），本次调用会被拒绝（审查 R1）：
+
+        - 追加型通道（`results`/`failures`）不会被传入的空列表清空，旧结果会
+          混进本次结论；
+        - 换主体/换租约复用同一线索时，旧结果甚至会把本次的越权失败"补齐"成功。
+
+        恢复已有任务请用 `resume()`；需要新任务请换一个 `thread_id`。
+        """
+
         effective_thread = thread_id or f"thread_{context.run_id or uuid.uuid4().hex[:12]}"
+        await self._assert_thread_is_new(effective_thread, context, lease_id)
         payload: dict[str, Any] = {
             "question": question,
             "lease_id": lease_id,
@@ -870,6 +957,63 @@ class Investigator:
         }
         state = await self._ainvoke(payload, thread_id=effective_thread)
         return await self._to_result(state, effective_thread)
+
+    async def _assert_thread_is_new(
+        self, thread_id: str, context: AgentContext, lease_id: str
+    ) -> None:
+        """同一线索只允许承载一次运行；身份不一致时给出可操作的错误。"""
+
+        existing = await self._current_state(thread_id)
+        if not existing:
+            return
+        previous = existing.get("context")
+        previous_run = getattr(previous, "run_id", None)
+        previous_principal = getattr(previous, "principal_id", None)
+        previous_lease = existing.get("lease_id")
+        # 先报最具体的越界（主体/租约），再报"线索已被别的运行占用"，
+        # 这样错误信息能直接指出是哪一类身份冲突。
+        if previous_principal and previous_principal != context.principal_id:
+            raise ThreadIdentityConflictError(
+                (
+                    f"thread_id={thread_id!r} 属于主体 {previous_principal}，"
+                    f"不能由 {context.principal_id} 复用"
+                ),
+                details={
+                    "thread_id": thread_id,
+                    "previous_principal_id": previous_principal,
+                    "requested_principal_id": context.principal_id,
+                },
+            )
+        if previous_lease and previous_lease != lease_id:
+            raise ThreadIdentityConflictError(
+                (
+                    f"thread_id={thread_id!r} 属于租约 {previous_lease}，"
+                    f"不能用于租约 {lease_id}"
+                ),
+                details={
+                    "thread_id": thread_id,
+                    "previous_lease_id": previous_lease,
+                    "requested_lease_id": lease_id,
+                },
+            )
+        if previous_run and context.run_id and previous_run != context.run_id:
+            raise ThreadIdentityConflictError(
+                (
+                    f"thread_id={thread_id!r} 已被运行 {previous_run} 占用，"
+                    "不能用于新运行；请换一个 thread_id（恢复请用 resume）"
+                ),
+                details={
+                    "thread_id": thread_id,
+                    "previous_run_id": previous_run,
+                    "requested_run_id": context.run_id,
+                },
+            )
+        # 身份完全相同也拒绝：重复 investigate 只会把同一批子任务再追加一遍，
+        # 而"恢复/重放"的语义属于 resume()。
+        raise ThreadIdentityConflictError(
+            f"thread_id={thread_id!r} 上已有运行状态，不能再次 investigate；恢复请用 resume",
+            details={"thread_id": thread_id, "previous_run_id": previous_run},
+        )
 
     async def resume(
         self,
@@ -1014,7 +1158,11 @@ class Investigator:
         self, state: dict[str, Any], thread_id: str
     ) -> InvestigationResult:
         report = state.get("report", {}) or {}
-        results = tuple(_latest_by_subtask(state.get("results", [])))
+        context = state.get("context")
+        run_id = getattr(context, "run_id", None)
+        results = tuple(
+            _latest_by_subtask(_scoped_by_run(state.get("results", []), run_id))
+        )
         verdict = report.get("verdict", state.get("verdict", "insufficient"))
         approval_status = str(state.get("approval_status", ""))
         approval_request = state.get("approval_request")
@@ -1029,7 +1177,9 @@ class Investigator:
             results=results,
             # 报告里的 `failures` 只含**未解决**的失败；历史尝试见 `resolved_failures`
             failures=tuple(
-                report["failures"] if "failures" in report else state.get("failures", [])
+                report["failures"]
+                if "failures" in report
+                else _scoped_by_run(state.get("failures", []), run_id)
             ),
             # 以报告中的去重结果为准：conflicts 是 append 通道，补查会重复
             conflicts=tuple(report.get("conflicts", [])),

@@ -38,10 +38,16 @@ class DocumentIndex:
     path: Path
     checksum_sha256: str
     chunks: tuple[Chunk, ...]
+    #: `signed` = 已签署生效；`draft` = 未签署草案（不得当作生效依据）
+    document_status: str = "signed"
 
     @property
     def scope(self) -> str:
         return "lease" if self.lease_id else "project"
+
+    @property
+    def effective(self) -> bool:
+        return self.document_status == "signed"
 
 
 @dataclass(frozen=True)
@@ -83,6 +89,7 @@ class KnowledgeService:
         project_id: str,
         lease_id: str | None = None,
         document_version: int = 1,
+        document_status: str = "signed",
     ) -> DocumentIndex:
         pdf_path = Path(path)
         pages = extract_pages(pdf_path)
@@ -102,6 +109,7 @@ class KnowledgeService:
             path=pdf_path,
             checksum_sha256=checksum,
             chunks=tuple(chunks),
+            document_status=document_status,
         )
         self._documents[(document_id, document_version)] = record
         return record
@@ -129,17 +137,21 @@ class KnowledgeService:
         project_ids: frozenset[str] | None = None,
         document_ids: frozenset[str] | None = None,
         lease_id: str | None = None,
+        document_statuses: frozenset[str] | None = frozenset({"signed"}),
         top_k: int = 3,
     ) -> list[RetrievedChunk]:
         """按分数检索条款。
 
-        三层过滤，缺一不可：
+        四层过滤，缺一不可：
 
         - `project_ids`：**数据隔离边界**。`None` 表示不限制（仅供内部/测试），
           空集合表示调用方没有任何项目授权，必须返回空结果（默认拒绝）；
         - `document_ids`：**适用范围**。只允许返回该集合内的文档
           （由调用方按租约解析，例如"本租约合同 + 项目级制度"）；
-        - `lease_id`：显式要求"适用于该租约"，等价于 `lease_id in (None, 本租约)`。
+        - `lease_id`：显式要求"适用于该租约"，等价于 `lease_id in (None, 本租约)`；
+        - `document_statuses`：**生效状态**（Task 017 / R4）。默认只返回 `signed`；
+          显式比较草案时传 `{"signed", "draft"}`，调用方必须把草案证据单列，
+          不能与已签署条款等同。`None` 表示不限（仅供内部校验使用）。
         """
 
         results = self._index.search(query, top_k=max(top_k * 4, top_k))
@@ -159,6 +171,9 @@ class KnowledgeService:
             if lease_id is not None:
                 if record is None or record.lease_id not in (None, lease_id):
                     continue
+            if document_statuses is not None:
+                if record is None or record.document_status not in document_statuses:
+                    continue
             retrieved.append(RetrievedChunk(chunk=chunk, score=score))
             if len(retrieved) >= top_k:
                 break
@@ -175,6 +190,19 @@ class KnowledgeService:
     def scope_of(self, document_id: str, document_version: int) -> str | None:
         record = self._documents.get((document_id, document_version))
         return None if record is None else record.scope
+
+    def status_of(self, document_id: str, document_version: int) -> str | None:
+        record = self._documents.get((document_id, document_version))
+        return None if record is None else record.document_status
+
+    def versions_of(self, document_id: str) -> tuple[int, ...]:
+        return tuple(
+            sorted(
+                version
+                for (doc_id, version) in self._documents
+                if doc_id == document_id
+            )
+        )
 
     def get_chunk(self, chunk_id: str) -> Chunk | None:
         return self._chunks.get(chunk_id)

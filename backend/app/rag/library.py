@@ -41,28 +41,53 @@ class KnowledgeLibrary:
     service: KnowledgeService
     indexed: dict[str, DocumentIndex]
     missing_documents: tuple[str, ...]
-    #: document_id → 归属信息（项目 / 租约 / 版本 / 适用范围）
-    documents: dict[str, DocumentMeta] = field(default_factory=dict)
+    #: (document_id, version) → 归属信息（项目 / 租约 / 版本 / 签署状态）
+    #: 用复合键而不是只按 document_id：同一文档的多个版本必须各自保留状态，
+    #: 否则"草案覆盖正式版"只是字典覆盖问题，查不出来（审查 R4/R7）。
+    documents: dict[tuple[str, int], DocumentMeta] = field(default_factory=dict)
     #: 是否执行了"fixture 页码 == 真实页码"的对齐校验
     snippets_verified: bool = False
 
-    def document_ids_for_lease(self, lease_id: str | None) -> tuple[str, ...]:
-        """返回某租约**适用**的文档集合（本租约文档 + 项目级公共文档）。"""
+    def metas(self) -> tuple[DocumentMeta, ...]:
+        return tuple(self.documents.values())
 
-        if not lease_id:
-            return tuple(
-                meta.document_id
-                for meta in self.documents.values()
-                if meta.lease_id is None
-            )
+    def meta_for(self, document_id: str, version: int) -> DocumentMeta | None:
+        return self.documents.get((document_id, version))
+
+    def document_ids_for_lease(
+        self, lease_id: str | None, *, statuses: tuple[str, ...] = ("signed",)
+    ) -> tuple[str, ...]:
+        """返回某租约**适用且生效**的文档集合（本租约文档 + 项目级公共文档）。
+
+        Task 017（R4）：默认只给已签署文档。未签署草案不会因为"存在"就变成
+        生效依据；需要比较草案时显式传 `statuses=("signed", "draft")`。
+        """
+
         return tuple(
             meta.document_id
             for meta in self.documents.values()
-            if meta.lease_id in (None, lease_id)
+            if meta.lease_id in (None, lease_id) and meta.document_status in statuses
         )
 
-    def scope_of(self, document_id: str) -> str:
-        meta = self.documents.get(document_id)
+    def draft_document_ids_for_lease(self, lease_id: str | None) -> tuple[str, ...]:
+        return self.document_ids_for_lease(lease_id, statuses=("draft",))
+
+    def project_document_ids(self, *, statuses: tuple[str, ...] = ("signed",)) -> tuple[str, ...]:
+        return tuple(
+            meta.document_id
+            for meta in self.documents.values()
+            if meta.lease_id is None and meta.document_status in statuses
+        )
+
+    def scope_of(self, document_id: str, version: int | None = None) -> str:
+        if version is None:
+            versions = [
+                meta for (doc_id, _), meta in self.documents.items() if doc_id == document_id
+            ]
+            if not versions:
+                return "unknown"
+            return sorted(versions, key=lambda meta: meta.version)[-1].scope
+        meta = self.documents.get((document_id, version))
         return "unknown" if meta is None else meta.scope
 
 
@@ -88,6 +113,8 @@ def verify_snippets(
             snippet["text"],
             document_id=document_id,
             document_version=document_version,
+            # 页码对齐校验要覆盖所有状态（含 draft），否则"草案没校验过"会静默通过
+            document_statuses=None,
             top_k=5,
         )
         matched = [
@@ -119,7 +146,7 @@ def build_knowledge_library(
     base = Path(document_dir) if document_dir is not None else DOCUMENT_DIR
     service = KnowledgeService(as_of_date=as_of_date)
     indexed: dict[str, DocumentIndex] = {}
-    documents: dict[str, DocumentMeta] = {}
+    documents: dict[tuple[str, int], DocumentMeta] = {}
     missing: list[str] = []
     verified = False
 
@@ -138,9 +165,10 @@ def build_knowledge_library(
             project_id=meta.project_id,
             lease_id=meta.lease_id,
             document_version=meta.version,
+            document_status=meta.document_status,
         )
         indexed[meta.document_id] = record
-        documents[meta.document_id] = meta
+        documents[(meta.document_id, meta.version)] = meta
         snippets = catalog.snippets(meta.document_id)
         if strict and snippets:
             verify_snippets(

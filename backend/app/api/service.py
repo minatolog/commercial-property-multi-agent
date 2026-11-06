@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS runs (
     thread_id         TEXT NOT NULL,
     principal_id      TEXT NOT NULL,
     project_ids_json  TEXT,
+    grant_project_ids_json TEXT,
     lease_id          TEXT NOT NULL,
     question          TEXT NOT NULL,
     status            TEXT NOT NULL,
@@ -98,7 +99,15 @@ class RunIndex:
 
     @staticmethod
     def _migrate(connection: sqlite3.Connection) -> None:
-        """为已存在的旧库补列（Task 016 增加 `project_ids_json` 所有权字段）。"""
+        """为已存在的旧库补列。
+
+        - `project_ids_json`（Task 016）：报告**数据范围**；
+        - `grant_project_ids_json`（Task 017 / R3）：创建者当时的**授权范围**，
+          只作审计，不用于授权判断。
+
+        旧记录缺列时一律留空——空范围在 `get`/`list` 里意味着**默认拒绝**，
+        直到 `WorkflowService` 用可信主体 + 目标租约回填（无法回填就保持隔离）。
+        """
 
         columns = {
             row["name"]
@@ -106,6 +115,8 @@ class RunIndex:
         }
         if "project_ids_json" not in columns:
             connection.execute("ALTER TABLE runs ADD COLUMN project_ids_json TEXT")
+        if "grant_project_ids_json" not in columns:
+            connection.execute("ALTER TABLE runs ADD COLUMN grant_project_ids_json TEXT")
 
     @contextmanager
     def _session(self) -> Iterator[sqlite3.Connection]:
@@ -122,21 +133,26 @@ class RunIndex:
         payload["updated_at"] = _now()
         with self._session() as connection:
             connection.execute(
-                "INSERT INTO runs (run_id, thread_id, principal_id, project_ids_json, lease_id,"
+                "INSERT INTO runs (run_id, thread_id, principal_id, project_ids_json,"
+                " grant_project_ids_json, lease_id,"
                 " question, status, verdict, approval_status, approval_request_id, report_json,"
                 " traces_json, created_at, updated_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 " ON CONFLICT(run_id) DO UPDATE SET status=excluded.status, verdict=excluded.verdict,"
                 " approval_status=excluded.approval_status,"
                 " approval_request_id=excluded.approval_request_id,"
                 " report_json=excluded.report_json, traces_json=excluded.traces_json,"
                 " project_ids_json=excluded.project_ids_json,"
+                " grant_project_ids_json=excluded.grant_project_ids_json,"
                 " updated_at=excluded.updated_at",
                 (
                     payload["run_id"],
                     payload["thread_id"],
                     payload["principal_id"],
                     json.dumps(sorted(payload.get("project_ids") or []), ensure_ascii=False),
+                    json.dumps(
+                        sorted(payload.get("grant_project_ids") or []), ensure_ascii=False
+                    ),
                     payload["lease_id"],
                     payload["question"],
                     payload["status"],
@@ -160,6 +176,10 @@ class RunIndex:
 
         `project_ids` 是**所有权边界**：不属于调用方项目范围的运行一律视为不存在
         （不返回 403，避免用 ID 探测他人数据是否存在）。
+
+        Task 017（R2）：记录的数据范围缺失时**默认拒绝**。旧库升级后不会自动拥有
+        范围标签，若对 `None/[]` 放行，修复前创建的运行就仍然跨项目可读——
+        而它们恰恰是迁移本该保护的对象。
         """
 
         with self._session() as connection:
@@ -169,9 +189,11 @@ class RunIndex:
         if row is None:
             return None
         record = _row(row)
-        if project_ids is not None and record.get("project_ids") not in (None, []):
-            if not set(record["project_ids"] or ()) & set(project_ids):
-                return None
+        if project_ids is None:
+            return record
+        scope = set(record.get("project_ids") or ())
+        if not scope & set(project_ids):
+            return None
         return record
 
     def list(
@@ -191,6 +213,34 @@ class RunIndex:
             if set(record.get("project_ids") or ()) & scope
         ]
 
+    def unscoped(self) -> list[dict[str, Any]]:
+        """没有数据范围标签的记录（旧库升级后的遗留项）。"""
+
+        with self._session() as connection:
+            rows = connection.execute(
+                "SELECT * FROM runs WHERE project_ids_json IS NULL"
+                " OR project_ids_json IN ('', '[]') ORDER BY created_at"
+            ).fetchall()
+        return [_row(row) for row in rows]
+
+    def set_scope(
+        self, run_id: str, *, project_ids: list[str], grant_project_ids: list[str] | None = None
+    ) -> None:
+        with self._session() as connection:
+            connection.execute(
+                "UPDATE runs SET project_ids_json = ?,"
+                " grant_project_ids_json = COALESCE(?, grant_project_ids_json),"
+                " updated_at = ? WHERE run_id = ?",
+                (
+                    json.dumps(sorted(project_ids), ensure_ascii=False),
+                    None
+                    if grant_project_ids is None
+                    else json.dumps(sorted(grant_project_ids), ensure_ascii=False),
+                    _now(),
+                    run_id,
+                ),
+            )
+
     def by_approval_request(self, request_id: str) -> dict[str, Any] | None:
         with self._session() as connection:
             row = connection.execute(
@@ -204,7 +254,13 @@ def _row(row: sqlite3.Row) -> dict[str, Any]:
         "run_id": row["run_id"],
         "thread_id": row["thread_id"],
         "principal_id": row["principal_id"],
+        # 报告数据范围（授权用）与创建者授权范围（审计用）分开存放
         "project_ids": json.loads(row["project_ids_json"]) if row["project_ids_json"] else [],
+        "grant_project_ids": (
+            json.loads(row["grant_project_ids_json"])
+            if row["grant_project_ids_json"]
+            else []
+        ),
         "lease_id": row["lease_id"],
         "question": row["question"],
         "status": row["status"],
@@ -237,6 +293,7 @@ class WorkflowService:
     def __post_init__(self) -> None:
         if self.project_ids is None:
             self.project_ids = self._resolve_scope()
+        self._backfill_legacy_scope()
 
     def _resolve_scope(self) -> frozenset[str]:
         from ..fixtures.repository import FixtureRepository
@@ -246,6 +303,48 @@ class WorkflowService:
         except Exception:  # noqa: BLE001 - 未知主体一律视为无范围（默认拒绝）
             return frozenset()
         return frozenset(principal.get("project_ids") or [])
+
+    def _report_scope(self, *, principal_id: str, lease_id: str) -> frozenset[str]:
+        """报告**实际数据**所属项目（不是创建者的全部授权范围）。
+
+        Task 017（R3）：把授权范围当数据范围写进记录，会让"授权里有 A、B 两个项目"
+        的创建者产出的 A 项目报告，被只授权 B 的主体整体读走。这里按目标租约
+        （及商铺）解析真实归属；解析不出来就返回空集合，由查询侧默认拒绝。
+        """
+
+        from ..fixtures.repository import FixtureRepository
+
+        try:
+            repository = FixtureRepository.load()
+            principal = repository.principal(principal_id)
+            granted = frozenset(principal.get("project_ids") or [])
+            facts = repository.lease_facts(project_ids=granted, lease_id=lease_id)
+        except Exception:  # noqa: BLE001 - 越权/不存在都按"无法确定范围"处理
+            return frozenset()
+        owners = {
+            str(item.get("project_id"))
+            for item in (facts.get("lease"), facts.get("unit"))
+            if isinstance(item, dict) and item.get("project_id")
+        }
+        return frozenset(owners)
+
+    def _backfill_legacy_scope(self) -> None:
+        """旧库升级后回填数据范围；回填不了就保持空（查询侧默认拒绝）。
+
+        `RunIndex.get` 对空范围默认拒绝，所以未回填的记录等于被隔离，而不是被放行。
+        """
+
+        for record in self.index.unscoped():
+            scope = self._report_scope(
+                principal_id=record["principal_id"], lease_id=record["lease_id"]
+            )
+            if not scope:
+                continue
+            self.index.set_scope(
+                record["run_id"],
+                project_ids=sorted(scope),
+                grant_project_ids=sorted(self.project_ids or ()),
+            )
 
     # ---------------- 提交 ----------------
 
@@ -284,7 +383,13 @@ class WorkflowService:
                         "run_id": run_id,
                         "thread_id": thread_id,
                         "principal_id": self.principal_id,
-                        "project_ids": sorted(self.project_ids or ()),
+                        # 失败记录同样只标"报告数据范围"；解析不出就留空（默认拒绝）
+                        "project_ids": sorted(
+                            self._report_scope(
+                                principal_id=self.principal_id, lease_id=lease_id
+                            )
+                        ),
+                        "grant_project_ids": sorted(self.project_ids or ()),
                         "lease_id": lease_id,
                         "question": question,
                         "status": "failed",
@@ -416,7 +521,11 @@ class WorkflowService:
             "run_id": run_id,
             "thread_id": thread_id,
             "principal_id": self.principal_id,
-            "project_ids": sorted(self.project_ids or ()),
+            # 数据范围（授权用）≠ 创建者授权范围（grant_project_ids，审计用）
+            "project_ids": sorted(
+                self._report_scope(principal_id=self.principal_id, lease_id=lease_id)
+            ),
+            "grant_project_ids": sorted(self.project_ids or ()),
             "lease_id": lease_id,
             "question": question,
             "status": status,

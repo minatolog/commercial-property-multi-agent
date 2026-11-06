@@ -89,7 +89,12 @@ class LeaseLookupOutput(_StrictModel):
     end_date: str
     status: str
     rules: list[LeaseRuleOut]
+    #: 租约引用的全部文档（含草案），保留给审计
     document_ids: list[str]
+    #: 已签署生效文档（默认检索范围，Task 017 / R4）
+    signed_document_ids: list[str] = []
+    #: 未签署草案（只能作为草案证据单列，不得当作生效依据）
+    draft_document_ids: list[str] = []
     missing_document_ids: list[str]
 
 
@@ -311,6 +316,16 @@ class LeaseLookupTool(BaseTool):
                 for rule in facts["rules"]
             ],
             document_ids=[doc["id"] for doc in facts["documents"]],
+            signed_document_ids=[
+                doc["id"]
+                for doc in facts["documents"]
+                if str(doc.get("document_status", "signed")) == "signed"
+            ],
+            draft_document_ids=[
+                doc["id"]
+                for doc in facts["documents"]
+                if str(doc.get("document_status", "signed")) != "signed"
+            ],
             missing_document_ids=facts["missing_documents"],
         )
         return ToolInvocation(data=data.model_dump(), evidence=tuple(evidence))

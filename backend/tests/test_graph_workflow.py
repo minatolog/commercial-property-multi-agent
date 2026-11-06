@@ -333,6 +333,53 @@ class TestInvestigationGraph(unittest.TestCase):
         # 历史失败仍可审计
         self.assertTrue(result.report["resolved_failures"])
 
+    def test_revision_happens_even_when_verdict_is_conflicting(self) -> None:
+        """回归 R6：账单差额不应阻止其它领域的可重试失败进入补查。
+
+        默认 A-301 变体本身就有租金差额（verdict=conflicting）。修复前补查闸门
+        要求 `verdict == insufficient`，于是"账单冲突 + 工单超时"永远不会重试，
+        而"差额 + 工单超时"恰恰是最主要的演示场景。
+        """
+
+        bundle = build_investigation_bundle(max_revisions=1)
+        flaky = _FlakyTool(bundle.tool_registry.get("property.work_orders.read"))
+        bundle.tool_registry.register(flaky, replace=True)
+
+        result = asyncio.run(
+            run_investigation(
+                bundle, question=C03_QUESTION, lease_id="lease_xh_a301_2025"
+            )
+        )
+
+        self.assertEqual(flaky.calls, 2, "有冲突时也必须重试可恢复的子任务")
+        self.assertEqual(result.revision, 1)
+        self.assertEqual(result.verdict, "conflicting", "冲突本身必须保留")
+        self.assertEqual(result.report["failures"], [], "重试成功后不应再有未解决失败")
+        self.assertTrue(result.conflicts, "冲突证据不能因为补查而消失")
+        self.assertEqual(result.report["completeness"], "partial")
+        self.assertTrue(any("doc_xh_a301_annex_b" in item for item in result.missing))
+
+    def test_conflict_plus_permanent_failure_still_reports_both(self) -> None:
+        """冲突与永久失败并存时：保留冲突、如实标 partial、且不无限重试。"""
+
+        bundle = build_investigation_bundle(max_revisions=1)
+        always_failing = _AlwaysFailingTool(
+            bundle.tool_registry.get("property.work_orders.read")
+        )
+        bundle.tool_registry.register(always_failing, replace=True)
+
+        result = asyncio.run(
+            run_investigation(
+                bundle, question=C03_QUESTION, lease_id="lease_xh_a301_2025"
+            )
+        )
+        self.assertEqual(always_failing.calls, 2, "最多补查一次（max_revisions=1）")
+        self.assertEqual(result.verdict, "conflicting")
+        self.assertTrue(result.conflicts)
+        self.assertEqual(len(result.report["failures"]), 1)
+        self.assertEqual(result.report["failures"][0]["subtask_id"], "st_3_property")
+        self.assertEqual(result.report["completeness"], "partial")
+
     def test_persistent_failure_stays_insufficient(self) -> None:
         """对照：补查后仍失败时，必须继续报不完整（不能因为重试过就当成功）。"""
 

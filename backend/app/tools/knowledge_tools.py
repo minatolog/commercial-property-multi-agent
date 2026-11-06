@@ -33,6 +33,9 @@ class DocumentSearchInput(_StrictModel):
     document_ids: list[str] | None = None
     #: 额外允许**项目级公共**文档（租约无关的制度/规范）
     include_project_documents: bool = True
+    #: 是否同时检索**未签署草案**（Task 017 / R4）。默认否：
+    #: 草案不得作为生效依据，只能显式比较时单列。
+    include_drafts: bool = False
     top_k: int = Field(default=3, ge=1, le=10)
 
 
@@ -43,6 +46,8 @@ class DocumentClauseOut(_StrictModel):
     project_id: str
     #: `lease`=本租约合同；`project`=项目级公共文档
     document_scope: str
+    #: `signed`=已签署生效；`draft`=未签署草案
+    document_status: str = "signed"
     lease_id: str | None = None
     page: int
     clause_id: str
@@ -86,16 +91,22 @@ class DocumentSearchTool(BaseTool):
             allowed = frozenset(payload.document_ids)
             if payload.include_project_documents and self._library is not None:
                 allowed = allowed | frozenset(
-                    meta.document_id
-                    for meta in self._library.documents.values()
-                    if meta.lease_id is None
+                    self._library.project_document_ids(
+                        statuses=("signed", "draft")
+                        if payload.include_drafts
+                        else ("signed",)
+                    )
                 )
+        statuses = (
+            frozenset({"signed", "draft"}) if payload.include_drafts else frozenset({"signed"})
+        )
         hits = self._service.search(
             payload.query,
             document_id=payload.document_id,
             document_version=payload.document_version,
             project_ids=context.project_ids,
             document_ids=allowed,
+            document_statuses=statuses,
             top_k=payload.top_k,
         )
         results: list[DocumentClauseOut] = []
@@ -113,6 +124,12 @@ class DocumentSearchTool(BaseTool):
                     project_id=project_id,
                     document_scope=(
                         self._service.scope_of(
+                            hit.chunk.document_id, hit.chunk.document_version
+                        )
+                        or "unknown"
+                    ),
+                    document_status=(
+                        self._service.status_of(
                             hit.chunk.document_id, hit.chunk.document_version
                         )
                         or "unknown"
@@ -140,6 +157,7 @@ class DocumentSearchTool(BaseTool):
                     "document_id": item.document_id,
                     "document_version": item.document_version,
                     "document_scope": item.document_scope,
+                    "document_status": item.document_status,
                     "lease_id": item.lease_id,
                     "page": item.page,
                     "clause_id": item.clause_id,

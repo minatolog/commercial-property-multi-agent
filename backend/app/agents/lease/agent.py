@@ -43,8 +43,23 @@ class LeaseAgent(ToolBackedAgent):
             context=context,
             lease_id=lease_id,
             document_ids=[str(item) for item in data.get("document_ids") or []],
+            signed_document_ids=[
+                str(item) for item in data.get("signed_document_ids") or []
+            ],
+            draft_document_ids=[
+                str(item) for item in data.get("draft_document_ids") or []
+            ],
         )
         warnings = list(clause_warnings)
+        draft_documents = [
+            str(item) for item in data.get("draft_document_ids") or []
+        ]
+        if draft_documents and not any(
+            clause.get("document_status") == "draft" for clause in clauses
+        ):
+            warnings.append(
+                "租约引用未签署草案（不得作为生效依据）: " + ", ".join(draft_documents)
+            )
 
         if request.capability == "lease.query":
             return AgentOutput(
@@ -53,6 +68,8 @@ class LeaseAgent(ToolBackedAgent):
                     "lease": lease,
                     "rules": data.get("rules", []),
                     "documents": data.get("document_ids", []),
+                    "signed_documents": data.get("signed_document_ids", []),
+                    "draft_documents": draft_documents,
                     "missing_documents": data.get("missing_document_ids", []),
                     "clauses": clauses,
                     "clause_evidence": clause_evidence,
@@ -94,12 +111,17 @@ class LeaseAgent(ToolBackedAgent):
         context: AgentContext,
         lease_id: str,
         document_ids: list[str],
+        signed_document_ids: list[str] | None = None,
+        draft_document_ids: list[str] | None = None,
     ) -> tuple[list[dict], list[dict], list[str]]:
-        """读取**本租约适用**的合同条款作为可追溯证据。
+        """读取**本租约适用且已签署**的合同条款作为可追溯证据。
 
         Task 016（F7）：只按项目过滤是不够的——同项目另一个租约的合同属于不同文档。
-        因此把 `lease.lookup` 返回的 `document_ids` 作为检索范围传下去，
-        项目级公共文档（政策/制度）另行放行，并在证据里标注 `document_scope`。
+        因此把 `lease.lookup` 返回的文档范围传下去，项目级公共文档另行放行。
+
+        Task 017（R4）：默认只检索**已签署**文档。未签署草案即使属于本租约，
+        也不能当作生效依据；它只能出现在 `draft_documents` 提示里（或调用方
+        显式要求比较草案时单列为 `document_draft` 证据）。
 
         未授权或未注册 `document.search` 时**不报错**，只降级为"无条款证据"并给出警告：
         条款检索是增强能力，不应该让租约事实查询整体失败。
@@ -108,14 +130,24 @@ class LeaseAgent(ToolBackedAgent):
         query = str(request.payload.get("query") or "").strip()
         if not query or "document.search" not in self.config.allowed_tools:
             return [], [], []
+        effective_documents = (
+            list(signed_document_ids)
+            if signed_document_ids
+            else [
+                document_id
+                for document_id in document_ids
+                if document_id not in set(draft_document_ids or ())
+            ]
+        )
         try:
             execution = await self._invoke_tool(
                 "document.search",
                 {
                     "query": query,
                     "top_k": 3,
-                    "document_ids": list(document_ids),
+                    "document_ids": effective_documents,
                     "include_project_documents": True,
+                    "include_drafts": False,
                 },
                 context,
             )
@@ -126,9 +158,11 @@ class LeaseAgent(ToolBackedAgent):
         payload = execution.data or {}
         clauses = [
             {
+                "chunk_id": item.get("chunk_id"),
                 "document_id": item["document_id"],
                 "document_version": item["document_version"],
                 "document_scope": item.get("document_scope", "unknown"),
+                "document_status": item.get("document_status", "signed"),
                 "page": item["page"],
                 "clause_id": item["clause_id"],
                 "excerpt": item["excerpt"],

@@ -125,6 +125,65 @@ class TestInvalidModelResponses(unittest.TestCase):
         self.assertEqual(outcome.stop_reason, ToolLoopStopReason.FINAL_ANSWER)
         self.assertIn("18036.00", outcome.answer)
 
+    def test_empty_answer_after_tool_calls_is_not_success(self) -> None:
+        """回归 R5：调过工具不等于完成了问答，空最终文本不能标成 final_answer。"""
+
+        class _Model(_SingleTurnModel):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def _next(self, messages):  # noqa: ANN001
+                self.calls += 1
+                if self.calls == 1:
+                    return _turn(
+                        tool_name="billing.statement.read",
+                        arguments={"lease_id": "lease_xh_a301_2025"},
+                    )
+                return ModelTurn(text="")
+
+        model = _Model()
+        outcome = self._loop(model)
+        self.assertEqual(model.calls, 2, "第一轮应真的调用了工具")
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.MODEL_ERROR)
+        self.assertTrue(outcome.tool_executions, "工具确实执行过")
+        self.assertTrue(outcome.evidence, "工具确实产出过证据")
+        self.assertTrue(any("没有给出任何回答文本" in item for item in outcome.warnings))
+
+    def test_failed_tool_then_empty_answer_is_not_success(self) -> None:
+        class _Model(_SingleTurnModel):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def _next(self, messages):  # noqa: ANN001
+                self.calls += 1
+                if self.calls == 1:
+                    return _turn(
+                        tool_name="billing.statement.read",
+                        arguments={"lease_id": "lease_jl_b101_2025"},
+                    )
+                return ModelTurn(text="")
+
+        outcome = self._loop(_Model())
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.MODEL_ERROR)
+
+    def test_answer_after_tool_calls_still_succeeds(self) -> None:
+        class _Model(_SingleTurnModel):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def _next(self, messages):  # noqa: ANN001
+                self.calls += 1
+                if self.calls == 1:
+                    return _turn(
+                        tool_name="billing.statement.read",
+                        arguments={"lease_id": "lease_xh_a301_2025"},
+                    )
+                return ModelTurn(text="未收 18036.00", finish_reason="stop")
+
+        outcome = self._loop(_Model())
+        self.assertEqual(outcome.stop_reason, ToolLoopStopReason.FINAL_ANSWER)
+        self.assertIn("18036.00", outcome.answer)
+
 
 class _SingleTurnModel:
     """最小模型桩：只实现 `complete`（异步），供上面的用例使用。"""
