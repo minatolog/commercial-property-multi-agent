@@ -77,7 +77,7 @@ python -m unittest discover -s tests -p "test_*.py"
 
 | 路径 | 职责 |
 |---|---|
-| `app/agents/base/` | Agent 契约（`AgentRequest/Context/Output`）、Registry、`BaseAgent`、`ToolBackedAgent`（确定性）、`LLMToolAgent`（模型驱动）、共享事实映射 `facts.py` |
+| `app/agents/base/` | Agent 契约（`AgentRequest/Context/Output`）、Registry、`BaseAgent`、`ToolBackedAgent`（确定性）、`LLMToolAgent`（模型驱动）、共享事实映射 `facts.py`、可信任务范围 `scope.py`、能力最低结果契约 `evidence.py`、叙述一致性 `narrative.py` |
 | `app/agents/factory.py` | 配置 → 实例的**静态白名单**（确定性表 + LLM 表）；K2 配置/实现一致性校验；按签名依赖注入 |
 | `app/agents/{lease,billing,property}/` | 领域 Agent：确定性实现 + `llm_agent.py`（模型选工具、事实取自工具输出） |
 | `app/agents/single/` | 单 Agent + Tools 基线（`single.investigate`） |
@@ -91,7 +91,7 @@ python -m unittest discover -s tests -p "test_*.py"
 | `app/orchestration/checkpointing.py` | `AsyncSqliteSaver` 装配与 serde 白名单 |
 | `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验、`DocumentCatalog` 目录契约（按租约限定文档版本） |
 | `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（装配期 `PRAGMA query_only=1`；本机用 SQLite 验证） |
-| `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v2`）、报告绑定 |
+| `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v3`：工具事实与最终答案分开判定）、报告绑定 |
 | `app/api/` | FastAPI 适配层 + 同源演示页（**可整体删除**，CLI/评测不依赖它） |
 | `app/cli.py` | 命令行入口（tools/check/demo/ask/investigate/search/approve/pending/evaluate） |
 

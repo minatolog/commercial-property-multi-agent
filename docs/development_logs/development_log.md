@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-11-07] 任务 021（实施）- 修复模型链路 N1–N6
+
+- **阶段**：测试 / 缺陷修复（按 021 审查报告逐项修复）。
+- **Prompt**：`docs/prompts/06_testing/2026-11-07_021_model_path_review.md`（第 10 节实施记录）。
+- **代码基线**：`main` / `45af0cb`；本轮保留 Codex 未提交的审查文档，未覆盖。
+- **完成内容**：分三批修复 N1（物理请求与 token 记账）、N2/N3/N5（可信目标、文档范围、筛选条件）、N4/N6（结果契约、最终答案准确性），并为每一项先复现反例再修。
+
+  | 项 | 根因 | 修复位置 |
+  |---|---|---|
+  | N1 | `model_call_id` 只含 run/subtask/round，重试后 round 复位 → 复用已结算 ID，账本少记 | `runtime/tool_loop.py`（全局 `request_seq`）、`runtime/budget.py`（`record_unbudgeted_tokens`）、`runtime/types.py`（`exceeded_tokens`） |
+  | N2/N3/N5 | 确定性路径的目标/范围约束没有迁移到模型路径 | 新增 `agents/base/scope.py`；`runtime/tool_loop.py` 的 `prepare_arguments` 钩子；`agents/base/llm_agent.py`；`tools/knowledge_tools.py`（`lease_id` + `_resolve_allowed`）；`orchestration/investigation.py`（planner 传 `question`）；`evaluation/baselines.py`（B 的条款检索补 `lease_id`） |
+  | N4 | "模型给出非空文本"被当成"子任务证据充分" | 新增 `agents/base/evidence.py`（能力最低结果契约）；`llm_agent.py` 与 `verify_results` 双处校验；新增 `INSUFFICIENT_EVIDENCE` |
+  | N6 | 只比对内部 `facts`，不看用户读到的金额 | 新增 `agents/base/narrative.py`；`llm_agent.py`/`single/agent.py` 输出 `answer_check`；报告新增 `narrative_discrepancies`；评分升 `scoring-v3` + `by_kind` 指标 |
+
+- **评分变更**：`SCORING_VERSION` 升 `scoring-v3`，新增 `answer` 断言；新报告 `docs/evaluation/reports/20261106T191222_heldout_*`（A 20/30、B 21/30、C 23/30）与 `20261106T191233_dev_*`；`docs/evaluation/scoring_v3.md` 新增，`scoring_v2.md` 标注被取代；v2 报告与真实模型历史测量未回写。
+- **测试**：`backend/tests/test_model_budget.py`、`test_task_scope.py`、`test_evidence_and_answer.py` 共 42 项新回归；全量 **343 tests OK（skipped=1）**、契约检查 **57 项通过**、offline/scripted CLI 均 exit 0。
+- **技术决策**：约束由**可信 payload**（planner/装配层）决定并在工具边界强制，而不是写进提示词求模型遵守；确定性与 LLM 引擎共用同一份 `TaskScope` / 能力契约 / 叙述校验，避免两套规则漂移。
+- **已知限制**：N6 只核金额（"1.8 万"视为未提及）；`not_mentioned` 不算错（待真实模型数据再定是否收紧）；真实模型复测、独立模型配置策略、PostgreSQL 实机与人工量表仍未完成。
+- **Git**：本轮改动按里程碑提交，Commit 见 `docs/checkpoints/git_history.md`。
+
+---
+
+## [2026-11-07] 任务 021 - 本次修复与模型驱动链路审查
+
+- **阶段**：测试 / 独立审查。
+- **Prompt**：`docs/prompts/06_testing/2026-11-07_021_model_path_review.md`。
+- **代码基线**：`main` / `45af0cb`，开始时干净且与本地 origin/main 一致。
+- **核实**：301 tests OK（skipped=1）、57 项契约通过；scripted 调查 exit 0（6 模型、4 工具）。线程复用、旧记录、多项目标签的原反例已改善；已入库的真实 DeepSeek 调查与 dev 归档存在。
+- **发现**：N1–N6 涉及模型重试用量少记、错误租约/合同进入结果、无证据成功、问题/筛选未传、用户答案错误而内部事实判满分。详见 `docs/reviews/2026-11-07_model_path_review.md`。
+- **范围**：只新增审查文档及更新索引/日志/问题/检查点/进度提示；未改业务代码、未读出密钥、未新增真实模型调用或 PG 连接、未提交或推送。
+- **后续**：预算记账 → 目标/范围/筛选 → 结果契约/答案评测，再运行新反例与真实集成验收。
+
+---
+
 ## [2026-11-07] 任务 017 - 版本候选修复复查
 
 - **阶段**：测试 / 独立复查。

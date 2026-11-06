@@ -2,6 +2,52 @@
 
 记录每个开发阶段对应的 Git 提交，用于追溯与回滚。
 
+## [2026-11-07] 任务 021（实施）- 修复模型链路 N1–N6
+
+- **开发阶段**：缺陷修复 / 测试。
+- **代码基线**：`main` / `45af0cb`（含 Codex 未提交审查文档，已保留）。
+- **Git 分支**：`main`。
+- **Commit Hash**：提交后回填（见下一条"提交记录"）。
+- **本次变更**：
+
+  | 文件 | 变更类型 |
+  |---|---|
+  | `backend/app/agents/base/scope.py`、`evidence.py`、`narrative.py` | 新增（可信任务范围、能力结果契约、叙述一致性） |
+  | `backend/app/runtime/tool_loop.py`、`budget.py`、`types.py` | 修改（物理请求编号、未预算 token 记账、`exceeded_tokens`） |
+  | `backend/app/agents/base/llm_agent.py`、`errors.py`、`single/agent.py` | 修改（契约与答案校验、`INSUFFICIENT_EVIDENCE`） |
+  | `backend/app/tools/knowledge_tools.py` | 修改（`lease_id` 范围解析、默认拒绝） |
+  | `backend/app/orchestration/investigation.py` | 修改（planner 传 `question`、能力契约核验、`narrative_discrepancies`） |
+  | `backend/app/evaluation/scoring.py`、`runner.py`、`baselines.py` | 修改（`scoring-v3`、`by_kind` 指标、B 条款检索带租约） |
+  | `backend/tests/test_model_budget.py`、`test_task_scope.py`、`test_evidence_and_answer.py` | 新增 42 项回归 |
+  | `backend/tests/test_evaluation.py`、`test_graph_workflow.py`、`test_rag.py` | 修改（同步契约与 v3 口径） |
+  | `docs/evaluation/scoring_v3.md`、`docs/evaluation/reports/20261106T191222_*`、`20261106T191233_*` | 新增（规则与 `scoring-v3` 报告） |
+
+- **验证结果**：
+
+  | 验证项 | 结果 |
+  |---|---|
+  | `python -m unittest discover -s tests -p "test_*.py"` | 343 tests，OK（skipped=1） |
+  | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+  | `python -m app.cli investigate` / `--model-provider scripted` | exit 0，`conflicting`，无失败 |
+  | `python -m app.cli evaluate --split heldout --quiet` | A 20/30、B 21/30、C 23/30（`scoring-v3`） |
+
+- **建议 Commit Message**：`fix(model-path): enforce trusted scope, evidence contracts and answer accuracy`
+- **回滚参考命令**：
+
+```bash
+git revert <hash>
+git show <hash> --stat
+```
+
+## [2026-11-07] 任务 021 - 模型链路审查文档（未提交）
+
+- **代码基线**：`main` / `45af0cb`，开始时工作区干净，与本地 origin/main 一致。
+- **本轮 Commit**：`Pending`；没有提交或推送。
+- **变更**：021 Prompt、模型链路审查报告、文档索引/开发日志/问题记录/路线图提示；未修业务代码。
+- **验证**：301 tests OK（skipped=1）、57 项契约检查、scripted CLI 通过；独立复现 N1–N6。
+- **建议 Commit Message**：`docs: review model-driven paths and record reproducible defects`。
+- **回滚说明**：仅未提交审查文档，先查看差异，不自动回滚或修改 Git 历史。
+
 ## [2026-11-07] 任务 017 - 修复复查文档（未提交）
 
 - **代码基线**：`main` / `bf30dd5`，开始时与本地 origin/main 一致，工作区干净。

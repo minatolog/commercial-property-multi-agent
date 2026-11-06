@@ -38,7 +38,7 @@ python -m app.cli tools
 python -m app.cli check
 python tests/smoke_agent_contracts.py
 
-# 4) 跑一遍完整回归（238 项）
+# 4) 跑一遍完整回归（343 项）
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -205,25 +205,29 @@ python -m app.cli search "租金递增比例" --verify-claim "自第二个租赁
 
 数据：8 道开发题（`cases/smoke_v1.jsonl`，为人工量表写的自然语言题）+ 32 道保留题
 （`cases/heldout_v3.jsonl`，冻结后只跑不改；其中 H25/H26 显式声明为人工评定，30 题参与自动计分）。
-评分规则先冻结：[scoring_v2.md](docs/evaluation/scoring_v2.md)（v1 规则与历史报告保留在
-[scoring_v1.md](docs/evaluation/scoring_v1.md) 与 reports 目录，**两版不可做通过率对比**）。
+评分规则先冻结：[scoring_v3.md](docs/evaluation/scoring_v3.md)（v1/v2 规则与历史报告保留在
+[scoring_v1.md](docs/evaluation/scoring_v1.md)、[scoring_v2.md](docs/evaluation/scoring_v2.md)
+与 reports 目录，**不同版本不可做通过率对比**）。
 
 ```bash
 python -m app.cli evaluate --split heldout
 ```
 
-保留集 v3（离线，`scoring-v2`，代码提交 `43b48ef`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
+保留集 v3（离线，`scoring-v3`，代码提交 `45af0cb`，报告见 [docs/evaluation/reports/](docs/evaluation/reports/)）：
 
-| 基线 | 架构 | 计分题通过 | 自动断言通过率 | 工具调用 | token | 成本 |
-|---|---|---|---|---|---|---|
-| `A_deterministic` | 意图表 → 单次工具 | 20/30 | 0.7222 | 27 | 0 | n/a（离线） |
-| `B_single_agent` | 单 Agent 汇总全部工具 | 21/30 | 0.7444 | 38 | 0 | n/a（离线） |
-| `C_multi_agent` | LangGraph 分解 + 核验 | 23/30 | 0.8222 | 47 | 0 | n/a（离线） |
+| 基线 | 架构 | 计分题通过 | 自动断言通过率 | 工具事实断言 | 最终答案断言 | 工具调用 | token | 成本 |
+|---|---|---|---|---|---|---|---|---|
+| `A_deterministic` | 意图表 → 单次工具 | 20/30 | 0.725 | 28/33 | 9/9 | 27 | 0 | n/a（离线） |
+| `B_single_agent` | 单 Agent 汇总全部工具 | 21/30 | 0.7667 | 29/33 | 11/11 | 38 | 0 | n/a（离线） |
+| `C_multi_agent` | LangGraph 分解 + 核验 | 23/30 | 0.8417 | 30/33 | 11/11 | 47 | 0 | n/a（离线） |
 
 **怎么读这张表**：
 
 - 通过率只统计**可机械复核**的断言；人工量表（rubric）与 `scorable=false` 的题另列，
   不参与自动分。断言必须是**同名字段**比较（金额用 `Decimal` 比到分），不允许"数字在文本里出现过"即通过；
+- **"工具事实"与"最终答案"分开统计**（`scoring-v3`）：前者回答"取数对不对"，后者回答
+  "用户读到的金额对不对"。答案里出现工具事实之外的金额判失败，只说"已核对"没写金额转人工，
+  两者都不允许用对方的通过率背书；
 - 基线事实契约之外、无法自动判定的断言进人工队列，**不进分母**——所以"0/0"表示"没有可判定的题"，
   与"0/7（全错）"不是一回事；
 - 路由命中只作**效率**指标（`B` 为 0/32 是架构使然，不是错误）；
@@ -244,7 +248,7 @@ python -m app.cli evaluate --split heldout
 | [docs/prompts/](docs/prompts/) | 每个任务的完整存档（原始 Prompt + 实施 + 验证 + 问题） |
 | [docs/development_logs/development_log.md](docs/development_logs/development_log.md) | 逐任务开发日志 |
 | [docs/issues/issue_log.md](docs/issues/issue_log.md) | 问题、根因、修法、如何避免复发 |
-| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（13 篇） |
+| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（28 篇） |
 | [docs/checkpoints/git_history.md](docs/checkpoints/git_history.md) | 里程碑与回滚参考 |
 | [docs/evaluation/](docs/evaluation/) | 评测规则、数据集、报告 |
 | [docs/demo/demo_script.md](docs/demo/demo_script.md) | 演示脚本与失败示例 |
@@ -257,8 +261,12 @@ python -m app.cli evaluate --split heldout
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **301 项通过**（1 项因本机已配置密钥而 skip） |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **343 项通过**（1 项因本机已配置密钥而 skip） |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
+| 模型预算按物理请求记账 | `tests/test_model_budget.py`（6 项） | `max_model_calls=1` 时只发出 1 次请求；重试/补查逐次记账 |
+| 模型不能换目标/丢筛选 | `tests/test_task_scope.py`（15 项） | 越界租约被拒、省略即注入、文档范围取交集、受控调用双省略默认拒绝 |
+| 零取证不算完成 | `tests/test_evidence_and_answer.py`（N4 部分） | 不调工具 / 调无关工具 / 工具全失败 → `insufficient_evidence` |
+| 答案金额必须来自事实 | `tests/test_evidence_and_answer.py`（N6 部分） | facts 全对但回答写 0.00 → 答案断言失败；报告列出 `narrative_discrepancies` |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
 | Agent 可禁用/替换 | `tests/test_graph_workflow.py::test_disabled_capability_degrades_explicitly`、`tests/test_runtime.py::test_replace_success_swaps_capabilities_atomically` | 禁用后明确报能力不可用；替换原子生效 |
@@ -279,7 +287,7 @@ python -m app.cli evaluate --split heldout
 | 真实模型评测（dev 8 题） | `evaluate --split dev --model-provider deepseek` | B 1/7、C 0/6；报告头部标注 `deepseek/deepseek-chat`（见 [real_model_dev](docs/evaluation/reports/real_model_dev/)） |
 | 报告不得谎报模型 | `tests/test_evaluation.py::test_report_names_the_real_model_when_one_is_used` | 接入模型后报告必须写真实 provider |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
-| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0` |
+| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0`（Task 016 当时的口径；当前为 343 项） |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
 
 ---
