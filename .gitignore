@@ -69,3 +69,12 @@ logs/
 Thumbs.db
 desktop.ini
 .idea/
+
+# ---------------------------------------------------------------------------
+# Runtime state (Task 012) - LangGraph checkpoints / approval ledger / local
+# business SQLite. These are reproducible local state, never source of truth.
+# ---------------------------------------------------------------------------
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

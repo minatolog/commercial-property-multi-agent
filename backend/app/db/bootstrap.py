@@ -17,7 +17,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from ..paths import DEFAULT_FIXTURE_PATH
+from ..paths import DEFAULT_FIXTURE_PATH, SQLITE_DB_PATH
 from .repository import DatabaseRepository
 from .seed import create_schema, seed_from_fixture
 
@@ -40,7 +40,9 @@ def build_sqlite_repository(
     else:  # pragma: no cover - 仅用于人工检查
         from .session import create_engine_for, sqlite_url
 
-        engine = create_engine_for(sqlite_url(Path("commercial_agent_test.db")))
+        # 落到仓库内的 data/business/（已被 .gitignore 排除），避免在 cwd 生成游离文件
+        SQLITE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        engine = create_engine_for(sqlite_url(SQLITE_DB_PATH))
 
     create_schema(engine)
     setup = Session(engine)

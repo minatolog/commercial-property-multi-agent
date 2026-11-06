@@ -321,13 +321,49 @@ git show <hash> --stat
 
 ---
 
+## [2026-11-06] 里程碑 3：Task 012 持久检查点与人工审批（待提交）
+
+- **开发阶段**：阶段 4' 可靠性与人机协同
+- **对应任务**：012（Prompt 7）
+- **Git 分支**：`main`
+- **Commit Hash**：`Pending`
+- **推送状态**：`Pending`
+
+### 本次变更
+
+| 文件 | 变更类型 |
+|---|---|
+| `backend/app/orchestration/{approval,checkpointing}.py`、`backend/app/control_plane.py` | 新增 |
+| `backend/tests/test_approval.py` | 新增（21 项） |
+| `backend/app/orchestration/investigation.py` | 修改：审批节点、`resume()`、thread 标识 |
+| `backend/app/{investigation_demo,cli,paths}.py`、`db/bootstrap.py` | 修改 |
+| `backend/pyproject.toml`、`.gitignore` | 修改 |
+| `docs/prompts/04_agents/2026-11-06_012_*.md` | 新增 |
+
+### 验证结果
+
+| 验证项 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests -p "test_*.py"` | `Ran 156 tests ... OK` |
+| `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| 四进程审批链（investigate → approve×2 → 重复 approve） | 全部退出码 0，状态依次正确 |
+| 版本不匹配恢复 | 退出码 3，图保持暂停 |
+
+### 回滚参考命令
+
+```bash
+git revert <hash>
+```
+
+---
+
 ## [2026-11-06] 里程碑 2：Task 010 只读数据层 + Task 011 合同 RAG（已提交并推送）
 
 - **开发阶段**：阶段 2' 数据底座 + 阶段 3' 知识与证据层
 - **对应任务**：010（Prompt 5）、011（Prompt 6）
 - **Git 分支**：`main`
-- **Commit Hash**：见下方"回填记录"
-- **推送状态**：见下方"回填记录"
+- **Commit Hash**：Task 010 = `3c10317`；Task 011 = `87027e6`
+- **推送状态**：✅ `main -> origin/main`（`3c10317..87027e6`）
 
 ### 本次变更
 
@@ -356,8 +392,8 @@ git show <hash> --stat
 
 ### 回填记录
 
-- Task 010：`3c10317`（已推送；Task 011 实施前就绪）
-- Task 011：本轮里程碑提交后回填
+- Task 010：`3c10317`（已推送）
+- Task 011：`87027e6`（已推送，父提交 `3c10317`）
 
 ### 回滚参考命令
 

@@ -25,7 +25,12 @@ from .tools.fixture_tools import build_fixture_tools
 from .tools.knowledge_tools import DocumentSearchTool
 from .tools.registry import ToolRegistry
 
-__all__ = ["InvestigationBundle", "build_investigation_bundle", "run_investigation"]
+__all__ = [
+    "InvestigationBundle",
+    "build_investigation_bundle",
+    "resume_investigation",
+    "run_investigation",
+]
 
 
 @dataclass
@@ -53,6 +58,7 @@ def build_investigation_bundle(
     backend: str = "fixture",
     document_dir: str | Path | None = None,
     enable_documents: bool = True,
+    control_plane: Any = None,
 ) -> InvestigationBundle:
     if backend == "fixture":
         repository = FixtureRepository.load(None, variant=variant)
@@ -94,6 +100,9 @@ def build_investigation_bundle(
         repository=repository,
         max_revisions=max_revisions,
         planner=planner,
+        approval_store=getattr(control_plane, "approval_store", None),
+        checkpointer=getattr(control_plane, "checkpointer", None),
+        budget_snapshot=budget.snapshot,
     )
 
     principal = repository.principal(principal_id)
@@ -115,8 +124,31 @@ def build_investigation_bundle(
 
 
 async def run_investigation(
-    bundle: InvestigationBundle, *, question: str, lease_id: str
+    bundle: InvestigationBundle,
+    *,
+    question: str,
+    lease_id: str,
+    thread_id: str | None = None,
 ) -> InvestigationResult:
     return await bundle.investigator.investigate(
-        question=question, lease_id=lease_id, context=bundle.context
+        question=question,
+        lease_id=lease_id,
+        context=bundle.context,
+        thread_id=thread_id,
+    )
+
+
+async def resume_investigation(
+    bundle: InvestigationBundle,
+    *,
+    request_id: str,
+    decision: str,
+    draft_version: int,
+    principal_id: str,
+) -> InvestigationResult:
+    return await bundle.investigator.resume(
+        request_id=request_id,
+        decision=decision,
+        draft_version=draft_version,
+        principal_id=principal_id,
     )

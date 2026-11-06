@@ -15,6 +15,13 @@ DEFAULT_FIXTURE_PATH: Path = (
     REPO_ROOT / "docs" / "evaluation" / "fixtures" / "agent_first_v1.json"
 )
 
+#: 控制面存储（Task 012）。默认放在仓库内的 `data/`，已被 `.gitignore` 排除：
+#: checkpoint 与审批台账是运行期状态，不应进入版本库。
+DATA_DIR: Path = REPO_ROOT / "data"
+CHECKPOINT_DB: Path = DATA_DIR / "checkpoints" / "graph.sqlite"
+CONTROL_DB: Path = DATA_DIR / "control" / "approval.sqlite"
+SQLITE_DB_PATH: Path = DATA_DIR / "business" / "business.sqlite"
+
 #: 合成文档产物目录（Task 011）。PDF 由 `python -m app.rag.pdf_builder` 生成并纳入仓库，
 #: 保证"索引内容"可复现，而不是每次运行时随机生成。
 DOCUMENT_DIR: Path = REPO_ROOT / "docs" / "evaluation" / "documents"

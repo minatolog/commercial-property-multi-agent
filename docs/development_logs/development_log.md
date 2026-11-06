@@ -420,6 +420,74 @@ Prompt 1 已准备；任务 006 待 DeepSeek 执行、待 Codex 验收。Commit 
 
 ---
 
+## [2026-11-06] 任务 012 - 持久检查点、人工审批与暂停恢复
+
+- **日期**：2026-11-06
+- **开发阶段**：阶段 4' - 可靠性与人机协同
+- **执行者**：DeepSeek（DeepSeek Harness 会话，用户已取消 Codex 逐任务审查）
+- **对应 Prompt 归档**：`docs/prompts/04_agents/2026-11-06_012_durable_checkpoint_and_approval.md`
+- **状态**：**DeepSeek 自检通过**（本地 SQLite 控制面；不宣称分布式恰好一次）
+
+### 本次完成的功能
+
+- **持久 checkpoint**：`AsyncSqliteSaver` 落地 `data/checkpoints/graph.sqlite`，按 `thread_id` 恢复；显式 serde 白名单只放行本项目状态类型。
+- **审批独立节点**：`report → approval → END`，存在租金差额时用 `interrupt()` 暂停，并把请求写入独立审批台账。
+- **三标识分离**：`thread_id`（持久线索）/ `run_id`（一次执行）/ `request_id`（一次审批）/ `trace_id`（整条链路，恢复后不变）。
+- **串行双人审批**：物业管理部门 → 财务部门，两名不同审批人；规则来自 fixture `approval_role_rules`，不硬编码。
+- **完整校验链**：存在 → 终态 → 过期 → 草案版本 → 身份/权限/项目 → 自批 → 重复签署 → 阶段顺序。
+- **幂等与并发**：`(request_id, role)` 唯一约束 + `resume_ledger` 唯一约束；重复恢复返回首次结果，不再重放节点。
+- **批准 ≠ 执行**：只产出 `approved_draft`（`status=approved_draft_only`、`executed_side_effects=[]`），不做任何业务写操作。
+- **故障注入**：权限撤销、跨项目、版本不匹配、过期、拒绝、预算耗尽、无审批通道均有确定状态与错误码。
+- **CLI**：`investigate --with-approval --thread-id`、`approve`（含 `--dry-run`）、`pending`。
+
+### 主要技术决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| checkpointer | `AsyncSqliteSaver` | 图用 `ainvoke`，同步 `SqliteSaver` 的 `aget_tuple` 直接抛 `NotImplementedError` |
+| 存储分层 | checkpoint / 审批台账 / 业务数据三份独立文件 | 回滚流程、审计、业务真值互不影响；清空 checkpoint 不该丢审批记录 |
+| 审批窗口 | 从请求创建时刻起算 72h | fixture 的静态 `expires_at` 会让审批一创建即过期；草案自带有效期改为审计字段 |
+| 暂停实现 | 节点内 `interrupt()`，恢复用 `Command(resume=...)` | 用 LangGraph 原生中断，而不是自建状态机 |
+| 待审批状态来源 | checkpoint `next` + 审批台账 | `interrupt()` 会丢弃该节点本次写入，无法从返回值读 `approval_status` |
+| 无审批通道时 | `approval_status=unavailable` + 报告仍含草案 | 让人看见"这里需要人"，同时不假装已审批 |
+| 重复恢复 | `resume_ledger` 幂等键 | 重复恢复是最容易产生"重复动作"的入口，必须由存储层拦住 |
+| serde 白名单 | 只放行 `AgentContext` / `AgentOutput` | 不使用 `allowed_msgpack_modules=True`（会放行任意类型） |
+
+### 修改的文件
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/orchestration/approval.py`、`checkpointing.py`、`control_plane.py` | 新增 |
+| `backend/tests/test_approval.py` | 新增（21 项） |
+| `backend/app/orchestration/investigation.py` | 修改：审批节点、`resume()`、thread 标识 |
+| `backend/app/investigation_demo.py`、`cli.py`、`paths.py` | 修改：控制面注入、`approve`/`pending` |
+| `backend/app/db/bootstrap.py` | 修改：落盘路径改到 `data/business/` |
+| `backend/pyproject.toml`、`.gitignore` | 修改：声明 `langgraph-checkpoint-sqlite`、忽略运行期状态 |
+
+### 测试和验证结果
+
+| 验证项 | 命令 / 方式 | 结果 |
+|---|---|---|
+| 本任务测试 | `python -m unittest tests.test_approval` | `Ran 21 tests ... OK` |
+| 全量回归 | `python -m unittest discover -s tests -p "test_*.py"` | `Ran 156 tests ... OK` |
+| 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
+| 四进程审批链 | `investigate` → `approve`(物业) → `approve`(财务) → 重复 `approve` | 依次 `pending_approval` → `pending_next_stage` → `approved` → 幂等返回 |
+| 版本不匹配 | `approve ... --draft-version 1` | 退出码 3，`invalid_request`，图仍暂停 |
+| 既有 CLI | `tools`/`check`/`demo`/`search`/`investigate` | 退出码 0 |
+
+### 当前项目状态
+
+调查流程可暂停、可跨进程恢复、可由两名审批人串行签署；批准只产生草案，不触碰业务数据。
+**未验证**：真实 PostgreSQL、模型调用、多机并发恢复、外部副作用的幂等与补偿。
+
+### 下一步开发计划
+
+- [ ] 任务 013：评测数据集（8 开发 + 32 保留）、Deterministic / Single / Multi 三基线 runner 与报告
+- [ ] 真实调账/派单在接入前先定义幂等键与补偿策略
+- [ ] `pending` 命令补分页与项目过滤
+
+---
+
 ## [2026-11-06] 任务 011 - 合同 PDF 导入、条款检索与可追溯证据
 
 - **日期**：2026-11-06

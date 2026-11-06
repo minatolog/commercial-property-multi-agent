@@ -23,6 +23,8 @@ dependencies = [
     # Task 011：PDF 解析与中文 PDF 生成（合成合同样本）
     "pypdf>=5.0,<7",
     "reportlab>=4.0,<5",
+    # Task 012：LangGraph 持久检查点（本地 SQLite 控制面）
+    "langgraph-checkpoint-sqlite>=3.0,<4",
 ]
 
 [project.optional-dependencies]

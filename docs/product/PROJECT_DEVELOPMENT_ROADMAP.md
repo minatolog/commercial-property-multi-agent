@@ -64,7 +64,7 @@
 | **4** | 009 | 三类能力 + LangGraph 调查工作流 | **DeepSeek 自检通过** | [Task 009 Prompt](../prompts/04_agents/2026-11-06_009_langgraph_multi_agent_workflow.md) |
 | **5** | 010 | 精简 PostgreSQL 与只读业务工具 | **DeepSeek 自检通过**（SQLite 验证；PostgreSQL 未验证） | [Task 010 Prompt](../prompts/02_database/2026-11-06_010_postgresql_readonly_tools.md) |
 | **6** | 011 | 合同 PDF 检索、引用与验证 | **DeepSeek 自检通过**（离线 BM25；向量检索属 P1） | [Task 011 Prompt](../prompts/03_rag/2026-11-06_011_contract_pdf_rag.md) |
-| **7** | 012 | 持久 checkpoint、人工审批、故障恢复 | 未开始 | 待实施 |
+| **7** | 012 | 持久 checkpoint、人工审批、故障恢复 | **DeepSeek 自检通过**（本地 SQLite 控制面；未宣称分布式恰好一次） | [Task 012 Prompt](../prompts/04_agents/2026-11-06_012_durable_checkpoint_and_approval.md) |
 | **8** | 013 | 40 题、三基线与真实对照评测 | 未开始 | 待实施 |
 | **9** | 014 | FastAPI 与轻量任务/Trace 演示页 | 未开始 | 待实施 |
 | **10** | 015 | 完整验收、复现说明与项目展示材料 | 未开始 | 待实施 |

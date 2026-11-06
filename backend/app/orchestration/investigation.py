@@ -21,11 +21,12 @@ START → plan ─┬─(单能力/确定性)→ deterministic_answer → report
 from __future__ import annotations
 
 import operator
+import uuid
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Callable, TypedDict
 
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Send
+from langgraph.types import Command, Send, interrupt
 
 from ..agents.base.contracts import AgentContext, AgentRequest, TaskStatus, utcnow
 from ..agents.base.errors import (
@@ -36,6 +37,14 @@ from ..agents.base.errors import (
 )
 from ..agents.base.registry import AgentRegistry
 from ..fixtures.repository import FixtureRepository
+from .approval import (
+    DEFAULT_APPROVAL_RULE,
+    ApprovalRequest,
+    ApprovalRule,
+    ApprovalRequestNotFoundError,
+    ApprovalValidationError,
+    build_approval_request,
+)
 
 __all__ = [
     "DEFAULT_CAPABILITIES",
@@ -45,6 +54,7 @@ __all__ = [
     "Planner",
     "RuleBasedPlanner",
     "build_investigation_graph",
+    "build_reduction_draft",
     "verify_results",
 ]
 
@@ -63,6 +73,8 @@ class InvestigationState(TypedDict, total=False):
     #: 可信执行上下文（权限/项目范围/run_id）。必须声明为 channel，
     #: 否则 `Send` 传递的 payload 会被状态 schema 过滤掉。
     context: AgentContext
+    #: Task 012：持久线索标识，恢复靠它（checkpoint 按 thread_id 存取）
+    thread_id: str
     route: str
     plan: list[dict[str, Any]]
     expected_subtasks: list[str]
@@ -74,6 +86,10 @@ class InvestigationState(TypedDict, total=False):
     revision: int
     verdict: str
     report: dict[str, Any]
+    #: Task 012：审批门相关通道
+    approval_request: dict[str, Any]
+    approval_status: str
+    approved_draft: dict[str, Any]
 
 
 class Planner:
@@ -164,6 +180,60 @@ class InvestigationResult:
     revision: int = 0
     route: str = ""
     warnings: tuple[str, ...] = ()
+    thread_id: str = ""
+    approval_status: str = ""
+    approval_request: dict[str, Any] | None = None
+    approved_draft: dict[str, Any] | None = None
+
+
+def _safe_snapshot(repository: Any) -> dict[str, Any]:
+    """fixture 仓库有 `snapshot()`；只读数据库仓库没有。
+
+    审批规则与草案都来自 fixture 元数据，因此数据库后端下这两项自然缺失——
+    缺失就"没有可审批草案"，而不是报错。
+    """
+
+    accessor = getattr(repository, "snapshot", None)
+    if not callable(accessor):
+        return {}
+    return accessor() or {}
+
+
+def build_reduction_draft(
+    *,
+    repository: FixtureRepository,
+    lease_id: str,
+    amount: str,
+    evidence_ids: list[str],
+) -> dict[str, Any] | None:
+    """从 fixture 里挑出**当前有效**的减免草案（同 draft_id 取最高版本）。
+
+    为什么从数据里挑而不是现场生成：草案是业务产物，金额与目标必须可审计；
+    Agent 只负责"发现差额并把草案送审批"，不凭空捏造金额。
+    """
+
+    drafts = _safe_snapshot(repository).get("approval_drafts", {})
+    candidates = [
+        draft
+        for draft in drafts.values()
+        if (draft.get("target") or {}).get("lease_id") == lease_id
+        and draft.get("status") == "awaiting_approval"
+    ]
+    if not candidates:
+        return None
+    latest = max(candidates, key=lambda item: int(item.get("draft_version", 0)))
+    return {
+        "draft_id": latest["draft_id"],
+        "draft_version": int(latest["draft_version"]),
+        "action_type": latest["action_type"],
+        "project_id": latest["project_id"],
+        "target": latest.get("target", {}),
+        "amount": str(latest.get("amount")),
+        "currency": latest.get("currency", "CNY"),
+        "expires_at": latest.get("expires_at"),
+        "evidence_ids": list(dict.fromkeys([*evidence_ids, *latest.get("evidence_ids", [])])),
+        "computed_variance": amount,
+    }
 
 
 def verify_results(
@@ -249,10 +319,22 @@ def build_investigation_graph(
     registry: AgentRegistry,
     planner: Planner | None = None,
     max_revisions: int = 1,
+    approval_rule: ApprovalRule | None = None,
+    approval_hook: Callable[[ApprovalRequest], str] | None = None,
+    draft_resolver: Callable[[InvestigationState, list[dict[str, Any]]], dict[str, Any] | None]
+    | None = None,
+    budget_snapshot: Callable[[], Any] | None = None,
+    checkpointer: Any = None,
 ) -> Any:
-    """编译调查图。节点通过 capability 解析 Agent，不引用具体类。"""
+    """编译调查图。节点通过 capability 解析 Agent，不引用具体类。
+
+    `draft_resolver` 决定"是否需要人工审批"并给出草案；
+    `approval_hook` 在审批门触发时被调用（写入审批台账），返回 `pending` 或其它阻塞状态。
+    两者都不传时（单测/纯离线演示）审批门只标记状态，不 `interrupt`。
+    """
 
     planner = planner or RuleBasedPlanner()
+    rule = approval_rule or DEFAULT_APPROVAL_RULE
 
     def plan_node(state: InvestigationState) -> dict[str, Any]:
         subtasks, route = planner.plan(state["question"], dict(state))
@@ -372,6 +454,7 @@ def build_investigation_graph(
     def report_node(state: InvestigationState) -> dict[str, Any]:
         results = _latest_by_subtask(state.get("results", []))
         findings = _build_findings(results)
+        draft = draft_resolver(state, findings) if draft_resolver is not None else None
         report = {
             "question": state.get("question"),
             "lease_id": state.get("lease_id"),
@@ -400,7 +483,76 @@ def build_investigation_graph(
             "requires_human_review": state.get("verdict") != "supported",
             "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
         }
-        return {"report": report}
+        if draft is not None:
+            report["proposed_draft"] = draft
+        return {"report": report, "approval_status": "not_required" if draft is None else "ready"}
+
+    def approval_node(state: InvestigationState) -> dict[str, Any]:
+        """审批门：独立节点，只负责"发起审批 / 记录结论"，绝不执行业务动作。
+
+        没有审批钩子（例如纯离线演示、单测）时不 `interrupt`，只把状态标成
+        `unavailable`，让调用方明确知道"这里需要人工，但本进程没接审批"。
+        """
+
+        draft = (state.get("report") or {}).get("proposed_draft")
+        if draft is None:
+            return {"approval_status": "not_required"}
+
+        budget = budget_snapshot() if budget_snapshot is not None else None
+        if budget is not None:
+            snapshot = (
+                budget.model_dump() if hasattr(budget, "model_dump") else dict(budget)
+            )
+            limit = int(snapshot.get("max_tool_calls") or 0)
+            used = int(snapshot.get("used_tool_calls") or 0)
+            if limit > 0 and used >= limit:
+                return {
+                    "approval_status": "blocked_budget",
+                    "warnings": ["预算耗尽：无法发起人工审批"],
+                }
+
+        if approval_hook is None:
+            return {
+                "approval_status": "unavailable",
+                "warnings": ["未配置审批通道：草案仅停留在报告中，未进入审批"],
+            }
+
+        context = state["context"]
+        request = build_approval_request(
+            draft=draft,
+            rule=rule,
+            thread_id=state.get("thread_id") or context.run_id or "thread_unknown",
+            run_id=context.run_id or "run_unknown",
+            trace_id=context.trace_id,
+            requested_by=context.principal_id or "principal_unknown",
+        )
+        status = approval_hook(request)
+        if status != "pending":
+            return {
+                "approval_status": status,
+                "approval_request": request.as_dict(),
+            }
+
+        decision = interrupt(
+            {
+                "type": "approval_required",
+                "request_id": request.request_id,
+                "draft_id": request.draft_id,
+                "draft_version": request.draft_version,
+                "amount": request.amount,
+                "currency": request.currency,
+                "stages": [item.as_dict() for item in request.stages],
+                "expires_at": request.expires_at,
+            }
+        )
+        outcome = decision if isinstance(decision, dict) else {}
+        status = str(outcome.get("status", "unknown"))
+        approved = outcome.get("approved_draft")
+        return {
+            "approval_status": status,
+            "approval_request": request.as_dict(),
+            "approved_draft": approved if isinstance(approved, dict) else None,
+        }
 
     graph = StateGraph(InvestigationState)
     graph.add_node("plan", plan_node)
@@ -410,6 +562,7 @@ def build_investigation_graph(
     graph.add_node("verify", verify_node)
     graph.add_node("revise", revise_node)
     graph.add_node("report", report_node)
+    graph.add_node("approval", approval_node)
 
     graph.add_edge(START, "plan")
     graph.add_conditional_edges(
@@ -420,9 +573,10 @@ def build_investigation_graph(
     graph.add_edge("deterministic_answer", "verify")
     graph.add_conditional_edges("verify", route_after_verify, {"revise": "revise", "report": "report"})
     graph.add_edge("revise", "dispatch")
-    graph.add_edge("report", END)
+    graph.add_edge("report", "approval")
+    graph.add_edge("approval", END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def _latest_by_subtask(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -509,40 +663,255 @@ def _build_findings(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 @dataclass
 class Investigator:
-    """Coordinator 门面：构造上下文并运行图。"""
+    """Coordinator 门面：构造上下文、运行图、以及（可选）暂停/恢复。
+
+    审批与持久化的接线是**可选**的：不传 `approval_store` / `checkpointer` 时，
+    行为与 Task 009 完全一致（无 interrupt、无持久化），保证既有调用方零改动。
+    """
 
     registry: AgentRegistry
     repository: FixtureRepository
     max_revisions: int = 1
     planner: Planner | None = None
+    approval_store: Any = None
+    checkpointer: Any = None
+    approval_rule: ApprovalRule | None = None
+    budget_snapshot: Callable[[], dict[str, Any]] | None = None
     _graph: Any = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
+        hook = None
+        if self.approval_store is not None:
+            store = self.approval_store
+
+            def hook(request: ApprovalRequest) -> str:  # noqa: ANN001 - 局部闭包
+                store.create(request)
+                return "pending"
+
+        rule = self.approval_rule or self._rule_from_fixture()
         self._graph = build_investigation_graph(
             registry=self.registry,
             planner=self.planner,
             max_revisions=self.max_revisions,
+            approval_rule=rule,
+            approval_hook=hook,
+            draft_resolver=self._resolve_draft,
+            budget_snapshot=self.budget_snapshot,
+            checkpointer=self.checkpointer,
+        )
+
+    def _rule_from_fixture(self) -> ApprovalRule | None:
+        rules = _safe_snapshot(self.repository).get("approval_role_rules") or {}
+        if not rules:
+            return None
+        action_type = next(iter(rules))
+        return ApprovalRule.from_fixture(action_type, rules[action_type])
+
+    def _resolve_draft(
+        self, state: InvestigationState, findings: list[dict[str, Any]]
+    ) -> dict[str, Any] | None:
+        """只有"存在真实金额冲突"时才生成待审批草案。
+
+        没有差额就没有需要审批的减免，硬造一份草案等于凭空制造业务动作。
+        """
+
+        conflicts = _dedupe(list(state.get("conflicts", [])))
+        variance = next(
+            (
+                str(item.get("amount"))
+                for item in conflicts
+                if item.get("type") == "rent_variance"
+            ),
+            None,
+        )
+        if variance is None:
+            return None
+        evidence_ids = [
+            evidence_id for finding in findings for evidence_id in finding["evidence_ids"]
+        ]
+        return build_reduction_draft(
+            repository=self.repository,
+            lease_id=str(state.get("lease_id") or ""),
+            amount=variance,
+            evidence_ids=list(dict.fromkeys(evidence_ids)),
         )
 
     async def investigate(
-        self, *, question: str, lease_id: str, context: AgentContext
+        self,
+        *,
+        question: str,
+        lease_id: str,
+        context: AgentContext,
+        thread_id: str | None = None,
     ) -> InvestigationResult:
-        state = await self._graph.ainvoke(
-            {
-                "question": question,
-                "lease_id": lease_id,
-                "context": context,
-                "results": [],
-                "failures": [],
-                "warnings": [],
-                "conflicts": [],
-                "missing": [],
-                "revision": 0,
-            }
+        effective_thread = thread_id or f"thread_{context.run_id or uuid.uuid4().hex[:12]}"
+        payload: dict[str, Any] = {
+            "question": question,
+            "lease_id": lease_id,
+            "context": context,
+            "thread_id": effective_thread,
+            "results": [],
+            "failures": [],
+            "warnings": [],
+            "conflicts": [],
+            "missing": [],
+            "revision": 0,
+        }
+        state = await self._ainvoke(payload, thread_id=effective_thread)
+        return await self._to_result(state, effective_thread)
+
+    async def resume(
+        self,
+        *,
+        request_id: str,
+        decision: str,
+        draft_version: int,
+        principal_id: str,
+        dry_run: bool = False,
+    ) -> InvestigationResult:
+        """人工决定后恢复被中断的图。
+
+        三重保护：
+        1. 校验通过才允许恢复（权限/版本/过期/阶段顺序，见 `ApprovalStore.decide`）；
+        2. `resume_ledger` 以 `request_id` 唯一，重复恢复直接返回首次结果，不重放节点；
+        3. 恢复后只产出 `approved_draft`，不执行任何业务写操作。
+        """
+
+        if self.approval_store is None:
+            raise ApprovalValidationError("未配置审批台账，无法恢复审批流程")
+        store = self.approval_store
+        request = store.get(request_id)
+        if request is None:
+            raise ApprovalRequestNotFoundError(f"审批请求不存在: {request_id}")
+
+        principal = self.repository.principal(principal_id)
+        outcome = store.decide(
+            request_id,
+            principal_id=principal_id,
+            decision=decision,
+            draft_version=draft_version,
+            principal=principal,
         )
-        report = state.get("report", {})
+        updated = outcome.request
+
+        if updated.status == "pending":
+            # 串行审批：还有下一阶段，图保持中断态
+            snapshot = await self._current_state(updated.thread_id) or {}
+            return InvestigationResult(
+                verdict=str(snapshot.get("verdict", "")),
+                report=snapshot.get("report", {}) or {},
+                thread_id=updated.thread_id,
+                approval_status="pending_next_stage",
+                approval_request=updated.as_dict(),
+            )
+
+        previous = store.previous_resume(request_id)
+        if previous is not None:
+            return self._result_from_snapshot(previous)
+
+        approved_draft = (
+            {
+                "draft_id": updated.draft_id,
+                "draft_version": updated.draft_version,
+                "action_type": updated.action_type,
+                "amount": updated.amount,
+                "currency": updated.currency,
+                "project_id": updated.project_id,
+                "target": updated.payload.get("target", {}),
+                "evidence_ids": list(updated.evidence_ids),
+                "status": "approved_draft_only",
+                "executed_side_effects": [],
+            }
+            if updated.status == "approved"
+            else None
+        )
+        if dry_run:
+            return InvestigationResult(
+                verdict="dry_run",
+                report={"status": updated.status, "approved_draft": approved_draft},
+                thread_id=updated.thread_id,
+                approval_status=updated.status,
+                approval_request=updated.as_dict(),
+                approved_draft=approved_draft,
+            )
+
+        state = await self._ainvoke(
+            Command(
+                resume={
+                    "status": updated.status,
+                    "request_id": request_id,
+                    "approved_draft": approved_draft,
+                    "decided_by": principal_id,
+                }
+            ),
+            thread_id=updated.thread_id,
+        )
+        result = await self._to_result(state, updated.thread_id)
+        store.record_resume(
+            request_id,
+            updated.thread_id,
+            {
+                "verdict": result.verdict,
+                "approval_status": result.approval_status,
+                "approved_draft": result.approved_draft,
+                "report": result.report,
+                "thread_id": result.thread_id,
+            },
+        )
+        return result
+
+    # ---------------- 内部 ----------------
+
+    async def _ainvoke(
+        self, payload: Any, *, thread_id: str | None = None
+    ) -> dict[str, Any]:
+        if self.checkpointer is None:
+            return await self._graph.ainvoke(payload)
+        target = thread_id or "thread_unknown"
+        return await self._graph.ainvoke(
+            payload, {"configurable": {"thread_id": target}}
+        )
+
+    async def _pending_approval(self, thread_id: str) -> dict[str, Any] | None:
+        """图被 `interrupt` 暂停时，节点写入的 state 尚未提交，需从 checkpoint 取。"""
+
+        if self.checkpointer is None or self.approval_store is None:
+            return None
+        requests = [
+            item
+            for item in self.approval_store.find_by_thread(thread_id)
+            if item.status == "pending"
+        ]
+        if not requests:
+            return None
+        snapshot = await self._graph.aget_state(
+            {"configurable": {"thread_id": thread_id}}
+        )
+        if snapshot is None or not snapshot.next:
+            return None
+        return requests[-1].as_dict()
+
+    async def _current_state(self, thread_id: str) -> dict[str, Any] | None:
+        if self.checkpointer is None:
+            return None
+        snapshot = await self._graph.aget_state(
+            {"configurable": {"thread_id": thread_id}}
+        )
+        return dict(snapshot.values) if snapshot else None
+
+    async def _to_result(
+        self, state: dict[str, Any], thread_id: str
+    ) -> InvestigationResult:
+        report = state.get("report", {}) or {}
         results = tuple(_latest_by_subtask(state.get("results", [])))
         verdict = report.get("verdict", state.get("verdict", "insufficient"))
+        approval_status = str(state.get("approval_status", ""))
+        approval_request = state.get("approval_request")
+        if approval_status == "ready":
+            pending = await self._pending_approval(thread_id)
+            if pending is not None:
+                approval_status = "pending_approval"
+                approval_request = approval_request or pending
         return InvestigationResult(
             verdict=verdict,
             report=report,
@@ -554,4 +923,18 @@ class Investigator:
             revision=int(state.get("revision", 0)),
             route=str(state.get("route", "")),
             warnings=tuple(state.get("warnings", [])),
+            thread_id=thread_id,
+            approval_status=approval_status,
+            approval_request=approval_request,
+            approved_draft=state.get("approved_draft"),
+        )
+
+    def _result_from_snapshot(self, snapshot: dict[str, Any]) -> InvestigationResult:
+        return InvestigationResult(
+            verdict=str(snapshot.get("verdict", "insufficient")),
+            report=snapshot.get("report", {}) or {},
+            thread_id=str(snapshot.get("thread_id", "")),
+            approval_status=str(snapshot.get("approval_status", "")),
+            approved_draft=snapshot.get("approved_draft"),
+            warnings=("重复恢复：返回首次恢复结果，未再次执行节点",),
         )

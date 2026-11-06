@@ -67,6 +67,45 @@ UnicodeEncodeError: 'ascii' codec can't encode characters in position ...
 
 ---
 
+## [2026-11-06] 恢复图时从 START 重跑，报 KeyError 'question'
+
+- **关联任务**：012
+- **严重程度**：高（恢复功能完全不可用，但**不会**报错提示标识错误）
+- **状态**：已解决
+
+### 现象
+
+审批暂停后执行恢复，图的 `plan` 节点重新执行并抛异常；`aget_state` 显示 `next=()`，看起来"流程已结束"。
+
+### 错误信息
+
+```
+File "app/orchestration/investigation.py", line 327, in plan_node
+    ...
+KeyError: 'question'
+```
+
+### 原因分析
+
+`Investigator.investigate()` 调用底层 `_ainvoke(payload)` 时**没有传 `thread_id`**，
+于是 checkpoint 写到了默认名 `thread_unknown`；而调用方按自己的 `thread_id` 去恢复，
+读不到中断点，LangGraph 视为"新线程"，从 START 开始跑，`state["question"]` 自然不存在。
+
+关键陷阱：写错标识**不会**抛错，只会静默地变成一次全新执行。
+
+### 解决方案
+
+`_ainvoke(payload, thread_id=effective_thread)`，并补一条"三个独立 control_plane 依次执行"的用例，
+确保跨连接恢复真的被验证到。
+
+### 如何避免再次出现
+
+- 任何持久化/恢复功能，必须写**跨连接或跨进程**用例；单进程内跑通不构成证据。
+- 恢复入口要显式校验：读不到中断点时应当报"线程不存在/无待恢复任务"，而不是从 START 重跑。
+  本项目通过 `aget_state().next` 判定，非空才认为有暂停点。
+
+---
+
 ## [2026-11-06] 中文单字 BM25 召回产生假证据
 
 - **关联任务**：011

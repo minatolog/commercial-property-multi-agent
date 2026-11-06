@@ -28,6 +28,8 @@ from .agents.base.errors import AgentError, ConfigError
 from .agents.factory import build_registry
 from .demo import DEFAULT_SCRIPT, build_demo_bundle, run_demo
 from .fixtures.repository import FixtureRepository
+from .investigation_demo import run_investigation
+from .orchestration.approval import ApprovalStore
 from .runtime.types import RuntimeResult
 from .tools.fixture_tools import build_fixture_tools
 from .tools.registry import ToolRegistry
@@ -148,6 +150,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="数据来源：fixture=JSON（默认）；sqlite=SQLAlchemy 只读数据库（本机无 PostgreSQL）",
     )
     investigate.add_argument("--full", action="store_true", help="输出完整图状态报告")
+    investigate.add_argument(
+        "--thread-id",
+        default=None,
+        help="持久线索 ID（使用控制面时必填，用于跨进程恢复）",
+    )
+    investigate.add_argument(
+        "--with-approval",
+        action="store_true",
+        help="启用控制面（持久 checkpoint + 审批台账），存在差额时暂停等待人工审批",
+    )
+    investigate.add_argument(
+        "--control-dir",
+        default=None,
+        help="控制面数据目录（默认仓库 data/，已被 .gitignore 排除）",
+    )
 
     search = sub.add_parser(
         "search",
@@ -168,6 +185,31 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument(
         "--dir", default=None, help="文档目录（默认 docs/evaluation/documents）"
     )
+
+    approve = sub.add_parser(
+        "approve",
+        help="按审批请求恢复被暂停的调查（批准只产生 approved_draft，不执行任何业务动作）",
+    )
+    approve.add_argument("request_id", help="审批请求 ID，例如 apr_xxxxxxxx")
+    approve.add_argument(
+        "--decision", default="approve", choices=("approve", "reject"), help="审批决定"
+    )
+    approve.add_argument(
+        "--principal", default="principal_property_manager_xinghui", help="审批人（可信主体）"
+    )
+    approve.add_argument(
+        "--draft-version", type=int, required=True, help="被审批的草案版本（必须与请求一致）"
+    )
+    approve.add_argument("--reason", default=None, help="审批意见")
+    approve.add_argument("--thread-id", default=None, help="覆盖恢复所用的 thread_id")
+    approve.add_argument("--control-dir", default=None, help="控制面数据目录")
+    approve.add_argument(
+        "--dry-run", action="store_true", help="只记录决定、不恢复图（用于验证校验逻辑）"
+    )
+    approve.add_argument("--full", action="store_true", help="输出完整结果")
+
+    pending = sub.add_parser("pending", help="列出待审批请求与已记录的决定")
+    pending.add_argument("--control-dir", default=None, help="控制面数据目录")
     return parser
 
 
@@ -332,7 +374,9 @@ def _summarize_single(result: RuntimeResult, bundle: Any) -> dict[str, Any]:
 
 
 def _cmd_investigate(args: argparse.Namespace) -> int:
-    from .investigation_demo import build_investigation_bundle, run_investigation
+    if args.with_approval:
+        return asyncio.run(_investigate_with_control_plane(args))
+    from .investigation_demo import build_investigation_bundle
 
     bundle = build_investigation_bundle(
         principal_id=args.principal,
@@ -342,13 +386,58 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         backend=args.backend,
     )
     result = asyncio.run(
-        run_investigation(bundle, question=args.question, lease_id=args.lease)
+        run_investigation(
+            bundle,
+            question=args.question,
+            lease_id=args.lease,
+            thread_id=args.thread_id,
+        )
     )
-    payload = {
+    _print_json(result.report if args.full else _investigation_payload(result, bundle, args))
+    return 0
+
+
+async def _investigate_with_control_plane(args: argparse.Namespace) -> int:
+    from .control_plane import control_plane
+    from .investigation_demo import build_investigation_bundle, run_investigation
+    from .paths import CHECKPOINT_DB, CONTROL_DB
+
+    base = Path(args.control_dir) if args.control_dir else None
+    async with control_plane(
+        checkpoint_path=(base / "checkpoints" / "graph.sqlite") if base else CHECKPOINT_DB,
+        approval_path=(base / "control" / "approval.sqlite") if base else CONTROL_DB,
+    ) as plane:
+        bundle = build_investigation_bundle(
+            principal_id=args.principal,
+            variant=args.variant,
+            max_tool_calls=args.budget_tool_calls,
+            max_revisions=args.max_revisions,
+            backend=args.backend,
+            control_plane=plane,
+        )
+        thread_id = args.thread_id or f"thread_{bundle.context.run_id}"
+        result = await run_investigation(
+            bundle,
+            question=args.question,
+            lease_id=args.lease,
+            thread_id=thread_id,
+        )
+    _print_json(result.report if args.full else _investigation_payload(result, bundle, args))
+    return 0
+
+
+def _investigation_payload(
+    result: Any, bundle: Any, args: argparse.Namespace
+) -> dict[str, Any]:
+    return {
         "verdict": result.verdict,
         "route": result.route,
         "revision": result.revision,
         "lease_id": args.lease,
+        "thread_id": result.thread_id,
+        "approval_status": result.approval_status,
+        "approval_request": result.approval_request,
+        "approved_draft": result.approved_draft,
         "agent_results": [
             {
                 "subtask_id": item["subtask_id"],
@@ -363,6 +452,7 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         "missing_information": list(result.missing),
         "failures": list(result.failures),
         "requires_human_review": result.report.get("requires_human_review"),
+        "proposed_draft": result.report.get("proposed_draft"),
         "tool_traces": [
             {
                 "subtask_id": trace.subtask_id,
@@ -377,8 +467,94 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
         "warnings": list(result.warnings),
         "disclaimer": result.report.get("disclaimer"),
     }
-    _print_json(result.report if args.full else payload)
-    # 与 CLI 其它命令保持一致：冲突或资料缺失属于"需要人看"的结果，但仍算完成
+
+
+def _cmd_approve(args: argparse.Namespace) -> int:
+    return asyncio.run(_approve_async(args))
+
+
+async def _approve_async(args: argparse.Namespace) -> int:
+    from .control_plane import control_plane
+    from .investigation_demo import build_investigation_bundle
+    from .orchestration.approval import ApprovalError
+    from .paths import CHECKPOINT_DB, CONTROL_DB
+
+    base = Path(args.control_dir) if args.control_dir else None
+    async with control_plane(
+        checkpoint_path=(base / "checkpoints" / "graph.sqlite") if base else CHECKPOINT_DB,
+        approval_path=(base / "control" / "approval.sqlite") if base else CONTROL_DB,
+    ) as plane:
+        bundle = build_investigation_bundle(control_plane=plane)
+        try:
+            if args.dry_run:
+                principal = bundle.repository.principal(args.principal)
+                outcome = plane.approval_store.decide(
+                    args.request_id,
+                    principal_id=args.principal,
+                    decision=args.decision,
+                    draft_version=args.draft_version,
+                    principal=principal,
+                    reason=args.reason,
+                )
+                _print_json(
+                    {
+                        "dry_run": True,
+                        "request": outcome.request.as_dict(),
+                        "decided_role": outcome.decided_role,
+                        "idempotent": outcome.idempotent,
+                    }
+                )
+                return 0
+            result = await bundle.investigator.resume(
+                request_id=args.request_id,
+                decision=args.decision,
+                draft_version=args.draft_version,
+                principal_id=args.principal,
+            )
+        except ApprovalError as exc:
+            print(f"[approval-error] {exc.code}: {exc.message}", file=sys.stderr)
+            _print_json({"error": {"code": exc.code.value, "message": exc.message}})
+            return 3
+
+    _print_json(
+        {
+            "request_id": args.request_id,
+            "decision": args.decision,
+            "principal_id": args.principal,
+            "thread_id": result.thread_id,
+            "approval_status": result.approval_status,
+            "verdict": result.verdict,
+            "approval_request": result.approval_request,
+            "approved_draft": result.approved_draft,
+            "report": result.report,
+            "warnings": list(result.warnings),
+            "note": "批准只形成 approved_draft，不产生调账/派单等业务副作用",
+        }
+    )
+    return 0
+
+
+def _cmd_pending(args: argparse.Namespace) -> int:
+    from .control_plane import control_plane
+    from .paths import CONTROL_DB
+
+    approval_path = (
+        Path(args.control_dir) / "control" / "approval.sqlite"
+        if args.control_dir
+        else CONTROL_DB
+    )
+    store = ApprovalStore(approval_path)
+    requests = store.pending()
+    payload = {
+        "pending_count": len(requests),
+        "requests": [
+            {**item.as_dict(), "decisions": store.decisions(item.request_id)}
+            for item in requests
+        ],
+        "approval_path": str(approval_path),
+        "note": "checkpoint 只保存流程位置；审批结论以本台账为准",
+    }
+    _print_json(payload)
     return 0
 
 
@@ -457,6 +633,10 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_ask(args)
         if args.command == "investigate":
             return _cmd_investigate(args)
+        if args.command == "approve":
+            return _cmd_approve(args)
+        if args.command == "pending":
+            return _cmd_pending(args)
         if args.command == "search":
             return _cmd_search(args)
     except (ConfigError, AgentError, FileNotFoundError, ValueError) as exc:
