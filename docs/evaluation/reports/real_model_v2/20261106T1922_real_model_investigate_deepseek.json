@@ -1,0 +1,382 @@
+{
+  "schema": "real-model-check-v1",
+  "generated_at": "2026-11-06T19:22:19.275482+00:00",
+  "provider": "deepseek",
+  "model_name": "deepseek-chat",
+  "budgets": {
+    "max_model_calls": 12,
+    "max_total_tokens": 30000,
+    "max_tool_calls": 12
+  },
+  "budget_usage": {
+    "max_tool_calls": 12,
+    "max_model_calls": 12,
+    "max_total_tokens": 30000,
+    "used_tool_calls": 6,
+    "used_model_calls": 7,
+    "used_total_tokens": 13714,
+    "exceeded_tokens": 0
+  },
+  "physical_model_calls_observed": 7,
+  "budget_accounting_matches": true,
+  "result": {
+    "route": "fanout",
+    "verdict": "conflicting",
+    "completeness": "partial",
+    "narrative_discrepancies": [],
+    "missing_information": [
+      "合同引用但未电子化的文档: doc_xh_a301_annex_b"
+    ],
+    "failures": []
+  },
+  "per_agent": [
+    {
+      "subtask_id": "st_1_lease",
+      "capability": "lease.query",
+      "status": "success",
+      "answer": "## 结论\n\n**1. 租金“金额不一致”大概率不是计费错误，而是 2026 年起的合同递增。** 但**无法完成核对**：账单数据与工单数据我都没有工具可以取，因此无法验证实际账单金额，也无法核对空调维修工单。\n\n**2. 空调维修问题：合同有明确的响应时限与费用归属条款，但工单记录无法调取，无法判断是否违约。**\n\n---\n\n## 一、租金核对\n\n### 合同依据（doc_xh_a301_contract v1，已签署）\n\n| 条款 | 页码 | 原文摘录 |\n|---|---|---|\n| 5.1.1 | p10 | 「月租金金额按建筑面积乘以当期租金单价计算，尾差按四舍五入保留至分。」 |\n| 5.2 | p12 | 「自第二个租赁年度起，租金每十二（12）个月递增百分之五（5%）；递增基数为上一租赁年度末月租金标准。」 |\n| 5.3 | p13 | 「租金递增不以乙方是否收到书面通知为条件。」 |\n| 5.4 | p13 | 「甲方调整计租面积时，应提供测绘依据并提前三十日书面通知乙方。」 |\n\n### 系统收费规则（lease.lookup 返回）\n\n| 规则 ID | 收费类型 | 单价 | 生效期间 |\n|---|---|---|---|\n| rule_xh_a301_rent_2025 | rent | 120.0000 元/㎡ | 2025-01-01 ~ 2025-12-31 |\n| rule_xh_a301_rent_2026 | rent | 126.0000 元/㎡ | 2026-01-01 ~ 2026-12-31 |\n| rule_xh_a301_rent_2027 | rent | 132.3000 元/㎡ | 2027-01-01 ~ 2027-12-31 |\n| rule_xh_a301_pf_all | property_fee | 18.0000 元/㎡ | 2025-01-01 ~ 2027-12-31 |\n\n租约：XH-A301-2025-01，租期 2025-01-01 至 2027-12-31，状态 active，保证金 40,000.00 元。\n\n**判断：** 单价从 120.0000 变为 126.0000，再变为 132.3000，与条款 5.2 的“每 12 个月递增 5%”方向一致；且条款 5.3 明确递增不以书面通知为条件，因此租户以“未收到通知”为由主张账单错误，合同上不成立。\n\n**但以下必须由账单数据确认，我无法给出：**\n- 计租面积（合同 5.1.1 要求按建筑面积计算，该数值未在本次工具输出中出现）\n- 实际账单金额、账单期间、是否含物业费或其他费用\n- 是否存在条款 5.4 所述的计租面积调整（若有，需测绘依据 + 提前 30 日书面通知，否则该部分差额可主张）\n\n> 按指令要求，我不做任何金额推算。上述单价与面积相乘的结果请以账单系统数据为准。\n\n---\n\n## 二、空调维修\n\n### 合同依据\n\n| 条款 | 页码 | 原文摘录 |\n|---|---|---|\n| 8.1 | p21 | 「空调等设备故障报修后，甲方应在 24 小时内响应，48 小时内到场检修。」 |\n| 8.2 | p22 | 「因乙方使用不当造成的损坏，维修费用由乙方承担。」 |\n| 8.3 | p22 | 「因甲方设备老化导致的故障，维修费用由甲方承担。」 |\n\n**判断：** 若多次维修仍未解决，需先区分故障成因（设备老化 vs 使用不当），这直接决定费用归属（8.2 / 8.3）；同时需核对每次报修的时间戳是否满足 8.1 的 24 小时响应、48 小时到场。\n\n**但工单数据我无法调取**，因此无法判断是否已构成 8.1 项下的响应超时。\n\n---\n\n## 三、待确认事项\n\n1. **【待确认】账单明细**：需账单系统提供近三个月账单的金额、期间、费用构成、计租面积。当前工具集无账单查询能力。\n2. **【待确认】工单记录**：需工单系统提供空调报修次数、每次报修/响应/到场时间、故障原因判定、费用承担方。当前工具集无工单查询能力。\n3. **【待确认】计租面积**：合同 5.1.1 的计算基数，本次未取到。\n4. **【待确认】附件缺失**：租约元数据中 `missing_document_ids` 含 `doc_xh_a301_annex_b`（附件 B），该附件未在系统中，可能包含面积表或设备清单，建议补齐后再复核。\n5. **【待确认】是否发生面积调整**：若曾调整计租面积，需核查是否履行 5.4 的测绘依据与 30 日书面通知义务。\n\n---\n\n## 四、建议下一步\n\n- 请开通账单查询与工单查询工具权限，或由业务方导出上述数据后我再做逐笔比对。\n- 空调问题若确认属设备老化且多次维修未解决，可依 8.3 主张费用由甲方承担；是否构成根本违约需**转法务/人工判断**，我不提供法律意见。",
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "facts": {
+        "lease_period": "2025-01-01 至 2027-12-31",
+        "lease_status": "active",
+        "unit_code": "A-301",
+        "lease_id": "lease_xh_a301_2025",
+        "missing_document_ids": [
+          "doc_xh_a301_annex_b"
+        ],
+        "clause_ref": "合同第 21 页 8.1 条"
+      }
+    },
+    {
+      "subtask_id": "st_2_billing",
+      "capability": "billing.statement",
+      "status": "success",
+      "answer": "## 一、金额结论\n\n- 三个月账单合计应收：**52596.00 CNY**\n- 已收：**34560.00 CNY**\n- 未收：**18036.00 CNY**（未收账单：`inv_2026_10`）\n- 租金差异合计：**756.00 CNY**（全部来自 2026-10 账单）\n\n## 二、租金不一致的原因（账单明细）\n\n| 账单 | 周期 | 租金单价 | 数量 | 租金金额 | 应收租金 | 租金差异 |\n|---|---|---|---|---|---|---|\n| inv_2026_08 | 2026-08-01 ~ 2026-08-31 | 126.0000 | 120.0000 | 15120.00 | 15120.00 | 0.00 |\n| inv_2026_09 | 2026-09-01 ~ 2026-09-30 | 126.0000 | 120.0000 | 15120.00 | 15120.00 | 0.00 |\n| inv_2026_10 | 2026-10-01 ~ 2026-10-31 | **132.3000** | 120.0000 | **15876.00** | 15120.00 | **756.00** |\n\n- 8 月、9 月租金单价均为 126.0000，金额一致。\n- 10 月租金单价变为 132.3000，导致租金金额比应收租金多 756.00，账单总额为 18036.00（含物业费 2160.00）。\n- 账单数据中引用的计费规则标识为 `rule_xh_a301_rent_2026`，但工具未返回该规则的条款内容，因此**无法确认 132.3000 是否为合同约定的调整后单价**。这属于需要核对合同原文的事项，我不能代为判断。\n\n## 三、物业费（供参考）\n\n三个月物业费均为 2160.00（单价 18.0000 × 120.0000），无差异。\n\n## 四、付款与核销\n\n- pay_2026_08_28：17280.00，状态 confirmed\n- pay_2026_09_28：17280.00，状态 confirmed\n- 两笔付款已全额核销 8 月、9 月账单，10 月账单尚未收到付款。\n\n## 五、关于空调维修工单\n\n**本次未能核对。** 我可用的工具仅有账单读取与欠费计算两项，没有工单或维修记录查询权限，因此无法核实空调多次维修的情况。请转交工单或客服模块处理，或由具备工单权限的同事跟进。\n\n## 六、建议后续动作\n\n1. 调取合同原文，核对 `rule_xh_a301_rent_2026` 中 2026-10 起的租金单价约定，确认 132.3000 是否有合同依据。\n2. 若确认单价调整无依据，需对 inv_2026_10 的租金科目做调整（差异 756.00）。**此类调整、减免须经人工审批后方可执行**，我不做自动处理。\n3. 10 月账单未收 18036.00，逾期天数与滞纳金需按合同滞纳规则另行核算；当前工具未返回逾期天数与滞纳金数据，故不作估算。\n4. 空调维修问题转工单模块核查。",
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "facts": {
+        "invoiced_total": "52596.00",
+        "paid_total": "34560.00",
+        "outstanding_total": "18036.00",
+        "rent_variance_total": "756.00"
+      }
+    },
+    {
+      "subtask_id": "st_3_property",
+      "capability": "property.work_orders",
+      "status": "success",
+      "answer": "已取到工单数据。以下是核对结果，并说明本次取数的边界。\n\n## 一、空调维修工单（lease_xh_a301_2025，category=hvac）\n\n共 3 条工单，其中 1 条未关闭：\n\n| 工单号 | 标题 | 优先级 | 报修时间 | 完成时间 | 状态 |\n|---|---|---|---|---|---|\n| wo_2026_07_12 | 空调制冷不足 | normal | 2026-07-12 13:20 | 2026-07-15 17:00 | closed |\n| wo_2026_08_18 | 空调再次停机 | high | 2026-08-18 11:05 | 2026-08-22 16:30 | closed |\n| wo_2026_09_25 | 空调异味并伴有噪音 | high | 2026-09-25 14:40 | —（无完成时间） | in_progress |\n\n事实层面可确认：同一商铺在 2026-07-12、2026-08-18、2026-09-25 有三次空调类报修，前两次状态为已关闭，第三次仍在处理中，且优先级由 normal 升为 high。\n\n需要说明的两点：\n- 工单记录中**没有**“处理说明/维修内容”字段，因此无法从工具输出判断前两次维修的具体措施，也无法判断是否属于同一故障复发。\n- “已关闭”仅表示工单状态流转结束，**不等于**问题已解决或商户已认可。第三次工单仍为 in_progress，说明该商铺空调问题在记录上尚未闭环。\n\n## 二、关于“租金金额不一致”\n\n**本次无法核对。** 我只有维修工单读取权限，没有合同（lease）与账单（billing）的取数工具。因此：\n\n- 无法提供最近三个月的任何租金金额数字；\n- 无法比对合同约定金额与账单实收金额；\n- 也不会对金额差异做任何推算或估算。\n\n按你的要求（金额与日期必须来自工具输出、不自行计算），租金部分我留空，不做推测。\n\n## 三、建议的下一步\n\n1. 租金差异需由具备合同与账单读取权限的角色调取 lease_xh_a301_2025 的合同条款与近三个月账单明细后比对；\n2. 空调部分可将上述三条工单号（wo_2026_07_12、wo_2026_08_18、wo_2026_09_25）作为“多次报修、尚未闭环”的事实依据提交；\n3. 是否因空调问题减免费用、以及租金差异如何处理，属于人工决策范围，我不作判定。\n\n需要我按其他类别（如 plumbing、electrical）或按 unit_id 再查一次工单吗？",
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "facts": {
+        "work_order_count": "3",
+        "open_count": "1"
+      }
+    }
+  ],
+  "report": {
+    "question": "商铺 A-301 投诉最近三个月租金金额不一致，同时空调多次维修未解决，请核对合同、账单和工单。",
+    "lease_id": "lease_xh_a301_2025",
+    "verdict": "conflicting",
+    "route": "fanout",
+    "revision": 0,
+    "findings": [
+      {
+        "statement": "租期 2025-01-01 至 2027-12-31，状态 active",
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "doc_xh_a301_contract#v1#p12#5.2",
+          "doc_xh_a301_contract#v1#p13#5.4",
+          "doc_xh_a301_contract#v1#p3#3.1",
+          "doc_xh_a301_contract#v1#p10#5.1.1",
+          "doc_xh_a301_contract#v1#p13#5.3",
+          "doc_xh_a301_contract#v1#p21#8.1",
+          "doc_xh_a301_contract#v1#p22#8.3",
+          "doc_xh_a301_contract#v1#p21#第八条",
+          "doc_xh_a301_contract#v1#p22#8.2",
+          "doc_xh_a301_contract#v1#p23#第九条"
+        ],
+        "derivation": "direct"
+      },
+      {
+        "statement": "合同第 21 页 8.1 条：8.1 空调等设备故障报修后，甲方应在 24 小时内响应，48 小时内到场检修。",
+        "evidence_ids": [
+          "doc_xh_a301_contract#v1#p21#8.1"
+        ],
+        "derivation": "document_clause",
+        "source": {
+          "document_id": "doc_xh_a301_contract",
+          "document_version": 1,
+          "document_status": "signed",
+          "page": 21,
+          "clause_id": "8.1",
+          "chunk_id": "doc_xh_a301_contract#v1#p21#8.1"
+        }
+      },
+      {
+        "statement": "合同第 22 页 8.3 条：8.3 因甲方设备老化导致的故障，维修费用由甲方承担。",
+        "evidence_ids": [
+          "doc_xh_a301_contract#v1#p22#8.3"
+        ],
+        "derivation": "document_clause",
+        "source": {
+          "document_id": "doc_xh_a301_contract",
+          "document_version": 1,
+          "document_status": "signed",
+          "page": 22,
+          "clause_id": "8.3",
+          "chunk_id": "doc_xh_a301_contract#v1#p22#8.3"
+        }
+      },
+      {
+        "statement": "合同第 21 页 第八条 条：第八条 维修与保养",
+        "evidence_ids": [
+          "doc_xh_a301_contract#v1#p21#第八条"
+        ],
+        "derivation": "document_clause",
+        "source": {
+          "document_id": "doc_xh_a301_contract",
+          "document_version": 1,
+          "document_status": "signed",
+          "page": 21,
+          "clause_id": "第八条",
+          "chunk_id": "doc_xh_a301_contract#v1#p21#第八条"
+        }
+      },
+      {
+        "statement": "合同第 22 页 8.2 条：8.2 因乙方使用不当造成的损坏，维修费用由乙方承担。",
+        "evidence_ids": [
+          "doc_xh_a301_contract#v1#p22#8.2"
+        ],
+        "derivation": "document_clause",
+        "source": {
+          "document_id": "doc_xh_a301_contract",
+          "document_version": 1,
+          "document_status": "signed",
+          "page": 22,
+          "clause_id": "8.2",
+          "chunk_id": "doc_xh_a301_contract#v1#p22#8.2"
+        }
+      },
+      {
+        "statement": "合同第 23 页 第九条 条：第九条 违约责任",
+        "evidence_ids": [
+          "doc_xh_a301_contract#v1#p23#第九条"
+        ],
+        "derivation": "document_clause",
+        "source": {
+          "document_id": "doc_xh_a301_contract",
+          "document_version": 1,
+          "document_status": "signed",
+          "page": 23,
+          "clause_id": "第九条",
+          "chunk_id": "doc_xh_a301_contract#v1#p23#第九条"
+        }
+      },
+      {
+        "statement": "账单应收 52596.00、已收 34560.00、未收 18036.00",
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "derivation": "computed"
+      },
+      {
+        "statement": "相关工单 3 条，未关闭 1 条",
+        "evidence_ids": [
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25"
+        ],
+        "derivation": "direct"
+      }
+    ],
+    "conflicts": [
+      {
+        "type": "rent_variance",
+        "amount": "756.00",
+        "expected_basis": "lease.charge_rule",
+        "observed_basis": "invoice_item.unit_price",
+        "subtask_id": "st_2_billing",
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "rule_xh_a301_rent_2026",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ]
+      }
+    ],
+    "missing_information": [
+      "合同引用但未电子化的文档: doc_xh_a301_annex_b"
+    ],
+    "completeness": "partial",
+    "agent_results": [
+      {
+        "subtask_id": "st_1_lease",
+        "capability": "lease.query",
+        "agent": "lease",
+        "status": "success"
+      },
+      {
+        "subtask_id": "st_2_billing",
+        "capability": "billing.statement",
+        "agent": "billing",
+        "status": "success"
+      },
+      {
+        "subtask_id": "st_3_property",
+        "capability": "property.work_orders",
+        "agent": "property",
+        "status": "success"
+      }
+    ],
+    "failures": [],
+    "resolved_failures": [],
+    "narrative_discrepancies": [],
+    "requires_human_review": true,
+    "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
+    "proposed_draft": {
+      "draft_id": "draft_xh_a301_oct_reduction",
+      "draft_version": 2,
+      "action_type": "rent_reduction_draft",
+      "project_id": "prj_xinghui",
+      "target": {
+        "lease_id": "lease_xh_a301_2025",
+        "invoice_id": "inv_2026_10",
+        "invoice_item_id": "itm_inv10_rent"
+      },
+      "amount": "700.00",
+      "currency": "CNY",
+      "expires_at": "2026-11-06T15:00:00+08:00",
+      "evidence_ids": [
+        "lease_xh_a301_2025",
+        "unit_xh_a301",
+        "ten_xh_yunduan",
+        "rule_xh_a301_rent_2025",
+        "rule_xh_a301_rent_2026",
+        "rule_xh_a301_rent_2027",
+        "rule_xh_a301_pf_all",
+        "doc_xh_a301_contract",
+        "doc_xh_a301_contract#v1#p12#5.2",
+        "doc_xh_a301_contract#v1#p13#5.4",
+        "doc_xh_a301_contract#v1#p3#3.1",
+        "doc_xh_a301_contract#v1#p10#5.1.1",
+        "doc_xh_a301_contract#v1#p13#5.3",
+        "doc_xh_a301_contract#v1#p21#8.1",
+        "doc_xh_a301_contract#v1#p22#8.3",
+        "doc_xh_a301_contract#v1#p21#第八条",
+        "doc_xh_a301_contract#v1#p22#8.2",
+        "doc_xh_a301_contract#v1#p23#第九条",
+        "inv_2026_08",
+        "itm_inv08_rent",
+        "itm_inv08_pf",
+        "inv_2026_09",
+        "itm_inv09_rent",
+        "itm_inv09_pf",
+        "inv_2026_10",
+        "itm_inv10_rent",
+        "itm_inv10_pf",
+        "pay_2026_08_28",
+        "pay_2026_09_28",
+        "alloc_001",
+        "alloc_002",
+        "wo_2026_07_12",
+        "wo_2026_08_18",
+        "wo_2026_09_25",
+        "snip_contract_7_1"
+      ],
+      "computed_variance": "756.00"
+    }
+  }
+}

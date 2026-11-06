@@ -18,8 +18,13 @@
 | N4 | 模型零取证仍 `supported/complete` | "模型给出非空文本"被当成证据充分 | 能力最低结果契约（`evidence.py`），Agent 出口与 `verify_results` 双处校验 | 零工具/无关工具/工具全失败三组反例 |
 | N6 | 工具算出未收 18036.00，回答写 0.00 仍满分 | 只比对内部 `facts`，不看用户读到的金额 | `narrative.py` 一致性校验 + `scoring-v3` 的 `answer` 断言 + `by_kind` 分项指标 | "facts 全对但答案写错"反例；`not_mentioned` 转人工而非静默通过 |
 
-- **验证**：全量 343 tests OK（skipped=1）；57 项契约检查通过；offline/scripted CLI exit 0；heldout A 20/30、B 21/30、C 23/30（`scoring-v3`）。
-- **遗留**：真实模型答案准确性、独立模型配置策略、PostgreSQL 实机、人工量表仍未验证。
+> **N6 的规则在真实模型首测后收紧过一次**：`scoring-v3` 只把 `facts` 当可信金额集合，
+> 结果真实 DeepSeek 照实列账单明细时被误报为"编造金额"。修正为"facts + 工具输出里
+> 出现过的全部金额"，并新增 `ungrounded`（写了钱数却没有一个经核验的合计数）判失败，
+> 版本升 `scoring-v3.1`。误报证据保留在 `docs/evaluation/reports/real_model_v2/20261106T1917_*`。
+
+- **验证**：全量 345 tests OK（skipped=1）；57 项契约检查通过；offline/scripted CLI exit 0；heldout A 20/30、B 21/30、C 23/30（`scoring-v3.1`）。
+- **遗留**：真实模型质量、独立模型配置策略、PostgreSQL 实机、人工量表仍未验证。
 
 ---
 

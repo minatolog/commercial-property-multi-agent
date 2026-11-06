@@ -7,8 +7,10 @@
 - **开发阶段**：缺陷修复 / 测试。
 - **代码基线**：`main` / `45af0cb`（含 Codex 未提交审查文档，已保留）。
 - **Git 分支**：`main`。
-- **Commit Hash**：`7a6c31a`（代码与测试、`scoring-v3` 规则与报告）、`6e18721`（文档归档）。
-- **推送状态**：已推送 `45af0cb..6e18721 → origin/main`。
+- **Commit Hash**：`7a6c31a`（代码与测试、`scoring-v3` 规则与报告）、`6e18721`（文档归档）、
+  `aa05d28`（回填 hash）；随后真实模型核验暴露一次误报，修正后按 `scoring-v3.1` 追加提交
+  （见下一条"任务 021 收尾"）。
+- **推送状态**：已推送 `45af0cb..aa05d28 → origin/main`。
 - **本次变更**：
 
   | 文件 | 变更类型 |
@@ -27,10 +29,11 @@
 
   | 验证项 | 结果 |
   |---|---|
-  | `python -m unittest discover -s tests -p "test_*.py"` | 343 tests，OK（skipped=1） |
+  | `python -m unittest discover -s tests -p "test_*.py"` | 345 tests，OK（skipped=1） |
   | `python tests/smoke_agent_contracts.py` | 57 项通过 |
   | `python -m app.cli investigate` / `--model-provider scripted` | exit 0，`conflicting`，无失败 |
-  | `python -m app.cli evaluate --split heldout --quiet` | A 20/30、B 21/30、C 23/30（`scoring-v3`） |
+  | `python -m app.cli evaluate --split heldout --quiet` | A 20/30、B 21/30、C 23/30（`scoring-v3.1`） |
+  | 真实 DeepSeek 有界核验（`real_model_v2/`，单题 30k token 上限） | 物理请求 7 = 账本 7，13,714 tokens，`narrative_discrepancies=0` |
 
 - **建议 Commit Message**：`fix(model-path): enforce trusted scope, evidence contracts and answer accuracy`
 - **回滚参考命令**：
@@ -39,6 +42,29 @@
 git revert <hash>
 git show <hash> --stat
 ```
+
+## [2026-11-07] 任务 021（收尾）- scoring-v3.1：真实模型核验暴露的可信金额误报
+
+- **开发阶段**：缺陷修复（由真实服务核验驱动）。
+- **代码基线**：`main` / `aa05d28`。
+- **Git 分支**：`main`。
+- **Commit Hash**：提交后回填。
+- **问题**：`scoring-v3` 只用 `facts` 当可信金额集合，真实 DeepSeek 在账单答案里照实列出
+  每期租金/已核销金额（15120.00 / 15876.00 / 17280.00 / 2160.00）时被判为"编造金额"
+  （证据：`docs/evaluation/reports/real_model_v2/20261106T1917_*`）。
+- **本次变更**：可信金额集合扩展为 `facts` + 工具输出里出现过的全部金额（运行时
+  `amounts_in_payload`，评测 `BaselineResult.verified_amounts`）；新增 `ungrounded`
+  状态（写了钱数却没有任何经核验的合计数 → 失败）；评分版本升 `scoring-v3.1`；
+  `test_runtime.py` 的 deadline 用例改为断言"策略上限 6 次尝试"以消除全量连跑抖动。
+- **验证结果**：
+
+  | 验证项 | 结果 |
+  |---|---|
+  | 全量 unittest | 345 项 OK（skipped=1） |
+  | heldout / dev 评测 | 重新生成 `20261106T192311_*`、`20261106T192319_*`；A 20/30、B 21/30、C 23/30 |
+  | 真实 DeepSeek 同题重跑 | `20261106T1922_*`：物理请求 7 = 账本 7、13,714 tokens、`narrative_discrepancies=0` |
+
+- **回滚参考命令**：`git revert <hash>`
 
 ## [2026-11-07] 任务 021 - 模型链路审查文档（未提交）
 

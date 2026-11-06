@@ -16,10 +16,11 @@
   | N1 | `model_call_id` 只含 run/subtask/round，重试后 round 复位 → 复用已结算 ID，账本少记 | `runtime/tool_loop.py`（全局 `request_seq`）、`runtime/budget.py`（`record_unbudgeted_tokens`）、`runtime/types.py`（`exceeded_tokens`） |
   | N2/N3/N5 | 确定性路径的目标/范围约束没有迁移到模型路径 | 新增 `agents/base/scope.py`；`runtime/tool_loop.py` 的 `prepare_arguments` 钩子；`agents/base/llm_agent.py`；`tools/knowledge_tools.py`（`lease_id` + `_resolve_allowed`）；`orchestration/investigation.py`（planner 传 `question`）；`evaluation/baselines.py`（B 的条款检索补 `lease_id`） |
   | N4 | "模型给出非空文本"被当成"子任务证据充分" | 新增 `agents/base/evidence.py`（能力最低结果契约）；`llm_agent.py` 与 `verify_results` 双处校验；新增 `INSUFFICIENT_EVIDENCE` |
-  | N6 | 只比对内部 `facts`，不看用户读到的金额 | 新增 `agents/base/narrative.py`；`llm_agent.py`/`single/agent.py` 输出 `answer_check`；报告新增 `narrative_discrepancies`；评分升 `scoring-v3` + `by_kind` 指标 |
+  | N6 | 只比对内部 `facts`，不看用户读到的金额 | 新增 `agents/base/narrative.py`；`llm_agent.py`/`single/agent.py` 输出 `answer_check`；报告新增 `narrative_discrepancies`；评分升 `scoring-v3`（后经真实模型误报修正为 `v3.1`）+ `by_kind` 指标 |
 
-- **评分变更**：`SCORING_VERSION` 升 `scoring-v3`，新增 `answer` 断言；新报告 `docs/evaluation/reports/20261106T191222_heldout_*`（A 20/30、B 21/30、C 23/30）与 `20261106T191233_dev_*`；`docs/evaluation/scoring_v3.md` 新增，`scoring_v2.md` 标注被取代；v2 报告与真实模型历史测量未回写。
-- **测试**：`backend/tests/test_model_budget.py`、`test_task_scope.py`、`test_evidence_and_answer.py` 共 42 项新回归；全量 **343 tests OK（skipped=1）**、契约检查 **57 项通过**、offline/scripted CLI 均 exit 0。
+- **评分变更**：`SCORING_VERSION` 升 `scoring-v3` → 真实模型首测暴露一次误报后进一步升 `scoring-v3.1`（可信金额集合含工具输出金额、新增 `ungrounded`）；新报告 `docs/evaluation/reports/20261106T192311_heldout_*`（A 20/30、B 21/30、C 23/30）与 `20261106T192319_dev_*`；`docs/evaluation/scoring_v3.md` 新增，`scoring_v2.md` 标注被取代；v2/v3 报告与真实模型历史测量未回写。
+- **测试**：`backend/tests/test_model_budget.py`、`test_task_scope.py`、`test_evidence_and_answer.py` 共 44 项新回归；全量 **345 tests OK（skipped=1）**、契约检查 **57 项通过**、offline/scripted CLI 均 exit 0。
+- **真实模型核验**：`docs/evaluation/reports/real_model_v2/` 两题同题运行（30k token 上限）：物理请求 7 = 账本 7、13,714 tokens、`conflicting/partial`、修正后 `narrative_discrepancies=0`。仅为装配与记账核验，不是质量结论。
 - **技术决策**：约束由**可信 payload**（planner/装配层）决定并在工具边界强制，而不是写进提示词求模型遵守；确定性与 LLM 引擎共用同一份 `TaskScope` / 能力契约 / 叙述校验，避免两套规则漂移。
 - **已知限制**：N6 只核金额（"1.8 万"视为未提及）；`not_mentioned` 不算错（待真实模型数据再定是否收紧）；真实模型复测、独立模型配置策略、PostgreSQL 实机与人工量表仍未完成。
 - **Git**：本轮改动按里程碑提交，Commit 见 `docs/checkpoints/git_history.md`。

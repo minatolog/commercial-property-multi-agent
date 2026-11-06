@@ -122,22 +122,36 @@
   - `evaluation/runner.py`：汇总增加 `by_kind`（`tool_facts` / `final_answer` / `evidence` / `outcome` / `approval`），Markdown 报告新增"指标分解"表。
   - `docs/evaluation/scoring_v3.md`（新增），`scoring_v2.md` 标注已被取代；v2 报告与真实模型历史测量**未回写**。
 - **测试**：`backend/tests/test_evidence_and_answer.py`（N6 部分 10 项）：金额来源不明、金额一致、条款号/百分比不误判、无金额不判、错误叙述可见且非 success、报告列出 `narrative_discrepancies`、正确叙述保持 success、评分侧"facts 全对但答案写错"判失败、正确答案通过、沉默答案转人工。
-- **未覆盖**：只校验金额；"1.8 万"这类改写会被视为未提及；真实模型答案准确性尚未测量。
+- **v3.1 修正（真实模型首测暴露的误报）**：v3 的可信金额集合只含 `facts`，于是真实 DeepSeek 在账单答案里照实列出每期租金（15120.00 / 15876.00 / 17280.00 / 2160.00）时被判为"编造金额"。修正为：可信集合 = `facts` + **工具输出里出现过的全部金额**（运行时 `amounts_in_payload`，评测 `BaselineResult.verified_amounts`），并新增 `ungrounded` 状态（答案写了钱数但没有任何经核验的合计数 → 失败；"未收 0.00 已结清"属此类）。评分版本升 `scoring-v3.1`，重新生成报告并保留 v3 报告。
+- **真实模型有界核验**（`docs/evaluation/reports/real_model_v2/`，`--budget-tokens 30000`、`max_model_calls=12`，只跑一题，未覆盖 `real_model_dev/` 历史测量）：
+
+  | 观测 | 结果 |
+  |---|---|
+  | 物理请求次数 vs 账本 `used_model_calls` | 7 vs 7（N1 不变量在真实 provider 上成立） |
+  | token | 13,714，`exceeded_tokens=0` |
+  | 结论 | `verdict=conflicting`、`completeness=partial`（缺附件 B） |
+  | `narrative_discrepancies` | 首次 1（v3 误报，已修）→ 修正后 0 |
+
+- **未覆盖**：只校验金额（"1.8 万"视为未提及）；`not_mentioned`/`incomplete` 转人工不算错；真实模型**质量**（heldout 全量、多轮稳定性）仍未测量，本次只做单题装配与记账核验。
 
 ### 10.5 本轮验证命令与结果
 
 | 命令 | 结果 |
 |---|---|
-| `python -m unittest discover -s tests -p "test_*.py"`（`backend/`） | **343 tests，OK（skipped=1）** |
+| `python -m unittest discover -s tests -p "test_*.py"`（`backend/`） | **345 tests，OK（skipped=1）** |
 | `python tests/smoke_agent_contracts.py` | **57 项检查通过** |
 | `python -m app.cli investigate`（offline） | exit 0，`conflicting`，工具事实完整 |
 | `python -m app.cli investigate --model-provider scripted` | exit 0，`conflicting`，4 次工具调用，无失败 |
-| `python -m app.cli evaluate --split heldout --quiet` | A 20/30、B 21/30、C 23/30（`scoring-v3`） |
+| `python -m app.cli evaluate --split heldout --quiet` | A 20/30、B 21/30、C 23/30（`scoring-v3.1`） |
 | `python -m app.cli evaluate --split dev --quiet` | A/B/C 均 0/7（开发集为人工量表题） |
+| 真实 DeepSeek 有界核验（1 题，30k token 上限） | 7 次物理请求 = 账本 7 次；13,714 tokens；`conflicting/partial`；`narrative_discrepancies=0` |
 
 ### 10.6 仍未解决的问题
 
-- 真实模型复测未做：N1 记账已修，但本轮没有消耗 provider 额度；真实答案准确性、真实 heldout 稳定性仍未测量。
+- 真实模型**质量**未测量：本轮只做了一题装配/记账核验（`real_model_v2/`），heldout 全量、
+  多轮稳定性、答案质量对照都没有跑；`real_model_dev/` 的历史测量**未被回写**。
 - 独立模型配置策略（领域 YAML 的模型名/采样是否重建客户端）未处理，仍是审查报告第 3 节提出的待决项。
 - PostgreSQL 实机验证、部署/真实鉴权、人工量表评分仍未完成。
-- `not_mentioned` 口径偏宽（只说"已核对"不算错），需要真实模型数据后再定是否需要收紧。
+- `not_mentioned` / `incomplete` 口径偏宽（只说"已核对"或只答一项不算错），需要真实模型数据后再定是否收紧。
+- 真实运行里 `st_1_lease` 明确说"我没有账单/工单工具"——领域 Agent 的工具边界清晰是设计使然，
+  但如果产品上希望单 Agent 回答跨域问题，需要由 Coordinator 汇总，而不是放宽工具白名单。
