@@ -48,7 +48,8 @@ git show <hash> --stat
 - **开发阶段**：缺陷修复（由真实服务核验驱动）。
 - **代码基线**：`main` / `aa05d28`。
 - **Git 分支**：`main`。
-- **Commit Hash**：提交后回填。
+- **Commit Hash**：`70758c3`（代码与测试）、`c74183d`（文档与报告）；已推送
+  `aa05d28..c74183d → origin/main`。
 - **问题**：`scoring-v3` 只用 `facts` 当可信金额集合，真实 DeepSeek 在账单答案里照实列出
   每期租金/已核销金额（15120.00 / 15876.00 / 17280.00 / 2160.00）时被判为"编造金额"
   （证据：`docs/evaluation/reports/real_model_v2/20261106T1917_*`）。
