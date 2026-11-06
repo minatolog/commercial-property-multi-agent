@@ -7,7 +7,8 @@
 - **开发阶段**：缺陷修复 / 测试。
 - **代码基线**：`main` / `2512a3b`（保留 Codex 的 Task 022/023 文档）。
 - **Git 分支**：`main`。
-- **Commit Hash**：`Pending`（提交后回填）。
+- **Commit Hash**：`66ded2b`（代码与测试、v3.3 报告）、`158ab55`（文档、Prompt 归档、Task 022/023 文档）；
+  已推送 `2512a3b..158ab55 → origin/main`。
 - **本次变更**：
 
   | 文件 | 变更类型 |
