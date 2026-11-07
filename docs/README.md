@@ -89,8 +89,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 022 | 2026-11-07 | 06_testing | N1–N6 修复复查（发现 Q1–Q3 三项 P1；只审查不改代码） | [2026-11-07_022_model_fixes_recheck.md](./prompts/06_testing/2026-11-07_022_model_fixes_recheck.md) |
 | 023 | 2026-11-07 | 06_testing | 仓库交付核对与项目进度盘点（只读检查） | [2026-11-07_023_repository_state_and_progress.md](./prompts/06_testing/2026-11-07_023_repository_state_and_progress.md) |
 | 024 | 2026-11-07 | 06_testing | Q1–Q3 修复：token 闸门、单 Agent 可信范围、资金结论字段绑定（399 项测试通过；评分升 `scoring-v3.3`） | [2026-11-07_024_q1_q3_model_fixes.md](./prompts/06_testing/2026-11-07_024_q1_q3_model_fixes.md) |
-| 022 | 2026-11-07 | 06_testing | N1–N6 修复复查（345 项测试通过；Q1–Q3 未闭合） | [2026-11-07_022_model_fixes_recheck.md](./prompts/06_testing/2026-11-07_022_model_fixes_recheck.md) |
-| 023 | 2026-11-07 | 06_testing | 完成说明核对与具体进度（确认 N1–N6 交付；后续 Q1–Q3 尚未修复） | [2026-11-07_023_repository_state_and_progress.md](./prompts/06_testing/2026-11-07_023_repository_state_and_progress.md) |
+| 025 | 2026-11-07 | 06_testing | Q1–Q3 独立复查（指定反例改善；Single/CLI 尚有 Z1–Z3） | [2026-11-07_025_q1_q3_acceptance_review.md](./prompts/06_testing/2026-11-07_025_q1_q3_acceptance_review.md) |
 
 ---
 

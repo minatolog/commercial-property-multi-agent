@@ -2,6 +2,15 @@
 
 记录每个开发阶段对应的 Git 提交，用于追溯与回滚。
 
+## [2026-11-07] 任务 025 - Q1–Q3 独立复查文档（未提交）
+
+- **代码基线**：`f2cc67d`；实际 GitHub main hash 一致，开始时工作区干净。
+- **本轮 Commit**：`Pending`，未提交或推送。
+- **变更**：新增独立复查报告与 025 Prompt；更新索引、进度提示、日志和问题入口；清理重复编号行，不改业务源码。
+- **验证**：399 tests OK（skipped=1）、57 项契约、scripted CLI、离线评测；独立复现 Z1–Z3。
+- **建议 Commit Message**：`docs: verify Q1-Q3 fixes and record remaining Single CLI gaps`。
+- **回滚说明**：仅未提交文档，先看差异，不自动回滚或改写历史。
+
 ## [2026-11-07] 任务 024 - 修复 Q1–Q3（token 闸门 / 单 Agent 范围 / 资金结论）
 
 - **开发阶段**：缺陷修复 / 测试。

@@ -1,5 +1,7 @@
 # 项目总开发路线与进度表 V1.0
 
+> **2026-11-07 Task 025 独立复查**：实际 GitHub main 为 `f2cc67d`，399 项测试通过（跳过 1 项）、57 项契约通过。Q1 可按定义关闭，Q3 原金额写反/错误结清反例已判失败；Q2/B 显式目标有效。默认 ask 未装配目标（Z1）、失败工具冒充取证（Z2）仍为 P1，默认可信金额摘要（Z3）为 P2。当前集中收尾 Single/CLI 入口，再推进 PG 与正式实验；详见 [Task 025 报告](../reviews/2026-11-07_q1_q3_acceptance_review.md)。
+
 > **2026-11-07 Task 024 修复完成（DeepSeek 自检）**：Task 022 复查的三项 P1 **Q1–Q3 已全部修复**，每项都先用反例复现、再用同一反例复验。**Q1**：token 剩余额度并入"预留一次物理请求"这一步（同锁判定），零额度/已耗尽/已超额一律拒绝，图补查与 Agent 重试不再产生第二次请求（上限 5、单次 10 tokens → 物理请求 1 次）。**Q2**：`TaskScope.from_payload` 与 `scope_arguments_hook` 下沉为领域 Agent 与单 Agent 共用，B 基线取错租约时被工具边界拒绝并判 `insufficient_evidence`。**Q3**：新增结构化 `FundConclusion`（只从工具 facts 赋值）与字段级核对，用户可见金额由可信字段渲染；应收/已收/未收写反、"未收 0 已结清"均判 `mismatch`；评分升 `scoring-v3.3`（`fund` 主断言 + `answer` 辅助 + `unverified` 单独统计），旧报告保留。当前 **399 项测试通过（跳过 1 项）+ 57 项契约检查**，heldout 离线 A 20/30、B 21/30、C 23/30，资金结论 9/9、11/11、11/11（C 有 3 题显式"未验证"）；真实 DeepSeek 单题核验 7=7 次调用、13,452 tokens、资金结论 `verified`。**仍未完成**：真实 heldout 正式实验、PostgreSQL 实机、人工量表、独立模型配置策略，状态保持**版本候选**。详见 [Task 022 复查报告](../reviews/2026-11-07_model_fixes_recheck.md) 与 [scoring-v3.3 规则](../evaluation/scoring_v3.md)。
 
 > **2026-11-07 Task 023 状态盘点**：本地 main、唯一登记 worktree 与 GitHub 远端 main 均为 `2512a3b`。用户补充的完成说明确认该批交付为 N1–N6 修复；Q1–Q3 是随后复查发现，尚无后续代码，保持未闭合。项目已进入 MVP 集成与验收阶段，核心模块和真实模型样例已有，仍需修正正确性、验证 PostgreSQL、完成正式模型实验及当前版本最终复现。详见 [完整进度说明](../reviews/2026-11-07_repository_state_and_progress.md)。
