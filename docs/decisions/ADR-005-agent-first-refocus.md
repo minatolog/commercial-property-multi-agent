@@ -6,6 +6,8 @@
 - **取代/影响**：[system_design.md](../architecture/system_design.md)、[database_design.md](../architecture/database_design.md)、[agent_architecture.md](../architecture/agent_architecture.md)
 - **最高依据**：[PROJECT_REFOCUS_AGENT_FIRST_V1.0.md](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)
 
+> **2026-11-09 适用关系（Task 026）**：本文保留 2026-11-03 的决策及当时建议。项目方向继续生效；下文 C2 的逐任务 Codex 审查已被用户 2026-11-06 的流程变更替代，现为 DeepSeek 连续实现/自检/归档，Codex 按需审查。S1 的 V2 迁移为历史提案，不能视为已经切换；其余建议的落实情况以现行契约和验证证据判断。[当前基线](../architecture/CURRENT_BASELINE.md) 汇总当前适用范围和差距，不改写历史决策。
+
 > **适用范围冲突规则**：本文档与历史 Proposal、历史 MVP 范围、历史优先级冲突时，**以本文档与 V1.0 基线为准**。历史文档保留，不删除、不改写，仅标注新的优先级关系。
 
 ---
@@ -33,7 +35,7 @@
 | 项 | 内容 |
 |---|---|
 | C1 | 项目方向转为 Agent 工程能力核心，商业地产为验证场景 |
-| C2 | 协作流程：Codex 写 Prompt → DeepSeek 落地 → Codex 审查 → 下一项 |
+| C2 | 原流程：Codex 写 Prompt → DeepSeek 落地 → Codex 审查；**逐任务审查已于 2026-11-06 取消**，当前按需独立审查 |
 | C3 | LangGraph 编排、LangChain 模型/Tool Calling、Agent Registry、独立配置为 P0 |
 | C4 | 三基线（Deterministic / Single Agent / Multi Agent）必须构建并对照 |
 | C5 | 修改性操作（减免、调账、催缴、派单、对外通知）一律先出草案，经人工审批 |
@@ -44,16 +46,16 @@
 
 | 编号 | 建议 | 说明 |
 |---|---|---|
-| S1 | 契约版本号机制：`contract_version = "2.0"`，与现有骨架并存过渡 | 见 [agent_runtime_contracts.md](../architecture/agent_runtime_contracts.md) §2 |
-| S2 | `AgentContext` 拆分 `principal_id`（权限主体）与 `commercial_tenant_ids`（商业租户） | 现有 `tenant_id` 语义过载，见契约 §5 |
-| S3 | 金额统一为 `{"amount": "15120.00", "currency": "CNY"}` 十进制字符串对 | 禁止浮点真值，见契约 §4 |
-| S4 | Evidence 区分 `db_fact` 与 `document_clause` 两类，附 `tool_call_id` | 见契约 §3 |
-| S5 | 引用校验拆成"引用存在"与"引用支持结论"两级 | 见契约 §3.3 |
-| S6 | State 归并键为 `(subtask_id, attempt)`，禁止裸列表追加 | 修复重放不可判定问题，见契约 §9 |
-| S7 | 审批为独立 Graph 节点，审批绑定草案版本 | 见契约 §12 |
-| S8 | 单任务预算上限由 Runtime 独占持有，模型/工具/图不得各自独立重试 | 见契约 §10 |
-| S9 | 评测先做 8 题开发样例，正式集 30–50 题后续补齐 | 见 [evaluation_plan.md](../evaluation/evaluation_plan.md) |
-| S10 | P0 最小数据库表数**待实施评审反推**，不锁定 10 表或 14 表 | 见 [mvp_scope_v2.md](../product/mvp_scope_v2.md) §5 |
+| S1 | 历史 V2 契约迁移提案；当前未正式切换 contract_version=2.0，不维护并行的两套生命周期 | 原提案见 [Runtime 历史快照](../architecture/agent_runtime_contracts_legacy_2026-11-09.md)；当前见 [运行时契约](../architecture/agent_runtime_contracts.md) |
+| S2 | 区分权限主体与商业租户 | TrustedContext 已承载该区别；AgentContext 保留兼容字段，见现行契约 §1 |
+| S3 | 金额使用 Decimal，序列化为十进制字符串并保留币种语义 | 历史 Money 对象为提案；现有工具采用其实际 schema，不强行改成统一 Money 类 |
+| S4 | Evidence 区分 `db_fact` 与 `document_clause` 两类，附 `tool_call_id` | 当前结构见现行契约 §1–2 |
+| S5 | 引用校验拆成“引用存在”与“引用支持结论”两级 | 当前见现行契约 §2；不夸大机械核验的语义范围 |
+| S6 | 原提案为 `(subtask_id, attempt)` map 归并；目标是可解释、不重复混入旧结果 | 当前使用追加通道 + run 过滤/subtask 收敛及单 thread 单新任务约束；不是原 map reducer 已实现。差异见现行契约 §3、§5 |
+| S7 | 审批为独立 Graph 节点，审批绑定草案版本 | 当前见现行契约 §5 |
+| S8 | 单任务共享预算约束全部调用，禁止重试层各自放大额度 | 当前各层有限尝试与物理/逻辑计量见现行契约 §4 |
+| S9 | 评测先做 8 题开发样例，P0 共 30–50 题 | 当前 8 dev + 32 heldout；题量已具备，正式实验未完成，见 [评测计划](../evaluation/evaluation_plan.md) |
+| S10 | P0 按演示必要性确定模型，不锁定 10 表或 14 表 | 当前已有 12 表映射；不把实现表数改写为用户业务指标，见 [MVP 范围](../product/mvp_scope_v2.md) §5 |
 
 ## 4. 取舍与代价
 
@@ -69,9 +71,9 @@
 
 | 既有产物 | 关系 | 处置 |
 |---|---|---|
-| `docs/architecture/database_design.md`（14 表） | **长期设计参考，不是 P0 建表清单** | 保留不动；P0 按演示场景反推最小子集，另行评审 |
+| `docs/architecture/database_design.md`（14 表） | **长期设计参考，不是 P0 建表清单** | 设计正文保留，可补充适用范围与现行实现差异说明 |
 | 早期 Proposal / PPT / 研发基线 | 历史业务愿景 | 保留；视为"长期愿景/非当前 MVP"，不删不改 |
-| `backend/app/agents/base/` 等骨架代码 | 有效的接口基础 | **保留并复用**；已知缺陷列入任务 007 修复清单，本轮不改代码 |
+| `backend/app/agents/base/` 等原骨架代码 | 有效的接口基础 | 保留并复用；K1–K5 为当时的任务 007 清单，已由后续任务收敛，当前待修见 Task 025 |
 | `docs/prompts/001–005` 归档 | 历史记录 | 只读保留，不回填、不改写原始 Prompt |
 
 ## 6. 影响

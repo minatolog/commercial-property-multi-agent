@@ -3,6 +3,8 @@
 所有命令在 `backend/` 目录下执行；数据为**合成数据**，无网络、无真实模型。
 每节都给出「预期现象」与「讲解要点」，便于现场演示和复核。
 
+> 上述“无真实模型”仅指本脚本的默认离线命令，不代表项目从未调用真实模型。当前状态见 [当前基线](../architecture/CURRENT_BASELINE.md)；默认 CLI 可信金额投影 Z3 尚未闭合，完整字段需结合 `--full` 查看，本脚本的预期金额不能当作默认输出已经全部接线。
+
 准备：
 
 ```bash
@@ -152,6 +154,6 @@ python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
 
 ```bash
 python tests/smoke_agent_contracts.py                       # 57 项
-python -m unittest discover -s tests -p "test_*.py"         # 238 项
+python -m unittest discover -s tests -p "test_*.py"         # 以当次输出为准；Task 025 为 399 项（跳过 1 项）
 python -m app.cli evaluate --split dev --quiet              # 生成本地报告
 ```

@@ -1,5 +1,7 @@
 # Commercial Property Multi-Agent — VS Code Codex 项目交接文件
 
+> **历史交接（2026-11-09 标注）**：下文保留最初业务愿景和首次接手指令，非当前开发基线。方向已由 [Agent-first V1.0](PROJECT_REFOCUS_AGENT_FIRST_V1.0.md) 与 [ADR-005](../decisions/ADR-005-agent-first-refocus.md) 替代；当前实现/流程见 [当前基线](../architecture/CURRENT_BASELINE.md)。下文的待办、Git hash、工具分工和“未开始”均是当时记录，不作为今天的状态或重新申请授权的理由。
+
 > 交接日期：2026-11-03  
 > 项目仓库：`commercial-property-multi-agent`  
 > 建议存放位置：`docs/handoffs/2026-11-03_codex_handoff.md`  

@@ -1,10 +1,9 @@
 # backend/ — Agent 工作流、受控只读工具、知识检索、审批控制面与评测
 
-离线优先：**默认不联网、不调用模型、不连数据库**。
+离线优先：默认不联网、不调用真实模型；单 Agent ask 默认用 Fake，调查默认用确定性 Agent。业务数据默认来自 fixture，checkpoint/审批按模式可写本地 SQLite 控制面。
 业务数据来自 `../docs/evaluation/fixtures/agent_first_v1.json`（合成数据，只读）。
 
-> 本文只描述**已经实现并验证**的能力。未安装/未验证的部分（真实 DeepSeek 调用、PostgreSQL、
-> 向量检索）在「已知限制」中明确列出，不当作已完成。
+> 当前指导关系见 [当前基线](../docs/architecture/CURRENT_BASELINE.md)。真实 DeepSeek 已有 dev/单题证据；真实 heldout/重复测量、PostgreSQL 实机和独立模型策略未完成。已有实现与验收缺口分别说明。
 
 ## 1. 环境
 
@@ -41,7 +40,7 @@ python -m app.cli tools                    # 已注册只读工具（含 documen
 python -m app.cli check                     # Agent 配置 vs 白名单 vs 工具注册表
 python tests/smoke_agent_contracts.py       # 契约自检（57 项）
 
-# 单 Agent 路径（Fake 模型，可切换真实模型）
+# 单 Agent 路径（Fake 模型，可切换真实模型；已知 Z1/Z2/Z3 见下方限制）
 python -m app.cli ask "A-301 现在还有多少钱没交？"
 python -m app.cli ask "..." --provider deepseek     # 需 DEEPSEEK_API_KEY
 
@@ -85,7 +84,7 @@ python -m unittest discover -s tests -p "test_*.py"
 | `app/fixtures/repository.py` | fixture 只读仓库：项目范围、`Decimal` 金额、变体 overlay |
 | `app/llm/` | 厂商无关消息类型、`Fake` 客户端、脚本化模型（`scripted`，仅验证装配）、模型工厂（`offline/scripted/deepseek`）、DeepSeek（OpenAI 兼容）适配、参数裁剪 |
 | `app/runtime/` | `TrustedContext`/`Evidence`/`Trace`、共享预算、有限轮次循环、Runtime 边界 |
-| `app/tools/` | 工具白名单、六道闸执行器、fixture 只读工具、`document.search` |
+| `app/tools/` | 工具白名单、统一受控执行器、fixture 只读工具、`document.search` |
 | `app/orchestration/investigation.py` | LangGraph：规划 → 并发扇出 → 合流核验 → 限次补查 → 报告 → 审批门 |
 | `app/orchestration/approval.py` | 审批规则、审计台账、校验链、幂等与并发（独立 SQLite） |
 | `app/orchestration/checkpointing.py` | `AsyncSqliteSaver` 装配与 serde 白名单 |
@@ -108,7 +107,7 @@ python -m unittest discover -s tests -p "test_*.py"
 
 | 未完成/未验证 | 说明 |
 |---|---|
-| 真实 DeepSeek 调用 | 已实测 `ask` / `investigate` / `evaluate --split dev`；heldout 真实对照与重复测量**未做**，成本未换算 |
+| 正式真实模型实验 | 已实测 `ask` / `investigate` / `evaluate --split dev` 与有界单题；heldout 真实对照与重复测量**未做**，成本未换算 |
 | PostgreSQL | 本机无服务；迁移与查询仅在 SQLite 上验证，`EXCLUDE`/RLS/NUMERIC 未实测 |
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20） |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |
@@ -117,3 +116,6 @@ python -m unittest discover -s tests -p "test_*.py"
 | 开发集自动计分 | `smoke_v1.jsonl` 是自然语言断言、面向人工量表；离线三基线在它上面都是 0/7，不能用它评价实现质量 |
 | 分布式语义 | checkpoint 与审批台账是本机 SQLite；多实例并发与"恰好一次"未验证 |
 | 线索复用 | 一条 `thread_id` 只允许一次运行（新增运行会因 `invalid_context` 被拒），恢复请走 `resume`/`approve` |
+| Single/CLI Z1–Z3 | 默认 ask 未装配可信目标；失败工具进入 accepted；默认输出遗漏可信资金字段，见 [Task 025](../docs/reviews/2026-11-07_q1_q3_acceptance_review.md) |
+| 每 Agent 独立模型 | 领域 YAML 存在，当前模型工厂实际从 single.yaml 构造客户端并共享注入；独立配置策略仍待完成 |
+| 独立 Business Service 层 | 部分只读聚合在 Repository 内；保留现有实现，目标 Service/Repository 职责差距见 [系统架构](../docs/architecture/system_design.md) |

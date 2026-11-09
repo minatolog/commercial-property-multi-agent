@@ -4,7 +4,8 @@
 Runtime → 受控只读工具 → LangGraph 编排 → 合同条款证据 → 人工审批 → 评测 → 演示界面。
 
 > **状态**：可运行、可演示、可解释的版本候选（release candidate）。
-> 所有业务数据均为**合成数据**；未接真实 PostgreSQL、未调用真实模型（缺 API Key）。
+> 所有业务数据均为**合成数据**；已有真实 DeepSeek dev/单题记录，PostgreSQL 实机与正式真实模型对照尚未完成。
+> 当前指导入口：[架构与文档基线](docs/architecture/CURRENT_BASELINE.md)（2026-11-09）；已知 Single/CLI 的 Z1–Z3 尚未修复。
 > 未完成项在 [§8 已知限制](#8-已知限制不夸大) 中逐条列出，本文不夸大任何能力。
 
 ---
@@ -112,11 +113,12 @@ flowchart TB
     end
 
     subgraph 工具层
-        EX[ToolExecutor 六道闸<br/>白名单·权限·参数·结果·超时·重试·预算·Trace]
+        EX[受控 ToolExecutor<br/>白名单·权限·参数·结果·超时·重试·预算·Trace]
         T1[lease.lookup]
         T2[billing.statement.read]
         T3[property.work_orders.read]
         T4[document.search]
+        T5[billing.arrears.calculate]
     end
 
     subgraph 数据与知识
@@ -135,9 +137,9 @@ flowchart TB
     G --> P
     G --> L & B & PR
     L & B & PR --> EX
-    EX --> T1 & T2 & T3 & T4
-    T1 & T2 & T3 --> F
-    T3 -.可选.-> DB
+    EX --> T1 & T2 & T3 & T4 & T5
+    T1 & T2 & T3 & T5 --> F
+    T1 & T2 & T3 & T5 -.可选数据源.-> DB
     T4 --> RAG
     G <--> CP
     G <--> AL
@@ -149,7 +151,7 @@ flowchart TB
 - Coordinator **不 import 任何具体 Agent**，按 `capability` 从 Registry 解析；
 - Agent **不 import 具体工具实现**，只认工具契约；
 - 展示层只经 `WorkflowService`，`app.cli` / `app.evaluation` **不 import** `app.api`；
-- 工具执行必须过六道闸，评测基线也不能绕过（否则评测在比生产更宽松的权限下跑）。
+- 工具执行必须经过统一执行器的权限、参数、结果、预算和 Trace 等控制，评测基线也不能绕过。当前业务工具使用只读仓库，完整独立 Business Service 层仍有差距，见现行系统架构。
 
 详细设计见：
 [agent_architecture](docs/architecture/agent_architecture.md) ·
@@ -238,18 +240,21 @@ python -m app.cli evaluate --split heldout
   因此**不能**用它的通过率评价实现质量；
 - `token=0`、`cost=null` 是因为**没有调用真实模型**；不得把这些数字当作真实成本或质量。
 
+旧 heldout 已在开发过程中多次运行、查看；这些结果应标注为回归/探索证据，不能宣称从未曝光的独立盲测。需要独立泛化结论时，应另冻结未用于开发的测试集。
+
 ---
 
 ## 6. 文档地图
 
 | 位置 | 内容 |
 |---|---|
-| [docs/README.md](docs/README.md) | 文档规范、Prompt 全局编号表（001–024） |
+| [docs/architecture/CURRENT_BASELINE.md](docs/architecture/CURRENT_BASELINE.md) | 当前指导关系、架构范围、实现差距与验证状态 |
+| [docs/README.md](docs/README.md) | 文档规范、Prompt 全局编号表（001–026） |
 | [docs/architecture/](docs/architecture/) | Agent 架构、接口契约、Runtime 契约、数据库设计 |
 | [docs/prompts/](docs/prompts/) | 每个任务的完整存档（原始 Prompt + 实施 + 验证 + 问题） |
 | [docs/development_logs/development_log.md](docs/development_logs/development_log.md) | 逐任务开发日志 |
 | [docs/issues/issue_log.md](docs/issues/issue_log.md) | 问题、根因、修法、如何避免复发 |
-| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 技术原理与取舍（32 篇） |
+| [docs/lessons_learned/knowledge_notes.md](docs/lessons_learned/knowledge_notes.md) | 按任务记录的技术原理与取舍 |
 | [docs/checkpoints/git_history.md](docs/checkpoints/git_history.md) | 里程碑与回滚参考 |
 | [docs/evaluation/](docs/evaluation/) | 评测规则、数据集、报告 |
 | [docs/demo/demo_script.md](docs/demo/demo_script.md) | 演示脚本与失败示例 |
@@ -259,6 +264,8 @@ python -m app.cli evaluate --split heldout
 
 ## 7. 质量证据
 
+下表包含既有任务证据；Task 026 同步运行提示词边界后，另行重跑 399 项回归（skipped=1）及 57 项契约，均通过。通过结果不替代 Task 025 的 Z1–Z3 反例修复验收；本轮没有新增真实模型请求。
+
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 57 项通过 |
@@ -266,12 +273,12 @@ python -m app.cli evaluate --split heldout
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | 模型预算按物理请求记账 | `tests/test_model_budget.py`（6 项） | `max_model_calls=1` 时只发出 1 次请求；重试/补查逐次记账 |
 | 模型不能换目标/丢筛选 | `tests/test_task_scope.py`（15 项） | 越界租约被拒、省略即注入、文档范围取交集、受控调用双省略默认拒绝 |
-| 零取证不算完成 | `tests/test_evidence_and_answer.py`（N4 部分） | 不调工具 / 调无关工具 / 工具全失败 → `insufficient_evidence` |
+| 领域能力的最低结果契约 | `tests/test_evidence_and_answer.py`（N4 部分） | 已有领域 Agent/verify 回归；Single 的失败调用仍可能冒充取证（Z2），不能推广为所有入口已满足 |
 | 答案金额必须来自事实 | `tests/test_evidence_and_answer.py`（N6 部分） | facts 全对但回答写 0.00 → 答案断言失败；报告列出 `narrative_discrepancies` |
 | token 耗尽后不再发请求 | `tests/test_token_budget_gate.py`（11 项） | 零额度 0 次请求；首次超额后物理调用保持 1 次；并发/重试/补查一致 |
-| 单 Agent 与领域 Agent 范围一致 | `tests/test_single_agent_scope.py`（15 项） | B 基线取错租约被拒、省略即注入、纠正后可完成 |
+| 单 Agent 显式目标范围 | `tests/test_single_agent_scope.py`（15 项） | B 基线传入目标后取错租约被拒、省略即注入；默认 ask 目标装配 Z1 尚未闭合 |
 | 资金结论按字段核对 | `tests/test_fund_conclusions.py`（28 项） | 金额写反、错结清判失败；只答未收/合法明细通过；未验证不计通过 |
-| 真实模型记账与叙述核验 | `docs/evaluation/reports/real_model_v2/`（30k token 上限、单题） | 物理请求 7 = 账本 7；13,714 tokens；修正后可核验答案为 `consistent` |
+| 真实模型记账与资金核验 | `docs/evaluation/reports/real_model_v2/`（Task 024，30k token 上限、单题） | 物理请求 7 = 账本 7；13,452 tokens；scoring-v3.3 下资金结论 `verified`；旧 13,714-token 核验记录保留 |
 | SQLite + RAG 真实装配 | `python -m app.cli investigate --backend sqlite` | 退出码 0（含合同条款检索） |
 | 审批意见落库 | `python -m app.cli approve <id> --draft-version N --reason "..."` → `pending` | 台账 `stages[].reason` 为提交的意见 |
 | Agent 可禁用/替换 | `tests/test_graph_workflow.py::test_disabled_capability_degrades_explicitly`、`tests/test_runtime.py::test_replace_success_swaps_capabilities_atomically` | 禁用后明确报能力不可用；替换原子生效 |
@@ -292,15 +299,15 @@ python -m app.cli evaluate --split heldout
 | 真实模型评测（dev 8 题） | `evaluate --split dev --model-provider deepseek` | B 1/7、C 0/6；报告头部标注 `deepseek/deepseek-chat`（见 [real_model_dev](docs/evaluation/reports/real_model_dev/)） |
 | 报告不得谎报模型 | `tests/test_evaluation.py::test_report_names_the_real_model_when_one_is_used` | 接入模型后报告必须写真实 provider |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
-| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | 238 项测试 + 57 项契约通过，CLI 与 SQLite 后端 `EXIT=0`（Task 016 当时的口径；当前为 343 项） |
+| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | Task 016 当时为 238 项测试 + 57 项契约通过；Task 025 已有环境回归为 399 项，不能替代当前最终版本的新环境复现 |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
 
 ---
 
 ## 8. 已知限制（不夸大）
 
-1. **真实模型已实测，但只在 dev 集**：`ask` / `investigate` / `evaluate --split dev` 均已真实调用
-   DeepSeek（报告见 [real_model_dev](docs/evaluation/reports/real_model_dev/)）。**heldout 32 题的真实对照尚未执行**，
+1. **真实模型仅有 dev/有界样例证据**：`ask` / `investigate` / `evaluate --split dev` 均已真实调用
+   DeepSeek（见 [real_model_dev](docs/evaluation/reports/real_model_dev/) 和 [real_model_v2](docs/evaluation/reports/real_model_v2/)）。**heldout 32 题的真实对照尚未执行**，
    且 dev 集是自然语言断言 + 人工量表题，其通过率**不能**用于 B vs C 的质量结论。
    成本金额未换算（项目未内置价格表）。
 2. **未接 PostgreSQL**：本机无服务（`127.0.0.1:5432` 不可达），迁移与查询只在 SQLite 验证；
@@ -314,6 +321,8 @@ python -m app.cli evaluate --split heldout
 8. **失败路径只覆盖单机**：checkpoint 与审批台账是本机 SQLite，未验证多实例并发与分布式"恰好一次"。
 9. **一条 `thread_id` 只能承载一次运行**：重复用它做新调查会被明确拒绝（`invalid_context`）；
    恢复请用 `resume`/`approve`，新任务请换线索。这是有意的安全约束，不是缺陷。
+10. **Single/CLI 尚有 Z1–Z3**：默认 ask 未装配可信目标、失败工具被当作取证、默认摘要遗漏可信金额；见 [Task 025](docs/reviews/2026-11-07_q1_q3_acceptance_review.md)。
+11. **独立模型配置未闭合**：独立 YAML 已有，但当前 DeepSeek 客户端从 single.yaml 创建并共享注入，不能保证修改任一领域 YAML 即独立换模型。
 
 ---
 
@@ -321,10 +330,4 @@ python -m app.cli evaluate --split heldout
 
 - 分支 `main`，当前提交见 `git log -1`；里程碑记录见 [git_history](docs/checkpoints/git_history.md)。
 - **未打 Tag、未发布、未部署**——这些动作需要项目所有者确认。
-- 建议的下一步（按价值排序）：
-  1. 真实模型 heldout 单基线（C）对照，另立报告版本（成本/时间可控时再跑全量）；
-  2. 同题重复 3 次，测量延迟/token/答案稳定性；
-  3. 若要给成本金额，先内置并冻结一张价格表；
-  4. 上 PostgreSQL 并实测排他约束与 RLS（需实例）；
-  5. 人工量表实际评分（H25/H26 与 rubric 队列）；
-  6. 混合检索 + rerank，用评测集验证召回提升。
+- 下一步：先修复 Z1–Z3、明确独立模型配置，再完成 PostgreSQL 必要数据边界实机验收、正式真实 B/C 对照/重复测量与人工量表，最后复现交付。验收标准见 [当前路线图](docs/product/PROJECT_DEVELOPMENT_ROADMAP.md)。混合检索、部署和 MCP 为后续可选扩展。

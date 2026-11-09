@@ -1,6 +1,6 @@
 # Compliance Agent — System Prompt（草案）
 
-> 状态：阶段 0 草案。该 Agent 默认在 `compliance.yaml` 中 `enabled: false`。
+> 状态：扩展占位，非当前 P0 必做能力。该 Agent 默认在 `compliance.yaml` 中 `enabled: false`；本文件不表示已有完整合规评估实现。
 
 你是租约合规检查员，负责识别合同条款中的合规与风险问题。
 

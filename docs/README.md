@@ -4,6 +4,14 @@
 
 目标：任何一次开发任务都能被**追溯、复现和回滚**。文档不是代码快照，真正的代码回滚依赖 Git 提交记录。
 
+## 当前阅读入口与冲突规则（2026-11-09）
+
+先读 [当前架构与文档基线](./architecture/CURRENT_BASELINE.md)，再按任务阅读现行架构、MVP、契约和评测文档。项目方向以用户确认的 Agent-first V1.0/ADR-005 为准；实现事实需有当前源码和对应版本证据。最新用户指令可调整流程与授权，Codex 不再是每个任务的强制审查环节。
+
+下方编号表的状态文字是**任务交付当时的索引摘要**，不能替代 [当前进度表](./product/PROJECT_DEVELOPMENT_ROADMAP.md)。Prompt、日志、检查点、审查报告、冻结评分/测量与旧交接均为历史记录；其中“当前/下一步/未开始”按记录日期解读。`*_legacy_2026-11-09.md` 为 Task 026 保存的旧文原文，仅供追溯；不得继续按旧示例或旧优先级开发。原始 Prompt 和冻结测量不回写。
+
+现行规范变更须同步相关正文和状态表，不能只在顶部叠加新结论；目标未实现要记录差距，不能通过改文档伪造完成。旧 PDF 为 2026-11-03 的状态快照，本轮未重新导出；实时进度看 Markdown。
+
 ---
 
 ## 一、目录结构与用途
@@ -13,14 +21,15 @@
 | `docs/README.md` | 本文件。说明目录约定、命名规范与文档更新流程 |
 | `docs/decisions/` | **架构决策记录（ADR）**：ADR-005 起的新方向决策与取舍 |
 | `docs/product/` | **产品范围**：MVP 范围（P0/P1/暂停）、场景与完成标准 |
-| `docs/product/PROJECT_DEVELOPMENT_ROADMAP.md` | **项目总路线与进度表**：10 次正式 Prompt、每步产物/验收及当前进度 |
+| `docs/architecture/CURRENT_BASELINE.md` | 当前方向、文档适用关系、实现/目标差距及待完成项的入口 |
+| `docs/product/PROJECT_DEVELOPMENT_ROADMAP.md` | **项目总路线与进度表**：原十步主线、当前完成边界和后续五个工作包 |
 | [项目路线图文 PDF](../output/pdf/commercial_property_agent_first_roadmap_notability.pdf) | **Notability 阅读批注版**：16 页，含流程图、十步导航、验收页及手写进度表；2026-11-04 导出，状态快照截至 2026-11-03 |
-| `docs/reviews/` | **Codex 验收报告**：实际验证、待修正项及同任务返修 Prompt |
+| `docs/reviews/` | 独立审查/自检报告：按日期与版本读取，不自动等于最终验收 |
 | `docs/evaluation/` | **评测**：评测计划、共享 fixture、评测用例（JSON/JSONL） |
 | `docs/handoffs/` | **交接文档**：跨工具（Codex / DeepSeek）的方向基线与交接记录 |
 | `docs/architecture/system_design.md` | 系统架构设计：模块划分、Agent 编排、数据流、技术选型理由 |
 | `docs/architecture/agent_architecture.md` | Agent 层概念设计：契约、Registry、配置、编排、错误与降级 |
-| `docs/architecture/agent_runtime_contracts.md` | **Agent Runtime 契约与 Graph 规格**（编码级，P0 规格，尚未实现） |
+| `docs/architecture/agent_runtime_contracts.md` | **当前 Runtime 契约与 Graph 语义**：实际类型、目标差距、预算/状态/恢复边界 |
 | `docs/architecture/agent_development_guide.md` | 新增/禁用/替换 Agent 的标准流程与硬规则 |
 | `docs/architecture/database_design.md` | 数据库设计：表结构、字段定义、索引、关系与演进记录（**P0 长期参考，非建表清单**） |
 | `docs/prompts/01_environment/` | 环境配置相关任务的 Prompt 归档（Conda、依赖、工具链） |
@@ -90,6 +99,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 023 | 2026-11-07 | 06_testing | 仓库交付核对与项目进度盘点（只读检查） | [2026-11-07_023_repository_state_and_progress.md](./prompts/06_testing/2026-11-07_023_repository_state_and_progress.md) |
 | 024 | 2026-11-07 | 06_testing | Q1–Q3 修复：token 闸门、单 Agent 可信范围、资金结论字段绑定（399 项测试通过；评分升 `scoring-v3.3`） | [2026-11-07_024_q1_q3_model_fixes.md](./prompts/06_testing/2026-11-07_024_q1_q3_model_fixes.md) |
 | 025 | 2026-11-07 | 06_testing | Q1–Q3 独立复查（指定反例改善；Single/CLI 尚有 Z1–Z3） | [2026-11-07_025_q1_q3_acceptance_review.md](./prompts/06_testing/2026-11-07_025_q1_q3_acceptance_review.md) |
+| 026 | 2026-11-09 | 06_testing | Markdown 一致性整理；统一 Agent-first 指导、保留历史、校正进度与实现边界 | [2026-11-09_026_document_consistency.md](./prompts/06_testing/2026-11-09_026_document_consistency.md) |
 
 ---
 

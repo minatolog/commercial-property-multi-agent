@@ -1,7 +1,7 @@
 # MVP 范围 V2（Agent-first）
 
-- **日期**：2026-11-03
-- **状态**：建议范围（方向已由用户确认，具体条目待评审）
+- **日期**：2026-11-03；2026-11-09 Task 026 同步现状与适用关系
+- **状态**：Agent-first 当前范围与验收要求；条目是否完成须另看代码和验证证据
 - **依据**：[ADR-005](../decisions/ADR-005-agent-first-refocus.md)、[PROJECT_REFOCUS_AGENT_FIRST_V1.0.md](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)
 - **取代**：历史 MVP 范围中"完整商业地产管理系统"的定义。历史文档保留，不删除。
 
@@ -25,11 +25,11 @@
 
 ## 3. P0 覆盖项与可验证完成标准
 
-下表的"可验证行为"是未来用固定评测集 + 代码断言检查的对象，不是主观描述。
+下表是验收要求，不代表全部已通过；当前实现与未闭合项见 §8 和 [当前基线](../architecture/CURRENT_BASELINE.md)。字段名以现行契约为准，目标不能因现状不满足而被取消。
 
 | # | P0 覆盖项 | 可验证行为（完成标准） |
 |---|---|---|
-| 1 | **Lease / Billing / Property 三类独立能力**；Compliance 保留且默认禁用 | Registry 能分别解析 `lease.*`、`billing.*`、`property.*`；`compliance` 在配置中 `enabled: false` 且 `disabled_capabilities()` 包含它；调用它返回 `AGENT_NOT_ENABLED` 而非"能力不存在" |
+| 1 | **Lease / Billing / Property 三类独立能力**；Compliance 保留且默认禁用 | Registry 分别解析三领域能力；确定性工厂下 Compliance 为已登记但禁用，直接调用返回 `AGENT_NOT_ENABLED`。LLM 引擎白名单未提供 Compliance 实现，不把该引擎的“缺失”冒充“已登记禁用” |
 | 2 | 统一 Runtime、Registry、独立配置、受控 Tool Calling | 三个 Agent 共用同一 `handle()` 入口与同一 `AgentResult` 结构；每个 Agent 有独立 YAML；未授权工具调用返回 `TOOL_NOT_ALLOWED`；不存在任意 SQL / 任意代码工具 |
 | 3 | 真实 LangGraph 条件路由、按需并发、合流、有限补查 | 图含至少 1 条条件边与 1 个并发扇出/合流点；C01（确定性查询）路由为"不并行"，C03（争议调查）路由为三路并发；补查轮次有硬上限且超限后转人工 |
 | 4 | 精简合同 RAG、确定性金额核对、结构化 Evidence | 每个结论都能返回 `evidence_id`；`document_clause` 类证据含 `document_id + version + page + excerpt`；金额断言用 `Decimal` 与 fixture 真值精确相等 |
@@ -52,8 +52,8 @@
 
 ## 5. 数据库策略（P0）
 
-- P0 **不启动**完整 14 表实施。14 表是长期设计参考，[database_design.md](../architecture/database_design.md) 保持不动。
-- **最小表数待实施评审反推**，判据只有一条：能否确定性地支撑 C01–C08 与三基线。
+- P0 **不启动**完整 14 表实施。14 表是长期设计参考，[database_design.md](../architecture/database_design.md) 的设计正文保留，仅更新适用范围说明。
+- 当前 `backend/app/db/models.py` 已有 **12 表精简映射**，SQLite 已有测试；表数是实现事实，不是新业务指标。PostgreSQL 实机、必要约束及与长期设计的差异仍需验收。
 - 本文档**不锁定**"10 表"或"14 表"中的任何一个作为用户已确认指标。
 - P0 允许先用 fixture 内存数据集跑通 Runtime；数据库接入以"不改变工具契约"为前提。
 - 完整计费、押金、能耗表计、核销写引擎 **暂停**，不作为 P0 依赖。
@@ -62,7 +62,7 @@
 
 | 项 | 触发条件 |
 |---|---|
-| 轻量 Trace UI / 演示页 | P0 报告已稳定，需要对外展示时 |
+| 展示页增强 | 现有 FastAPI + 同源轻量页面已作为演示适配层落地并保留；P1 只扩展体验，不另建完整后台 |
 | 扩充题量（>50）与回归流水线 | P0 的 30–50 题（含保留集）稳定后，继续扩题与自动化回归 |
 | 合同 RAG 混合检索（BM25 + 向量 + RRF） | 单路检索在评测中召回不足时 |
 | 风险提示（显式规则，非 LLM 打分） | 有明确业务规则可编码时 |
@@ -79,13 +79,14 @@
 
 | 状态 | 内容 |
 |---|---|
-| 已完成（代码） | `backend/app/agents/base/`（契约、BaseAgent、Registry）、`factory.py` 静态白名单、`config/`（Schema+加载器+3 个 YAML）、`llm/adapter.py`、`tools/base.py`（契约）、`orchestration/`（仅契约）、`tests/smoke_agent_contracts.py`（57 项） |
-| 仅设计（文档） | 14 表数据库设计、P0 范围（本文档）、运行时契约、评测计划与 8 题样例、方向 ADR |
-| 未开始（P0 待建） | LangGraph 图、真实 Tool 实现、Business Service/Repository、fixture loader、评测 runner、三基线、FastAPI 入口、持久 checkpoint |
+| 已实现并有历史验证 | Runtime、Registry、五份 YAML、受控工具、LangChain/DeepSeek、LangGraph、fixture/SQLAlchemy、BM25/合成 PDF、审批/checkpoint、A/B/C runner、FastAPI/轻量页面。实现不等于全部验收通过 |
+| 长期设计 | 完整 14 表与计费/核销写引擎；不自动作为当前建表清单 |
+| 已知待修 | Task 025 的 Z1/Z2/Z3；独立模型客户端配置策略；目标 Business Service/Repository 职责与现有仓库聚合的差距 |
+| 待最终验证 | PostgreSQL 实机、真实 heldout B/C 与重复测量、人工量表、当前最终版本独立环境复现；详见 [进度表](PROJECT_DEVELOPMENT_ROADMAP.md) |
 
 ## 9. 相关文档
 
 - [ADR-005](../decisions/ADR-005-agent-first-refocus.md)
 - [agent_runtime_contracts.md](../architecture/agent_runtime_contracts.md)
 - [evaluation_plan.md](../evaluation/evaluation_plan.md)
-- [agent_architecture.md](../architecture/agent_architecture.md)（历史骨架设计）
+- [agent_architecture.md](../architecture/agent_architecture.md)（当前架构与实现边界）

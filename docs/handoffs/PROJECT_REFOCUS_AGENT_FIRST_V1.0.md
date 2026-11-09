@@ -1,5 +1,7 @@
 # Commercial Property Multi-Agent 项目方向调整与开发基线 V1.0
 
+> **2026-11-09 适用说明**：本文由用户确认的 Agent-first 方向继续作为需求与优先级依据。§0、§7、§9、§10 是首次接手时的只读任务和阶段快照，不代表当前仍处于 Stage 0，也不重置用户后续已授权任务。当前实现、剩余验收与最新协作方式见 [当前基线](../architecture/CURRENT_BASELINE.md)；原始正文保留，不把规划回写成已完成。
+
 > **文档性质：架构决策 / 产品范围调整 / VS Code Codex 工作交接**  
 > **日期：2026-11-03**  
 > **仓库：** `commercial-property-multi-agent`  

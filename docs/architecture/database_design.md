@@ -1,12 +1,12 @@
 # 数据库设计
 
-> **状态**：已设计 · **v2 复核修正**（待评审）— 阶段 2 设计完成
+> **状态**：长期 14 表设计参考 · v2 复核修正；非当前 P0 全量建表要求
 > **版本**：v2（2026-11-03 复核）— v1 存在 4 处会导致约束失效或语义错误的缺陷，已在 §15 修正
 > **最后更新**：2026-11-03
 > **关联任务**：004（用户侧编号「Task 003 — PostgreSQL 数据库架构设计」）
 > **配套文档**：[system_design.md](./system_design.md)、[agent_architecture.md](./agent_architecture.md)
-> **重要说明**：**未安装 PostgreSQL，未创建任何真实数据表。** 本文档是可执行的设计规格，
-> 实现阶段（SQLAlchemy + Alembic）必须严格按本文件落地；未列入本文档的表、字段、约束不得自行添加。
+> **2026-11-09 适用范围修正（Task 026）**：方向以 [Agent-first V1.0](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)、[ADR-005](../decisions/ADR-005-agent-first-refocus.md) 和 [当前基线](CURRENT_BASELINE.md) 为准。下文设计正文保留；其中“MVP”“必须落地”等措辞仅适用于该长期模型，不能恢复完整 ERP 范围或覆盖当前精简实施。
+> **实现边界**：当前已有 12 表 SQLAlchemy/Alembic 精简实现及 SQLite 验证；PostgreSQL 尚无实机验收。本文未证明 EXCLUDE/RLS 等已实现；旧“未建任何表”仅是 2026-11-03 的阶段状态。当前映射见 `backend/app/db/models.py`，与本文的差异见 [系统架构](system_design.md) §4，后续按 P0 必要性评审，不机械补齐 14 表。
 
 ---
 

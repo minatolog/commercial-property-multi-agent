@@ -2,6 +2,19 @@
 
 记录每个开发阶段对应的 Git 提交，用于追溯与回滚。
 
+> 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
+
+## [2026-11-09] 任务 026 - 文档一致性整理（Pending）
+
+- **起点**：main / d6577da，工作区干净。本轮不声明远端同步状态。
+- **本轮 Commit**：Pending；未提交、未推送。
+- **变更**：当前基线、六份现行文档及其原文归档、入口/范围/历史适用说明、五份 Agent 运行提示词边界、026 Prompt/审查/日志。
+- **历史回填说明**：Task 025 文档已由 d6577da 纳入 Git；下方原“未提交/Pending”保留为当时快照。
+- **验证**：文档一致性与历史保护检查，以及本轮实际重跑 399 tests OK（skipped=1）、57 项契约；详情见 [报告](../reviews/2026-11-09_document_consistency_review.md)。
+- **建议 Summary**：docs: reconcile Agent-first architecture and project status
+- **建议 Description**：统一当前架构、契约、MVP 与进度说明；保留旧文原文和冻结记录，明确真实模型/数据库/独立配置及 Z1–Z3 的验收边界。仅文档变更。
+- **回滚参考**：以 Git diff 与六份 legacy 原文审查差异；不自动执行 reset、覆盖或删除。
+
 ## [2026-11-07] 任务 025 - Q1–Q3 独立复查文档（未提交）
 
 - **代码基线**：`f2cc67d`；实际 GitHub main hash 一致，开始时工作区干净。
