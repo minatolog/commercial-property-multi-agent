@@ -482,7 +482,7 @@ class TestPresentationIsOptional(_ApiCase):
     def test_index_page_renders(self) -> None:
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("商业地产多 Agent 工作流演示", response.text)
+        self.assertIn("商业地产 · Agent 协作工作台", response.text)
         self.assertIn("/api/runs", response.text)
 
     def test_cli_and_evaluation_do_not_import_api(self) -> None:
@@ -508,6 +508,66 @@ class TestPresentationIsOptional(_ApiCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("ok", result.stdout)
+
+
+class TestWorkbenchStaticAssets(_ApiCase):
+    """Task 027：工作台资源由 `/static` 同源提供，且不依赖外网 CDN。
+
+    这些断言覆盖新增的静态路由与装配行为（状态码、MIME、目录穿越、无 CDN 引用），
+    不检查某个具体 CSS 规则长什么样。
+    """
+
+    ASSETS = {
+        "/static/css/workbench.css": "text/css",
+        "/static/js/app.js": "javascript",
+        "/static/js/api.js": "javascript",
+        "/static/js/dom.js": "javascript",
+        "/static/js/view-model.js": "javascript",
+        "/static/js/components/graph.js": "javascript",
+        "/static/js/components/report.js": "javascript",
+        "/static/vendor/tabler/css/tabler.min.css": "text/css",
+        "/static/vendor/tabler/js/tabler.min.js": "javascript",
+    }
+
+    def test_assets_are_served_with_expected_mime(self) -> None:
+        for path, mime in self.ASSETS.items():
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn(mime, response.headers["content-type"], path)
+            self.assertTrue(response.content, path)
+
+    def test_index_uses_local_assets_only(self) -> None:
+        html = self.client.get("/").text
+        self.assertIn("/static/vendor/tabler/css/tabler.min.css", html)
+        self.assertIn("/static/css/workbench.css", html)
+        self.assertIn("/static/js/app.js", html)
+        self.assertIn("/static/vendor/tabler/js/tabler.min.js", html)
+        for host in (
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "fonts.googleapis.com",
+            "fonts.gstatic.com",
+            "preview.tabler.io",
+        ):
+            self.assertNotIn(host, html, host)
+        self.assertNotIn('src="http', html)
+        self.assertNotIn('href="http', html)
+
+    def test_static_mount_does_not_escape_static_dir(self) -> None:
+        for path in (
+            "/static/../app.py",
+            "/static/%2e%2e/app.py",
+            "/static/..%2fapp.py",
+            "/static/css/../../app.py",
+        ):
+            response = self.client.get(path)
+            self.assertIn(response.status_code, (400, 404), path)
+
+    def test_static_mount_has_no_directory_listing(self) -> None:
+        for path in ("/static/", "/static/css/"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 404, path)
 
 
 if __name__ == "__main__":

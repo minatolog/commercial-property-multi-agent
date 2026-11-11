@@ -65,7 +65,8 @@ python -m app.cli evaluate --split dev
 python -m app.cli evaluate --split heldout
 python -m app.cli evaluate --split heldout --baseline C_multi_agent --model-provider deepseek  # 需密钥
 
-# 演示 API + 页面
+# 演示 API + 工作台页面（http://127.0.0.1:8000/）
+# 页面资源全部在 app/api/static/ 下本地提供（Tabler 1.7.4），运行期不访问 CDN
 python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
 
 # 回归测试
@@ -91,7 +92,7 @@ python -m unittest discover -s tests -p "test_*.py"
 | `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验、`DocumentCatalog` 目录契约（按租约限定文档版本） |
 | `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（装配期 `PRAGMA query_only=1`；本机用 SQLite 验证） |
 | `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v3.3`：工具事实 / 资金结论 / 金额接地分开判定）、报告绑定 |
-| `app/api/` | FastAPI 适配层 + 同源演示页（**可整体删除**，CLI/评测不依赖它） |
+| `app/api/` | FastAPI 适配层 + 同源工作台页面（`static/` 由受限 `/static` 挂载提供；**可整体删除**，CLI/评测不依赖它） |
 | `app/cli.py` | 命令行入口（tools/check/demo/ask/investigate/search/approve/pending/evaluate） |
 
 ## 4. 安全边界

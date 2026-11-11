@@ -26,6 +26,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..agents.base.errors import AgentError
@@ -145,6 +146,11 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
     async def index() -> HTMLResponse:
         page = STATIC_DIR / "index.html"
         return HTMLResponse(page.read_text(encoding="utf-8"))
+
+    # Task 027：样式/脚本/模板资源改为同源静态目录。
+    # 只挂载 `static/`，不把仓库根、`docs/`、`data/`、`.env` 暴露成静态站点；
+    # Starlette 的 StaticFiles 自带路径穿越防护与 404，不做目录列表。
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/api/meta")
     async def meta(request: Request) -> dict[str, Any]:

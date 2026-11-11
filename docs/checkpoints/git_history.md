@@ -4,6 +4,78 @@
 
 > 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-10] 任务 030 - Task 029 独立复查（Pending）
+
+- **起点 / HEAD**：main / 8569cc2，027–029 和本轮文档均未提交；不声明远端状态。
+- **变更**：030 Prompt、独立报告/JSON 证据、索引、日志、问题、基线与路线；不改实现、测试或旧报告。
+- **验证**：409 tests OK（skipped=1）、57 契约、实际 JS 17 用例/84 断言；15 个补充变体揭示 U3-A/U3-B。U1/U2 原始反例通过，U3 部分修复。
+- **操作边界**：无付费模型、无用户既有任务审批、无持久服务重启、无提交/推送。
+- **建议 Summary**：`docs: verify Task 029 fixes and record remaining U3 gaps`
+- **建议 Description**：记录 U1/U2 与 report.error 路径独立验证结果，复现缺字段、类型异常和不一致核验状态的误绿灯；同步当前进度，明确网页仍走规则引擎。
+
+## [2026-11-10] 任务 029 - UI 映射返修 Prompt（Pending）
+
+- **起点 / HEAD**：main / 8569cc2，保留现有未提交实现与审查文档。
+- **本阶段提交**：Pending；未提交、未推送，未改实现或测试。
+- **变更**：新增 DeepSeek 029 返修 Prompt、029 归档，更新索引和开发日志/检查点。
+- **验证范围**：仅文档静态核验；修复和业务回归由后续实施记录证明。
+- **建议 Summary**：`docs: prepare U1-U3 UI mapping repair prompt`
+- **建议 Description**：明确失败 Agent/Trace 归属、条款与工单发现关联、异常报告状态判定的返修和行为回归要求，保留现有工作台与业务边界。
+
+## [2026-11-10] 任务 028 - 协作工作台独立复查（Pending）
+
+- **起点 / HEAD**：main / 8569cc2；保留既有 Task 027 未提交成果，不声明远端同步状态。
+- **本轮提交**：Pending；未提交、未推送，未修改实现与测试。
+- **变更**：028 Prompt、独立审查报告、文档索引、日志、问题、当前基线与路线图。
+- **验证**：403 tests OK（skipped=1）、57 项契约；上游模板核对、临时 API 与 JS 映射反例复现 U1–U3。浏览器独立复验受工具限制，未获得新截图。
+- **运行操作**：重启此前 Codex 启动的旧 8000 预览，静态资源恢复 200；临时 8019 验收服务结束后关闭。
+- **建议 Summary**：`docs: review Task 027 UI and record U1-U3 mapping defects`
+- **建议 Description**：记录模板复用与接口回归证据，定位失败 Agent、节点发现和异常报告状态映射问题；同步待修状态，保留 DeepSeek 原实现及自检证据。
+- **回滚参考**：审查文档 diff 后单独处理；不执行 reset、删除或覆盖 DeepSeek 未提交成果。
+
+## [2026-11-10] 任务 029 - 协作工作台 U1–U3 修复（Pending）
+
+- **起点**：main / 8569cc2 之上的未提交工作区；本轮不声明远端同步状态。
+- **本轮提交**：Pending；没有提交/推送。
+- **代码变更**：`app/api/static/js/view-model.js`、`js/components/report.js`、`js/components/graph.js`、`js/app.js`、
+  `css/workbench.css`；新增 `app/api/static/tests/`（浏览器内回归入口与用例）与 `backend/tests/test_ui_view_model.py`。
+  未改 `app/api/app.py`、Agent、预算、审批、数据库与评分。
+- **文档变更**：Task 029 修复报告、029 归档追加第 10 节、10 张新截图、索引/日志/问题/基线/路线图。
+- **验证**：`Ran 409 tests in 22.255s` OK（skipped=1）；57 项契约；浏览器 JS 回归 17 用例 / 84 断言 / 0 失败
+  （含 2 个真实 API 用例）；浏览器实测无控制台错误、无横向溢出。
+- **建议 Summary**：`fix(ui): map failed subtasks and findings from real report fields`
+- **建议 Description**：修复 Task 028 的 U1–U3：以统一子任务索引呈现失败 Agent（错误码、工具尝试、Trace 归属）；
+  分离证据分组与 finding 归属，恢复合同条款与工单发现；`report.error` 与缺失字段不再渲染为成功。
+  仅改展示层并新增浏览器级 JS 回归，未改后端业务逻辑。
+- **回滚参考**：改动集中在 `app/api/static/js/`、`css/`、`tests/` 与 `backend/tests/test_ui_view_model.py`；
+  回滚前先审查 diff，不执行 reset、覆盖或删除历史。
+
+## [2026-11-10] 任务 027 - 多 Agent 协作工作台实施（Pending）
+
+- **起点**：main / 8569cc2 之上的未提交工作区；本轮不声明远端同步状态。
+- **本轮提交**：Pending；没有提交/推送。
+- **代码变更**：`backend/app/api/app.py`（仅新增 `/static` 挂载）、`backend/app/api/static/`（index/css/js/vendor/第三方声明）、
+  `backend/tests/test_api.py`（新增 4 项静态资源用例 + 更新首页标题断言）。
+- **文档变更**：027 归档追加第 10 节、实施与视觉自检报告、7 张截图、索引/日志/路线/演示脚本/当前基线。
+- **验证**：`test_api.py` 33 项 OK；全量 `Ran 403 tests in 22.534s` OK（skipped=1）；57 项契约通过；
+  浏览器 1440×900 / 1280×800 / 390×844 实测无横向溢出、控制台无错误；静态资源 200 且 MIME 正确。
+- **建议 Summary**：`feat(api,ui): rebuild multi-agent workbench on Tabler 1.7.4`
+- **建议 Description**：以 Tabler starter/core 1.7.4 本地固定资源为基座，用固定职责图与节点详情呈现合同/账单/物业分工、
+  证据、工具调用与两级审批；保持 FastAPI 与业务边界，不伪造实时进度，不改 Agent/审批/评分逻辑。
+- **回滚参考**：前端改动集中在 `backend/app/api/static/` 与 `app.py` 的一处挂载；回滚前先审查 diff，
+  不执行 reset、覆盖或删除历史。截图与报告为新增文件，可单独保留。
+
+## [2026-11-10] 任务 027 - 协作工作台模板调研与 Prompt（Pending）
+
+- **起点**：main / 8569cc2，工作区干净；本轮不声明远端同步状态。
+- **历史提交回填**：Task 026 文档已由 8569cc2 提交；下方原 Pending 是当时快照。
+- **本轮提交**：Pending；没有提交/推送。
+- **内容**：Tabler/Langflow 模板选型、DeepSeek 实施 Prompt、027 归档、索引/路线/日志。前端改造尚未实施。
+- **验证边界**：Markdown/原始 Prompt/编号/链接和 Git 范围核验；无新增业务测试或 UI 验收。
+- **建议 Summary**：docs: plan template-based multi-agent collaboration UI
+- **建议 Description**：记录 GitHub 模板与许可调研，选定 Tabler starter/core 及 Langflow 节点视觉参考；提供保持 FastAPI/API 边界和真实运行状态的 DeepSeek 实施 Prompt、验收标准与归档要求。
+- **回滚参考**：先审查本轮文档差异；不执行 reset、覆盖或删除历史。
+
 ## [2026-11-09] 任务 026 - 文档一致性整理（Pending）
 
 - **起点**：main / d6577da，工作区干净。本轮不声明远端同步状态。

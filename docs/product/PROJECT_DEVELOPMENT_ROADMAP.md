@@ -1,8 +1,14 @@
 # 项目总开发路线与进度表 V1.1
 
-- 更新：2026-11-09，Task 026；核对本地 main / d6577da。
+- 更新：2026-11-10，Task 030；本地 main / 8569cc2，027–029 成果与本轮审查未提交。原主体规划由 Task 026 整理。
 - 目标与范围：[当前架构基线](../architecture/CURRENT_BASELINE.md)、[Agent-first V1.0](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)。
 - 旧版完整路线与逐次更新：[历史快照](PROJECT_DEVELOPMENT_ROADMAP_legacy_2026-11-09.md)。下表为现状，不用旧版“剩余 9 次 Prompt”等首次规划数字判断进度。
+
+> **2026-11-10 用户追加的展示任务（Task 027）**：优先美化现有前端，采用 GitHub 开源模板呈现多 Agent 合作。Codex 已完成 [模板调研](../reviews/2026-11-10_multi_agent_ui_template_review.md)、[DeepSeek 实施 Prompt](../handoffs/DEEPSEEK_TASK027_MULTI_AGENT_UI_PROMPT.md) 与 [027 归档](../prompts/05_frontend/2026-11-10_027_multi_agent_ui_refresh.md)；DeepSeek 随后完成实施（Tabler starter/core 1.7.4 本地资源 + Langflow 节点视觉参考），自检见 [实施与视觉自检报告](../reviews/2026-11-10_multi_agent_ui_implementation_review.md)：403 tests OK（skipped=1）、57 项契约、7 张真实浏览器截图。
+>
+> **2026-11-10 当前修复判断（Task 030）**：028 发现 U1–U3，DeepSeek 在 [029](../reviews/2026-11-10_task029_ui_mapping_fix_report.md) 自检称修复；[030 独立复查](../reviews/2026-11-10_task029_ui_fixes_acceptance_review.md) 确认 U1/U2 原始反例通过，U3 error 路径已改但缺字段/类型异常及联合状态仍有缺口。独立 409 tests OK（skipped=1）、57 契约、实际 JS 17 用例 / 84 断言通过，不能替代补充异常边界验收。展示任务**仍未提交，U3 尚未闭合**。
+
+下一项建议小范围补完 U3-A/U3-B；网页真实模型装配、领域回答展示与最终综合分析仍未完成，后续另项推进。现有网页默认规则演示，不能把命令行模型接入当作网页已经使用 AI。展示修复不关闭下方业务正确性/正式实验、Z1–Z3、完整处置建议或独立配置要求。
 
 ## 1. 项目要交付什么
 
@@ -24,10 +30,10 @@
 | 6 / 011 | 合同 PDF、检索、证据 | 合成 PDF 实际解析/页码核对、BM25 已有；向量/混合检索可选 |
 | 7 / 012 | 持久恢复、审批 | 单机 SQLite checkpoint + 独立台账、串行双角色、批准草案已有；分布式语义不在 P0 |
 | 8 / 013 | 三基线与 40 题 | 8 dev + 32 heldout_v3；离线 scoring-v3.3 已有报告；真实 heldout B/C、重复测量与人工量表待做 |
-| 9 / 014 | FastAPI/轻量演示页 | 已实现并有本地演示证据；默认 CLI 可信金额投影 Z3 待修，生产鉴权/部署非 P0 前置 |
+| 9 / 014 | FastAPI/轻量演示页 | 已实现规则演示与 Tabler 协作界面；030 确认 U1/U2 原始反例通过、U3 部分修复。网页真实模型装配/回答展示/综合分析未完成，CLI Z3 待修；生产鉴权/部署非 P0 前置 |
 | 10 / 015 | 最终复现与展示材料 | README/脚本/候选版本已有；当前最终版本复现与未闭合关口完成前，不记 MVP 全部验收 |
 
-**进度判断：MVP 集成与最终验收阶段，版本候选。** Task 026 同步文档/运行提示词后重跑 399 tests OK（skipped=1）、57 项契约通过；Task 025 的 Z1–Z3 仍开放，未以提示词修正替代代码修复。
+**进度判断：MVP 集成与最终验收阶段，版本候选。** Task 030 独立重跑 409 tests OK（skipped=1）、57 项契约通过；U1/U2 原始反例通过，U3 部分修复；网页真实模型链路和 Task 025 的 Z1–Z3 仍开放，未以页面美化替代 AI 能力或正确性验收。
 
 ## 3. 后续五个工作包（建议顺序）
 

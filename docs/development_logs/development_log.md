@@ -4,6 +4,81 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-10] 任务 030 - Task 029 修复独立复查
+
+- **起点**：main / 8569cc2，保留 027–029 未提交成果；仅新增审查文档和同步状态，未改实现、测试或提交/推送。
+- **独立验证**：409 tests，21.873 秒，OK（skipped=1）；57 项契约通过。隔离 API 复杂调查/预算失败/简单账单，实际 JS 原回归 17 用例 / 84 断言通过。
+- **结论**：U1/U2 原始反例通过，U3 error 路径已修；15 个附加变体（含正常基线）揭示缺字段/类型异常和不一致字段仍可误绿灯，U3 部分修复。
+- **范围**：无新手动浏览器验收；只核对已交截图，不审批用户任务、不调用真实模型、不重启服务。网页仍为规则演示，模型接入不是 029 已交付能力。
+- **归档**：[030 Prompt](../prompts/06_testing/2026-11-10_030_task029_fixes_acceptance_review.md)、[独立报告与证据](../reviews/2026-11-10_task029_ui_fixes_acceptance_review.md)。同步当前路线图前后矛盾，保留旧报告/自检。
+
+## [2026-11-10] 任务 029 - U1–U3 返修 Prompt 编写
+
+- **范围**：仅编写 [DeepSeek 返修 Prompt](../handoffs/DEEPSEEK_TASK029_UI_MAPPING_FIX_PROMPT.md)，关联 027/028；保留现有 Tabler 布局和未提交成果。
+- **要求**：集中子任务关联；正确处理失败/恢复、多子任务和 Trace；条款/工单归属及未关联项可见；异常/缺字段不虚假成功；实际运行 JS 行为测试并补 API/浏览器证据。
+- **归档**：[029 Prompt](../prompts/05_frontend/2026-11-10_029_ui_mapping_fixes.md)；新增索引与 Pending 检查点。未改实现、未重跑业务测试、未提交/推送。
+- **状态**：Prompt 已准备，U1–U3 尚未修复；待 DeepSeek 实施后追加真实结果。
+
+## [2026-11-10] 任务 028 - Task 027 独立复查
+
+- **基线**：main / 8569cc2；保留 Task 027 未提交源码、资源、截图与文档。本轮仅新增审查与同步状态文档，未改实现或测试，未提交/推送。
+- **验证**：403 tests，21.661 秒，OK（skipped=1）；57 项契约通过；Tabler 1.7.4 本地资源与 npm 上游包核对通过。独立临时控制面验证复杂/简单调查、两级批准、驳回与预算失败。
+- **发现**：U1（P1）失败 Agent 被映射为未调用，丢失错误与 Trace 归属；U2（P2）合同条款/工单 finding 未关联到节点；U3（P2）异常或缺字段报告被映射为绿色成功。均由现有 JS 的纯映射运行复现。
+- **运行修复**：核对并重启此前 Codex 启动的 8000 旧预览进程；新版 CSS/JS 从 404 恢复为 200，保留原数据。
+- **视觉边界**：仅检查 DeepSeek 已交截图；浏览器自动复验因 URL 无法可靠确认而被工具停止，未继续 UI 操作或声称新增截图。
+- **结论**：保留现有布局和模块拆分，小范围修 U1–U3 后再验收；Z1–Z3 等项目剩余事项不变。
+- **归档**：[028 Prompt](../prompts/06_testing/2026-11-10_028_task027_ui_acceptance_review.md)、[独立复查报告](../reviews/2026-11-10_task027_ui_acceptance_review.md)。
+
+## [2026-11-10] 任务 029 - 协作工作台 U1–U3 修复（前端展示映射）
+
+- **起点**：main / 8569cc2 之上的未提交工作区（保留 Task 027 实现与 Task 028 文档）。
+- **原始 Prompt**：[029 归档](../prompts/05_frontend/2026-11-10_029_ui_mapping_fixes.md) 第 3 节（未改写）。
+- **U1 失败 Agent 被显示成未调用**：新增 `buildSubtaskIndex()` 合并 `agent_results` / `failures` / `resolved_failures` / `traces`，
+  按 `subtask_id` 去重、按 capability 或 agent 字段归属；失败终态带错误码，节点详情保留后端消息与工具尝试；
+  Trace 归属改由索引解析，无法关联时显示「未关联」；规划计数改为「已记录子任务」。
+- **U2 条款与工单发现丢失**：分离「证据展示分组」与「finding Agent 归属」；优先 `source.document_id`，
+  其次唯一的领域指向分组（documents→lease、billing→billing、work_orders→property）；跨领域/无证据单列，
+  不再多数票误归，未知前缀不再默认归 Lease。
+- **U3 异常报告被画成成功**：字段三态判定 + `report.error` 分支 + 核验联合 verdict/completeness/conflicts/missing/failures/
+  叙述差异/人工复核；新增 `unknown` 状态；区分「报告已生成」与「结论成立」。
+- **验证**：新增浏览器级 JS 回归（真实 Chrome 执行 `view-model.js`）：17 用例 / 84 断言 / 0 失败，含 2 个真实 API 用例；
+  `test_ui_view_model` 6 项通过；全量 `Ran 409 tests in 22.255s` OK（skipped=1）；57 项契约通过；
+  浏览器实测 1440×900 / 1280×800 / 390×844 无横向溢出、控制台无错误，两级审批与驳回正常。
+- **证据**：[Task 029 修复报告](../reviews/2026-11-10_task029_ui_mapping_fix_report.md)、[10 张截图](../reviews/task029_screenshots/)。
+- **未执行**：Agent/预算/权限/审批/数据库/评分改动、版式重做、真实模型调用、Git 提交/推送；Z1–Z3 等仍开放。
+
+## [2026-11-10] 任务 027 - 多 Agent 协作工作台实施（Tabler 1.7.4 + Langflow 视觉参考）
+
+- **起点**：main / 8569cc2 之上的未提交工作区（保留 Task 027 的 Codex 调研文档与他人文档改动）。
+- **原始 Prompt**：[027 归档](../prompts/05_frontend/2026-11-10_027_multi_agent_ui_refresh.md) 第 3 节（未改写）。
+- **实施**：本地固定 `@tabler/core@1.7.4` 预编译 CSS/JS + MIT 许可证（记录 npm integrity、tarball 与落地文件 SHA-256）；
+  按 tabler-starter 结构重写 `index.html`，样式/脚本拆到 `css/`、`js/`；`app/api/app.py` 仅新增受限 `/static` 挂载。
+- **协作视图**：固定职责图（任务规划 → 合同/账单/物业 Agent → 合并 → 证据核验 → 调查报告 → 人工审批），
+  SVG 扇出曲线 + 合并母线；节点详情展示真实工具调用、冲突与发现；只有 `report.agent_results` 出现的能力才高亮。
+- **报告区**：摘要 / 证据 / 调用记录 / 审批 / 原始数据五个标签页；草案金额与 `computed_variance` 分栏，明确草案不是差额结论；
+  两阶段审批按 `stages` 与 `request.status` 渲染，批准后显示 `executed_side_effects` 为空。
+- **真实性**：提交中只显示整体等待态，节点统一「状态待返回」；规划/核验/报告标「结果回顾」；无百分比、思考链与逐节点耗时；
+  「处置建议」固定显示「暂未生成处置建议」。
+- **健壮性**：详情请求序号 + `AbortController` 防旧响应覆盖；网络/非 JSON/4xx5xx 显示可读错误与 `trace_id`；保留已输入内容。
+- **验证**：`test_api.py` 33 项 OK（新增 4 项静态资源用例）；全量 `Ran 403 tests in 22.534s → OK (skipped=1)`；
+  `smoke_agent_contracts.py` 57 项通过；浏览器实测 1440×900 / 1280×800 / 390×844 无横向溢出，控制台无错误，
+  静态资源 200 且 MIME 正确；A-301 复杂调查、简单账单问题、两级审批（批准 + 驳回）、故障注入与竞态均实测。
+- **证据**：[实施与视觉自检报告](../reviews/2026-11-10_multi_agent_ui_implementation_review.md)、
+  [7 张真实截图](../reviews/task027_screenshots/)、[第三方资源声明](../../backend/app/api/static/THIRD_PARTY_NOTICES.md)。
+- **未执行**：Agent/工具/预算/审批规则/数据库/评分逻辑改动、SSE 或任务生命周期改造、真实模型调用、
+  Git 提交/推送；Z1–Z3 与独立模型配置仍未闭合。
+- **状态**：实施完成并自检通过，未提交。
+
+## [2026-11-10] 任务 027 - 多 Agent 协作 UI 模板调研与实施 Prompt
+
+- **起点**：main / 8569cc2，工作区干净；用户要求由 Codex 查 GitHub/写 Prompt，DeepSeek 实施美化。
+- **调研**：官方 GitHub 元数据、README/许可、Tabler starter HTML、core 1.7.4 固定 tag 的 package.json/布局；Langflow 画布说明；Agent Chat UI 的归档和协议要求。
+- **决定**：直接复用 Tabler starter/core 的布局与组件，参考 Langflow 的 Agent 节点/连线；保持 FastAPI 同源静态页面，不迁移 Next.js/平台后端。
+- **交付**：[实施 Prompt](../handoffs/DEEPSEEK_TASK027_MULTI_AGENT_UI_PROMPT.md)、[调研记录](../reviews/2026-11-10_multi_agent_ui_template_review.md)、[027 归档](../prompts/05_frontend/2026-11-10_027_multi_agent_ui_refresh.md)。
+- **边界**：当前无逐节点流式接口，实施使用等待/结果回顾；不假造 Agent 思考、进度、质量指标或处置决定。
+- **验证**：本轮仅文档静态检查和来源核实；没有重新运行业务回归或进行模板的浏览器视觉验收。
+- **状态**：Prompt 已准备，页面尚未改造；待 DeepSeek 实现并追加实际验证记录。未安装、未下载 vendor、未改源码、未提交/推送。
+
 ## [2026-11-09] 任务 026 - Markdown 一致性与 Agent-first 指导统一
 
 - **起点**：本地 main / d6577da，工作区干净；最新提交仅归档 Task 025。

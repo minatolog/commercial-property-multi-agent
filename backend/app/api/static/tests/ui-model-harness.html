@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>view-model 行为回归（Task 029）</title>
+  <style>
+    body { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 16px; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <!--
+    这是自动化测试入口，不是产品页面：由 backend/tests/test_ui_view_model.py 用无头浏览器
+    加载，浏览器执行 js/view-model.js 的真实代码并把结果写入 #ui-results。
+    /__tests__/real-runs.json 由测试进程注入（真实 POST /api/runs 的返回体）。
+  -->
+  <h1>view-model 行为回归</h1>
+  <pre id="ui-results">pending</pre>
+  <script type="module">
+    import { runAll } from './ui-model-cases.js';
+
+    const output = { ok: false, realRunsLoaded: false, error: null, result: null };
+    try {
+      const response = await fetch('/__tests__/real-runs.json', { cache: 'no-store' });
+      const realRuns = response.ok ? await response.json() : null;
+      output.realRunsLoaded = Boolean(realRuns);
+      output.result = runAll(realRuns);
+      output.ok = output.result.failedCases === 0 && output.result.realCases > 0;
+      if (!output.realRunsLoaded) output.error = 'real-runs.json 未注入，真实 API 用例缺失';
+    } catch (error) {
+      output.error = String(error && error.stack ? error.stack : error);
+    }
+    document.getElementById('ui-results').textContent = JSON.stringify(output, null, 2);
+    document.documentElement.setAttribute('data-ui-status', output.ok ? 'pass' : 'fail');
+  </script>
+</body>
+</html>

@@ -100,6 +100,10 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 024 | 2026-11-07 | 06_testing | Q1–Q3 修复：token 闸门、单 Agent 可信范围、资金结论字段绑定（399 项测试通过；评分升 `scoring-v3.3`） | [2026-11-07_024_q1_q3_model_fixes.md](./prompts/06_testing/2026-11-07_024_q1_q3_model_fixes.md) |
 | 025 | 2026-11-07 | 06_testing | Q1–Q3 独立复查（指定反例改善；Single/CLI 尚有 Z1–Z3） | [2026-11-07_025_q1_q3_acceptance_review.md](./prompts/06_testing/2026-11-07_025_q1_q3_acceptance_review.md) |
 | 026 | 2026-11-09 | 06_testing | Markdown 一致性整理；统一 Agent-first 指导、保留历史、校正进度与实现边界 | [2026-11-09_026_document_consistency.md](./prompts/06_testing/2026-11-09_026_document_consistency.md) |
+| 027 | 2026-11-10 | 05_frontend | Tabler 1.7.4 本地资源 + Langflow 视觉参考的多 Agent 协作工作台（Codex 调研 → DeepSeek 实施；403 测试 OK、7 张真实截图，未提交） | [2026-11-10_027_multi_agent_ui_refresh.md](./prompts/05_frontend/2026-11-10_027_multi_agent_ui_refresh.md) |
+| 028 | 2026-11-10 | 06_testing | Task 027 独立复查：403 tests / 57 项契约通过；发现状态与节点发现映射 U1–U3，待修后验收 | [2026-11-10_028_task027_ui_acceptance_review.md](./prompts/06_testing/2026-11-10_028_task027_ui_acceptance_review.md) |
+| 029 | 2026-11-10 | 05_frontend | 协作工作台 U1–U3 修复：失败子任务索引、finding 归属、异常报告判定（409 测试 OK、17 项浏览器级 JS 回归、10 张新截图，未提交） | [2026-11-10_029_ui_mapping_fixes.md](./prompts/05_frontend/2026-11-10_029_ui_mapping_fixes.md) |
+| 030 | 2026-11-10 | 06_testing | Task 029 独立复查：U1/U2 原始反例通过，U3 部分修复；409 tests / 57 契约通过，补充异常边界仍误绿灯 | [2026-11-10_030_task029_fixes_acceptance_review.md](./prompts/06_testing/2026-11-10_030_task029_fixes_acceptance_review.md) |
 
 ---
 

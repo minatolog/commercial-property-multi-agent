@@ -1,0 +1,413 @@
+{
+  "task": "030",
+  "date": "2026-11-10",
+  "head": "8569cc2",
+  "provenance": "Independent isolated API runs plus direct execution of the current local JavaScript modules; boundary cases are constructed, not server-produced failures.",
+  "regression": {
+    "tests": 409,
+    "seconds": 21.873,
+    "skipped": 1,
+    "contracts": 57
+  },
+  "existingJsSuite": {
+    "totalCases": 17,
+    "totalAssertions": 84,
+    "failedCases": 0,
+    "realCases": 2
+  },
+  "actualApiMapping": {
+    "complex_approval": {
+      "nodes": {
+        "plan": {
+          "state": "success",
+          "label": "多领域分流"
+        },
+        "verify": {
+          "state": "partial",
+          "label": "发现冲突 · 需复核"
+        },
+        "report": {
+          "state": "partial",
+          "label": "报告已生成 · 存在冲突"
+        },
+        "approval": {
+          "state": "pending",
+          "label": "待审批"
+        },
+        "agent:lease": {
+          "state": "success",
+          "label": "已完成"
+        },
+        "agent:billing": {
+          "state": "partial",
+          "label": "部分完成"
+        },
+        "agent:property": {
+          "state": "partial",
+          "label": "部分完成"
+        }
+      },
+      "counts": {
+        "subtasks": 3,
+        "results": 3,
+        "failures": 0,
+        "resolvedFailures": 0,
+        "traces": 4
+      },
+      "findings": {
+        "lease": 4,
+        "billing": 1,
+        "property": 1
+      },
+      "unassociatedTraces": 0
+    },
+    "budget_fail": {
+      "nodes": {
+        "plan": {
+          "state": "success",
+          "label": "多领域分流"
+        },
+        "verify": {
+          "state": "failed",
+          "label": "存在失败子任务 · 2 个"
+        },
+        "report": {
+          "state": "partial",
+          "label": "报告已生成 · 证据不足"
+        },
+        "approval": {
+          "state": "not_called",
+          "label": "本次无审批请求"
+        },
+        "agent:lease": {
+          "state": "partial",
+          "label": "部分完成"
+        },
+        "agent:billing": {
+          "state": "failed",
+          "label": "失败 · budget_exhausted"
+        },
+        "agent:property": {
+          "state": "failed",
+          "label": "失败 · budget_exhausted"
+        }
+      },
+      "counts": {
+        "subtasks": 3,
+        "results": 1,
+        "failures": 2,
+        "resolvedFailures": 0,
+        "traces": 6
+      },
+      "findings": {
+        "lease": 1,
+        "billing": 0,
+        "property": 0
+      },
+      "unassociatedTraces": 0
+    },
+    "simple": {
+      "nodes": {
+        "plan": {
+          "state": "success",
+          "label": "单领域"
+        },
+        "verify": {
+          "state": "partial",
+          "label": "发现冲突 · 需复核"
+        },
+        "report": {
+          "state": "partial",
+          "label": "报告已生成 · 存在冲突"
+        },
+        "approval": {
+          "state": "warning",
+          "label": "审批通道未接入"
+        },
+        "agent:lease": {
+          "state": "not_called",
+          "label": "本次未调用"
+        },
+        "agent:billing": {
+          "state": "partial",
+          "label": "部分完成"
+        },
+        "agent:property": {
+          "state": "not_called",
+          "label": "本次未调用"
+        }
+      },
+      "counts": {
+        "subtasks": 1,
+        "results": 1,
+        "failures": 0,
+        "resolvedFailures": 0,
+        "traces": 1
+      },
+      "findings": {
+        "lease": 0,
+        "billing": 1,
+        "property": 0
+      },
+      "unassociatedTraces": 0
+    }
+  },
+  "boundaryBase": {
+    "description": "Real complex API report shape with supported/complete/empty negative fields/boolean false set explicitly",
+    "fields": {
+      "verdict": "supported",
+      "completeness": "complete",
+      "conflicts": [],
+      "missing_information": [],
+      "failures": [],
+      "resolved_failures": [],
+      "narrative_discrepancies": [],
+      "requires_human_review": false
+    }
+  },
+  "boundaries": [
+    {
+      "name": "baseline supported",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {},
+      "remove": []
+    },
+    {
+      "name": "missing failures",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {},
+      "remove": [
+        "failures"
+      ]
+    },
+    {
+      "name": "invalid failures",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "failures": "invalid"
+      },
+      "remove": []
+    },
+    {
+      "name": "missing narrative_discrepancies",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {},
+      "remove": [
+        "narrative_discrepancies"
+      ]
+    },
+    {
+      "name": "invalid narrative_discrepancies",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "narrative_discrepancies": {
+          "status": "mismatch"
+        }
+      },
+      "remove": []
+    },
+    {
+      "name": "null review flag",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "requires_human_review": null
+      },
+      "remove": []
+    },
+    {
+      "name": "string review flag",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "requires_human_review": "true"
+      },
+      "remove": []
+    },
+    {
+      "name": "numeric review flag",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "requires_human_review": 1
+      },
+      "remove": []
+    },
+    {
+      "name": "current failure plus supported false-review",
+      "verify": {
+        "state": "failed",
+        "label": "存在失败子任务 · 1 个"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "failures": [
+          {
+            "subtask_id": "st_2_billing",
+            "capability": "billing.statement",
+            "error_code": "timeout"
+          }
+        ]
+      },
+      "remove": []
+    },
+    {
+      "name": "discrepancy plus false-review",
+      "verify": {
+        "state": "partial",
+        "label": "叙述与字段不一致"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "narrative_discrepancies": [
+          {
+            "kind": "fund",
+            "status": "mismatch"
+          }
+        ]
+      },
+      "remove": []
+    },
+    {
+      "name": "conflict plus supported false-review",
+      "verify": {
+        "state": "success",
+        "label": "证据核验通过"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "conflicts": [
+          {
+            "type": "rent_variance",
+            "amount": "756.00"
+          }
+        ]
+      },
+      "remove": []
+    },
+    {
+      "name": "missing info plus supported false-review",
+      "verify": {
+        "state": "partial",
+        "label": "存在资料缺口"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "missing_information": [
+          "annex unavailable"
+        ]
+      },
+      "remove": []
+    },
+    {
+      "name": "partial completeness plus false-review",
+      "verify": {
+        "state": "partial",
+        "label": "调查未完整但未发现冲突"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "completeness": "partial"
+      },
+      "remove": []
+    },
+    {
+      "name": "invalid conflicts plus false-review",
+      "verify": {
+        "state": "unknown",
+        "label": "核验字段不完整"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {
+        "conflicts": "invalid"
+      },
+      "remove": []
+    },
+    {
+      "name": "missing conflicts plus false-review",
+      "verify": {
+        "state": "unknown",
+        "label": "核验字段不完整"
+      },
+      "report": {
+        "state": "success",
+        "label": "报告已生成 · 证据一致"
+      },
+      "patch": {},
+      "remove": [
+        "conflicts"
+      ]
+    }
+  ]
+}

@@ -4,6 +4,38 @@
 
 > 各条目的“已解决/待修”是当时结论，后续复查可能发现遗漏；当前开放项以 [当前基线](../architecture/CURRENT_BASELINE.md) 和最新审查为准。
 
+## [2026-11-10] Task 030 - U3 修复复查仍有遗漏
+
+- **状态**：U1/U2 原始反例通过；U3 部分修复，以下两处 P2 未修。见 [独立复查](../reviews/2026-11-10_task029_ui_fixes_acceptance_review.md)。下方 029 是当时自检结论。
+- **U3-A / P2**：requires_human_review 为 null/字符串/数字仍当无需复核；failures 或 narrative_discrepancies 缺失/类型异常仍可绿灯。根因是三态校验未覆盖全部字段，布尔值仅区分 true/undefined。待补严格类型、缺失语义及单字段参数化回归。
+- **U3-B / P2**：报告节点忽略冲突/失败/差异/完整度，可能在核验 failed/partial/unknown 时写“证据一致”；verify 也可在 conflicts 非空但 verdict=supported 时绿灯。待集中联合解释、优先明确负面事实，回归同时断言两个节点一致性。
+- **复现边界**：异常为独立构造输入，不是本轮真实 API 产生的失败数据；正常复杂调查与预算失败修复已通过。
+- **D1 / P3（本轮已同步）**：路线图顶部“029 已修”与正文“U1–U3 待修”并存；当前基线/表格统一为 U1/U2 通过、U3 部分修复，历史自检保留。
+
+## [2026-11-10] Task 029 - 修复 U1–U3 前端展示映射
+
+- **状态**：已修复并自检通过（U1/U2/U3），未提交；证据见 [Task 029 修复报告](../reviews/2026-11-10_task029_ui_mapping_fix_report.md)。
+- **对应问题**：Task 028 独立复查记录的 U1 / P1、U2 / P2、U3 / P2。
+
+| 编号 | 现象与根因 | 解决 | 预防 |
+|---|---|---|---|
+| U1 | 后端把失败子任务写入 `report.failures`（含 capability 与错误码，但无 agent），前端只读 `report.agent_results`，于是预算耗尽时 billing/property 显示「本次未调用」，错误、子任务 ID、Trace 归属与规划计数一起丢失 | 新增 `buildSubtaskIndex()` 合并 agent_results / failures / resolved_failures / traces，按 subtask_id 去重并用 capability→Agent 静态表归属；失败终态聚合为「失败 · 错误码」，节点详情保留错误码、后端消息与工具尝试；Trace 归属改由索引解析，找不到则「未关联」 | 展示层任何「是否参与」的判断都走同一索引；新增浏览器级 JS 回归（`tests/test_ui_view_model.py`）覆盖预算耗尽、权限拒绝/超时、补查恢复与多子任务 |
+| U2 | `evidenceDomain()` 返回 documents/work_orders，而 Agent key 是 lease/property，`findingsForAgent` 直接比较导致条款与工单发现永远匹配不上 | 分离「证据展示分组」与「finding Agent 归属」：优先用报告自带 `source.document_id`，否则用集中定义的领域指向（documents→lease、billing→billing、work_orders→property），多领域或无证据时单列「跨领域 / 未关联」，不复制到节点 | 归属依据随 finding 展示；节点发现以回归断言固定（合同 1+3、账单 1、工单 1），未知前缀不再默认归 Lease |
+| U3 | `report` 为真即判 success，缺失数组当空、`requires_human_review` 未提供按 false，`report.error` 也被当成正常报告 | 新增字段三态判定（缺失/类型异常/明确数组），`report.error` → 报告「未生成」；核验联合 verdict / completeness / conflicts / missing / failures / narrative_discrepancies / requires_human_review；区分「报告已生成」与「结论成立」 | 新增 `unknown` 状态与 CSS；回归覆盖 error 形状、旧记录缺字段、类型异常、insufficient/conflicting/叙述不一致与明确 supported |
+
+## [2026-11-10] Task 028 - Task 027 节点映射 U1–U3（保留原文）
+
+- **状态**：未解决；本轮独立复查，不修改实现。
+- **报告与复现**：[Task 027 独立复查](../reviews/2026-11-10_task027_ui_acceptance_review.md)。
+
+| 编号 | 现象 / 根因 | 修复与预防要求 |
+|---|---|---|
+| U1 / P1 | 预算耗尽时，billing/property 出现在 failures，前端只读 agent_results，因而显示未调用、丢失错误/Trace 归属，规划数量也少计 | 联合有效结果、当前失败和 Trace 关联子任务；区分失败/未参与/未知；覆盖预算、权限、超时及恢复，不能让旧失败覆盖成功补查 |
+| U2 / P2 | documents/work_orders 证据分组直接与 lease/property Agent key 比较，合同条款与工单发现被节点详情隐藏 | 分离证据分组和 Agent 归属；优先可信来源关系，未知显式展示；验证节点发现与完整报告对应 |
+| U3 / P2 | status=failed + report.error 时，缺失字段被当正常空值，规划/核验/报告均绿色成功 | 区分未知、失败、部分与成功；联合 error/verdict/必要字段/核验结果判定，覆盖异常和旧记录 |
+
+- **另已处理**：8000 旧进程未加载 StaticFiles，CSS/JS 404；核对此前 Codex 进程后重启恢复 200。交付静态挂载变更时应确认实际运行进程已加载新版。
+
 ## [2026-11-09] Task 026 - 当前 Markdown 指导与历史快照相互冲突
 
 - **现象**：README 同时声称未调用/已调用真实模型；当前架构仍写未引入 LangGraph；旧 Runtime 提案冒充现行 API；路线同时保留首次规划和后期修复结论；数据库要求全量照搬 14 表，与 Agent-first 冲突。
