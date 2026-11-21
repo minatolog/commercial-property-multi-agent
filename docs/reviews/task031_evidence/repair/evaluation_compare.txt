@@ -1,0 +1,9 @@
+A_deterministic cases 32 32 row diffs: []
+  summary equal (ignoring served fields): False
+   summary cost {"latency_ms_total": 82, "latency_ms_p50": 0, "latency_ms_max": 79, "tool_calls": 27, "model_calls": 0, "total_tokens": 0, "cost_amount": null, "cost_basis": "unavailable_offline_no_pricing", "note":  -> {"latency_ms_total": 81, "latency_ms_p50": 0, "latency_ms_max": 78, "tool_calls": 27, "model_calls": 0, "total_tokens": 0, "cost_amount": null, "cost_basis": "unavailable_offline_no_pricing", "note": 
+B_single_agent cases 32 32 row diffs: []
+  summary equal (ignoring served fields): False
+   summary cost {"latency_ms_total": 80, "latency_ms_p50": 0, "latency_ms_max": 75, "tool_calls": 38, "model_calls": 0, "total_tokens": 0, "cost_amount": null, "cost_basis": "unavailable_offline_no_pricing", "note":  -> {"latency_ms_total": 78, "latency_ms_p50": 0, "latency_ms_max": 75, "tool_calls": 38, "model_calls": 0, "total_tokens": 0, "cost_amount": null, "cost_basis": "unavailable_offline_no_pricing", "note": 
+C_multi_agent cases 32 32 row diffs: []
+  summary equal (ignoring served fields): False
+   summary cost {"latency_ms_total": 3215, "latency_ms_p50": 92, "latency_ms_max": 166, "tool_calls": 45, "model_calls": 0, "total_tokens": 0, "cost_amount": null, "cost_basis": "unavailable_offline_no_pricing", "not -> {"latency_ms_total": 2846, "latency_ms_p50": 88, "latency_ms_max": 113, "tool_calls": 45, "model_calls": 0, "total_tokens": 0, "cost_amount": null, "cost_basis": "unavailable_offline_no_pricing", "not

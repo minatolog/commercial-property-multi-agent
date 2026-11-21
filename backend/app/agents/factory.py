@@ -9,12 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Mapping
 
 from ..config.loader import load_all_agent_configs
 from ..config.schema import AgentConfig
 from .base.base_agent import BaseAgent
-from .base.errors import AgentConfigMismatchError, AgentNotRegisteredError
+from .base.errors import (
+    AgentConfigError,
+    AgentConfigMismatchError,
+    AgentNotRegisteredError,
+)
 from .base.registry import AgentRegistry
 from .billing.agent import BillingAgent
 from .billing.llm_agent import BillingLLMAgent
@@ -139,13 +143,30 @@ def build_registry(
     *,
     strict: bool = False,
     engine: str = "deterministic",
+    model_client: Any = None,
+    model_clients: Mapping[str, Any] | None = None,
     **deps: Any,
 ) -> RegistryBuildReport:
+    """按引擎装配 Registry。
+
+    Task 031 / 2.5（模型配置真正生效）：
+
+    - `model_clients` 是"Agent 名 → 该 Agent 自己的客户端"的映射，llm 引擎下
+      **每个 Agent 只认自己名字对应的客户端**；
+    - `model_client` 保留为显式的单实例注入（脚本化/测试），当 `model_clients`
+      没有该名字时作为退化；
+    - llm 引擎下两者都缺 → 构造期 `AgentConfigError`，绝不回退到某个全局客户端，
+      也不回退到确定性实现（那会把"没接上模型"伪装成"模型跑过了"）。
+
+    `engine="deterministic"` 路径不受 `model_clients` 影响。
+    """
+
     from ..paths import CONFIG_DIR
 
     directory = Path(config_dir) if config_dir is not None else CONFIG_DIR
     configs = load_all_agent_configs(directory)
     implementations = implementations_for(engine)
+    per_agent_clients = dict(model_clients or {})
 
     registry = AgentRegistry()
     registered: list[str] = []
@@ -159,7 +180,17 @@ def build_registry(
                 )
             skipped.append(name)
             continue
-        registry.register(build_agent(config, engine=engine, **deps))
+        agent_deps: dict[str, Any] = dict(deps)
+        if engine == "llm":
+            client = per_agent_clients.get(name, model_client)
+            if client is None:
+                raise AgentConfigError(
+                    f"Agent {name!r} 在 llm 引擎下没有可用的模型客户端："
+                    "必须通过 model_clients[agent名] 注入该 Agent 自己的客户端，"
+                    "或显式传入单一 model_client；不允许回退到其它 Agent 的客户端"
+                )
+            agent_deps["model_client"] = client
+        registry.register(build_agent(config, engine=engine, **agent_deps))
         registered.append(name)
 
     return RegistryBuildReport(

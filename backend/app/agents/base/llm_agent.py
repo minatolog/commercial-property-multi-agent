@@ -30,12 +30,25 @@ from .conclusions import (
     check_fund_statements,
     render_fund_conclusion,
 )
-from .evidence import check_capability_output
+from .evidence import (
+    check_capability_output,
+    evidence_of_executions,
+    minimum_evidence_reason,
+    parse_error_details,
+    partition_tool_executions,
+    rejected_argument_detail,
+)
 from .facts import facts_of_executions, outputs_of_executions
 from .narrative import amounts_in_payload, check_answer_consistency
 from .scope import TaskScope, scope_arguments_hook
 from ...config.schema import AgentConfig
-from ...llm.model_client import ChatMessage, ChatModelClient, ToolSpecBuilder
+from ...llm.model_client import (
+    ChatMessage,
+    ChatModelClient,
+    ToolSpecBuilder,
+    describe_served_models,
+    served_models_of,
+)
 from ...runtime.budget import Budget
 from ...runtime.tool_loop import ToolLoopStopReason, run_tool_loop
 from ...runtime.types import TraceLog, ToolExecution
@@ -124,6 +137,18 @@ class LLMToolAgent(BaseAgent):
             ),
         )
 
+        # Task 031 / Z2：调用前被可信范围拒绝的调用不产生 ToolExecution，
+        # 但必须进入审计，不能因为"没执行"就消失。
+        argument_rejections: list[dict[str, Any]] = []
+
+        def _prepare_arguments(
+            tool_name: str, arguments: dict[str, Any]
+        ) -> tuple[dict[str, Any] | None, str | None]:
+            prepared, reason = self._scope_arguments(scope, tool_name, arguments)
+            if prepared is None:
+                argument_rejections.append(rejected_argument_detail(tool_name, reason))
+            return prepared, reason
+
         outcome = await run_tool_loop(
             client=self._model_client,
             messages=messages,
@@ -133,9 +158,7 @@ class LLMToolAgent(BaseAgent):
             agent_config=self.config,
             budget=budget,
             max_rounds=self.config.max_tool_rounds,
-            prepare_arguments=lambda tool_name, args: self._scope_arguments(
-                scope, tool_name, args
-            ),
+            prepare_arguments=_prepare_arguments,
         )
 
         error_code = _STOP_REASON_ERRORS.get(outcome.stop_reason)
@@ -152,21 +175,23 @@ class LLMToolAgent(BaseAgent):
                 },
             )
 
-        # 纵深防御（N2）：即使工具被绕过、或工具自身返回了别的实体，也不能把它
-        # 绑进当前报告。只对"目标一致"的执行结果做后续事实提取。
-        accepted: list[Any] = []
-        rejected: list[str] = []
-        for execution in outcome.tool_executions:
-            reason = scope.accepts_output(execution.tool_name, execution.data or {})
-            if reason is None:
-                accepted.append(execution)
-            else:
-                rejected.append(reason)
-        facts, per_tool = facts_of_executions(tuple(accepted))
-        outputs = outputs_of_executions(tuple(accepted))
+        # 纵深防御（N2/Z2）：即使工具被绕过、或工具自身返回了别的实体，也不能把它
+        # 绑进当前报告。只有"执行成功 + 输出仍属于本次目标"的调用才算取证；
+        # 失败/超时/预算耗尽/越界输出只保留审计（不进 facts、不进证据）。
+        accepted, rejected_outputs, failed_executions = partition_tool_executions(
+            outcome.tool_executions, scope
+        )
+        failed_tool_calls = [
+            *argument_rejections,
+            *parse_error_details(outcome.turns),
+            *failed_executions,
+        ]
+        facts, per_tool = facts_of_executions(accepted)
+        outputs = outputs_of_executions(accepted)
+        evidence = evidence_of_executions(accepted)
         # 统一输出契约：领域视图（lease/billing/property 字段）+ LLM 附加信息。
         # 图与报告只依赖这份领域视图，因此换模型不会改变下游语义。
-        view = _domain_view(request.capability, outputs, outcome.evidence)
+        view = _domain_view(request.capability, outputs, evidence)
         # N4：没有取到事实就不算完成。模型可以"看起来很确定"，但契约只认工具字段。
         violations = check_capability_output(request.capability, view)
         if violations:
@@ -178,9 +203,27 @@ class LLMToolAgent(BaseAgent):
                     "capability": request.capability,
                     "violations": violations,
                     "tool_calls": len(outcome.tool_executions),
-                    "rejected_outputs": list(rejected),
+                    "failed_tool_calls": list(failed_tool_calls),
+                    "rejected_outputs": list(rejected_outputs),
                     "warnings": list(outcome.warnings),
                     "answer_chars": len(outcome.answer or ""),
+                },
+            )
+        # Z2：契约字段可能存在（来自 accepted），但有目标的请求仍需至少一条事实；
+        # 失败调用不算取证。纯说明任务（无目标）不受此限。
+        minimum = minimum_evidence_reason(scope, facts)
+        if minimum is not None:
+            raise AgentError(
+                minimum,
+                code=ErrorCode.INSUFFICIENT_EVIDENCE,
+                retryable=False,
+                details={
+                    "capability": request.capability,
+                    "task_scope": scope.describe(),
+                    "tool_calls": len(outcome.tool_executions),
+                    "failed_tool_calls": list(failed_tool_calls),
+                    "rejected_outputs": list(rejected_outputs),
+                    "warnings": list(outcome.warnings),
                 },
             )
         # N6：内部事实正确 ≠ 用户看到的金额正确。
@@ -192,7 +235,7 @@ class LLMToolAgent(BaseAgent):
         # Q3：资金结论结构化 + 字段级校验（应收/已收/未收不能被写反）。
         fund_conclusion = build_fund_conclusion(facts)
         fund_check = check_fund_statements(outcome.answer, fund_conclusion)
-        warnings = list(outcome.warnings) + list(rejected)
+        warnings = list(outcome.warnings) + list(rejected_outputs)
         if not answer_check.ok:
             warnings.append(
                 "模型叙述与工具事实不一致，已标记为待人工核对: " + answer_check.detail
@@ -218,14 +261,20 @@ class LLMToolAgent(BaseAgent):
                     }
                     for execution in outcome.tool_executions
                 ],
-                "evidence": [item.model_dump(mode="json") for item in outcome.evidence],
+                # Z2：只有 accepted 执行的证据进入最终证据集。
+                "evidence": [item.model_dump(mode="json") for item in evidence],
+                "failed_tool_calls": list(failed_tool_calls),
                 "usage": outcome.usage.model_dump(mode="json"),
                 "model": {
                     "provider": self._model_client.provider,
                     "name": self._model_client.model_name,
+                    # R2：配置名之外，记录服务端实际声明的应答模型
+                    **describe_served_models(
+                        self._model_client.model_name, served_models_of(outcome.turns)
+                    ),
                 },
                 "task_scope": scope.describe(),
-                "rejected_outputs": rejected,
+                "rejected_outputs": list(rejected_outputs),
                 "answer_check": answer_check.as_dict(),
                 "verified_amounts": sorted(f"{item:.2f}" for item in verified_amounts),
                 # 结构化资金结论与"用户可见金额"：金额由可信字段渲染，不经模型

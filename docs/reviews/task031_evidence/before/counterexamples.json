@@ -1,0 +1,125 @@
+{
+  "z1_ask_wrong_target": {
+    "argv": [
+      "ask",
+      "A301现在还欠多少",
+      "--provider",
+      "fake"
+    ],
+    "exit": 0,
+    "status": "success",
+    "error_code": null,
+    "stdout_keys": [
+      "answer",
+      "budget",
+      "error",
+      "evidence",
+      "evidence_count",
+      "model",
+      "provider",
+      "rounds",
+      "run_id",
+      "status",
+      "stop_reason",
+      "tool_calls",
+      "tool_trace_count",
+      "trace_id",
+      "usage",
+      "warnings"
+    ],
+    "stderr_head": [],
+    "answer_or_narrative": "A301 应收 0.00、已收 0.00、未收 0.00，已经结清。",
+    "target_mode": null,
+    "target_lease": null,
+    "evidence_count": 0,
+    "failed_tool_calls": null,
+    "trusted_conclusion_source": null
+  },
+  "z2_failed_tool_counted_as_evidence": {
+    "status": "success",
+    "error_code": null,
+    "facts": {},
+    "evidence_count": 0,
+    "tool_calls": [
+      {
+        "call_id": "tc_4a87efaf3a49",
+        "tool": "billing.statement.read",
+        "status": "error",
+        "attempts": 0
+      }
+    ],
+    "failed_tool_calls": null,
+    "error_details_keys": []
+  },
+  "z3_default_summary": {
+    "ask": {
+      "argv": [
+        "ask",
+        "A-301 还欠多少？",
+        "--provider",
+        "fake"
+      ],
+      "exit": 0,
+      "status": "success",
+      "error_code": null,
+      "stdout_keys": [
+        "answer",
+        "budget",
+        "error",
+        "evidence",
+        "evidence_count",
+        "model",
+        "provider",
+        "rounds",
+        "run_id",
+        "status",
+        "stop_reason",
+        "tool_calls",
+        "tool_trace_count",
+        "trace_id",
+        "usage",
+        "warnings"
+      ],
+      "stderr_head": [],
+      "has_trusted_conclusion": false,
+      "trusted_conclusion": null,
+      "raw_answer_field": "应收 52596.00、已收 34560.00、未收 18036.00。",
+      "model_narrative": null,
+      "narrative_discrepancies": null
+    },
+    "investigate": {
+      "argv": [
+        "investigate"
+      ],
+      "exit": 0,
+      "status": null,
+      "error_code": null,
+      "stdout_keys": [
+        "agent_results",
+        "approval_request",
+        "approval_status",
+        "approved_draft",
+        "budget",
+        "conflicts",
+        "disclaimer",
+        "failures",
+        "findings",
+        "lease_id",
+        "missing_information",
+        "proposed_draft",
+        "requires_human_review",
+        "revision",
+        "route",
+        "thread_id",
+        "tool_traces",
+        "verdict",
+        "warnings"
+      ],
+      "stderr_head": [],
+      "has_authoritative_amounts": false,
+      "authoritative_amounts": null,
+      "model_narratives": null,
+      "narrative_discrepancies": null
+    }
+  }
+}

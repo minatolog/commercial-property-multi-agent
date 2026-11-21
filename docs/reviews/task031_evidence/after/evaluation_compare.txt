@@ -1,0 +1,10 @@
+A_deterministic: passed 20/30 -> 20/30 | pass_rate 0.6667 -> 0.6667 | correctness_mean 0.7267 -> 0.7267 | fund verified/unverified/not_checkable 9/0/13 -> 9/0/13 | route_hits 24/32 -> 24/32 | models_by_agent=[]
+B_single_agent: passed 21/30 -> 21/30 | pass_rate 0.7 -> 0.7 | correctness_mean 0.7756 -> 0.7756 | fund verified/unverified/not_checkable 11/0/11 -> 11/0/11 | route_hits 0/32 -> 0/32 | models_by_agent=[]
+C_multi_agent: passed 23/30 -> 24/30 | pass_rate 0.7667 -> 0.8 | correctness_mean 0.8489 -> 0.8822 | fund verified/unverified/not_checkable 11/3/8 -> 11/4/7 | route_hits 28/32 -> 27/32 | models_by_agent=[]
+  C_multi_agent H19: route only deterministic -> fanout (只影响效率指标)
+  C_multi_agent H25: route only deterministic -> clarification (只影响效率指标)
+  C_multi_agent H26: route only deterministic -> clarification (只影响效率指标)
+  C_multi_agent H27: passed False -> True | cp 0/1 -> 1/1 | route deterministic -> clarification | errors []
+
+cases_sha256: cf22fd467992f6c24d10776124f79ca88aeab773cac0e96efe09659097cd7f4f -> cf22fd467992f6c24d10776124f79ca88aeab773cac0e96efe09659097cd7f4f | identical=True
+fixture_sha256 identical=True | scoring scoring-v3.3 -> scoring-v3.3

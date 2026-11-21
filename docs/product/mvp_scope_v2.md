@@ -81,7 +81,7 @@
 |---|---|
 | 已实现并有历史验证 | Runtime、Registry、五份 YAML、受控工具、LangChain/DeepSeek、LangGraph、fixture/SQLAlchemy、BM25/合成 PDF、审批/checkpoint、A/B/C runner、FastAPI/轻量页面。实现不等于全部验收通过 |
 | 长期设计 | 完整 14 表与计费/核销写引擎；不自动作为当前建表清单 |
-| 已知待修 | Task 025 的 Z1/Z2/Z3；独立模型客户端配置策略；目标 Business Service/Repository 职责与现有仓库聚合的差距 |
+| 已知待修 | Task 031 已实施并自检、待独立复查：Z1/Z2/Z3、CLI 契约、逐 Agent 模型客户端配置、检索配置真实性与路由兜底；目标 Business Service/Repository 职责与现有仓库聚合的差距仍开放 |
 | 待最终验证 | PostgreSQL 实机、真实 heldout B/C 与重复测量、人工量表、当前最终版本独立环境复现；详见 [进度表](PROJECT_DEVELOPMENT_ROADMAP.md) |
 
 ## 9. 相关文档

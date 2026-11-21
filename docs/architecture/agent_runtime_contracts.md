@@ -26,9 +26,9 @@ payload 只承载问题、目标与筛选；权限/项目/预算等保留键由 
 
 金额由 Decimal/数据库计算，输出采用十进制字符串；工具返回类型化数据和 EvidenceDraft，不向 Agent 暴露 ORM/Session。Evidence 的 db_fact/document_clause、数据版本、业务基准日、记录与调用来源用于回查。合同定位需核对文档版本、页码、条款和原文；L1 引用存在与 L2 支持结论分别检查，不能把机械核验当作完整语义证明。
 
-完成要求是**得到与当前目标相关的有效成功结果**，失败调用只能作审计。零欠费、零条工单可以是合法结果，不能简单要求非空数组。领域 Agent/verify 已有最低结果契约；Single 尚有 Z2：失败 ToolExecution 被计入 accepted。默认 ask 还存在 Z1：未装配可信目标。这两项为当前实现缺陷，不能因规范写了要求而记为已实现。
+完成要求是**得到与当前目标相关的有效成功结果**，失败调用只能作审计。零欠费、零条工单可以是合法结果，不能简单要求非空数组。领域 Agent/verify 有最低结果契约；Task 031 起 Single 与 LLM 路径共用同一取证口径（`evidence.py` 的 `partition_tool_executions` / `minimum_evidence_reason`）：失败、被拒绝、超预算、超时与越界输出只进审计，有目标零事实失败，合法零结果保留。默认 `ask` 的可信目标由装配层解析并注入 `TaskScope`（`--lease`/`--unit` 或问题文本里的商铺编号），模型不能更换或省略。以上为实施自检，**待独立复查**。
 
-资金结论由 conclusions.py 从 facts 构造；fund_check 是字段级机械核验，narrative.py 是辅助金额接地检查。mismatch 判失败/降级，unverified 不能当通过。CLI 默认展示遗漏可信字段为 Z3，仍待修复。细则见 [scoring-v3.3](../evaluation/scoring_v3.md)。
+资金结论由 conclusions.py 从 facts 构造；fund_check 是字段级机械核验，narrative.py 是辅助金额接地检查。mismatch 判失败/降级，unverified 不能当通过。Task 031 起 `ask`/`investigate` 默认摘要分栏展示可信资金结论与核验状态，模型原话单列，不一致时输出差异提示。细则见 [scoring-v3.3](../evaluation/scoring_v3.md) 与 [Task 031 归档](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)。
 
 ## 3. 当前 Graph 与状态合并
 

@@ -208,15 +208,21 @@ def _to_model_turn(response: Any) -> ModelTurn:
 
     usage = _usage_of(response)
     finish_reason = None
+    served_model = None
     metadata = getattr(response, "response_metadata", None) or {}
     if isinstance(metadata, dict):
         finish_reason = metadata.get("finish_reason")
+        # R2：服务端声明的应答模型。langchain-openai 1.7.x 把响应体的 `model` 放进
+        # `response_metadata["model_name"]`（部分路径为 `model`）。注意：服务端不返回
+        # `model` 时 langchain-openai 会用配置名回填，此时无法区分"一致"与"未返回"。
+        served_model = metadata.get("model_name") or metadata.get("model")
     return ModelTurn(
         text=text,
         tool_calls=tuple(tool_calls),
         invalid_tool_calls=tuple(invalid),
         usage=usage,
         finish_reason=str(finish_reason) if finish_reason else None,
+        served_model=str(served_model).strip() or None if served_model else None,
     )
 
 

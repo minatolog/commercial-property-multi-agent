@@ -1,0 +1,220 @@
+{
+  "budget": {
+    "exceeded_tokens": 0,
+    "max_model_calls": 6,
+    "max_tool_calls": 8,
+    "max_total_tokens": 20000,
+    "tokens_exhausted": false,
+    "used_model_calls": 2,
+    "used_tool_calls": 1,
+    "used_total_tokens": 0
+  },
+  "domain_coverage": {
+    "asked": [
+      "billing"
+    ],
+    "covered": [
+      "billing"
+    ],
+    "missing": []
+  },
+  "error": null,
+  "evidence": [
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "lease",
+      "evidence_id": "lease_xh_a301_2025",
+      "record_id": "lease_xh_a301_2025",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice",
+      "evidence_id": "inv_2026_08",
+      "record_id": "inv_2026_08",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice_item",
+      "evidence_id": "itm_inv08_rent",
+      "record_id": "itm_inv08_rent",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice_item",
+      "evidence_id": "itm_inv08_pf",
+      "record_id": "itm_inv08_pf",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "lease_charge_rule",
+      "evidence_id": "rule_xh_a301_rent_2026",
+      "record_id": "rule_xh_a301_rent_2026",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice",
+      "evidence_id": "inv_2026_09",
+      "record_id": "inv_2026_09",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice_item",
+      "evidence_id": "itm_inv09_rent",
+      "record_id": "itm_inv09_rent",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice_item",
+      "evidence_id": "itm_inv09_pf",
+      "record_id": "itm_inv09_pf",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "lease_charge_rule",
+      "evidence_id": "rule_xh_a301_rent_2026",
+      "record_id": "rule_xh_a301_rent_2026",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice",
+      "evidence_id": "inv_2026_10",
+      "record_id": "inv_2026_10",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice_item",
+      "evidence_id": "itm_inv10_rent",
+      "record_id": "itm_inv10_rent",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "invoice_item",
+      "evidence_id": "itm_inv10_pf",
+      "record_id": "itm_inv10_pf",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "lease_charge_rule",
+      "evidence_id": "rule_xh_a301_rent_2026",
+      "record_id": "rule_xh_a301_rent_2026",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "payment",
+      "evidence_id": "pay_2026_08_28",
+      "record_id": "pay_2026_08_28",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "payment",
+      "evidence_id": "pay_2026_09_28",
+      "record_id": "pay_2026_09_28",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "payment_allocation",
+      "evidence_id": "alloc_001",
+      "record_id": "alloc_001",
+      "tool": "billing.statement.read"
+    },
+    {
+      "call_id": "tc_605cc03ec007",
+      "entity": "payment_allocation",
+      "evidence_id": "alloc_002",
+      "record_id": "alloc_002",
+      "tool": "billing.statement.read"
+    }
+  ],
+  "evidence_count": 17,
+  "failed_tool_calls": [],
+  "identity": {
+    "identity_source": "env:DEMO_PRINCIPAL_ID",
+    "principal_id": "principal_ops_xinghui"
+  },
+  "model": "scripted-tool-model",
+  "model_narrative": {
+    "answer": "已按受控工具结果核对；金额与日期均取自工具输出。",
+    "answer_check_detail": "答案未提及任何金额: 18036.00, 34560.00, 52596.00",
+    "answer_check_status": "not_mentioned",
+    "fund_check_status": "unverified"
+  },
+  "narrative_discrepancies": [],
+  "provider": "scripted",
+  "rejected_outputs": [],
+  "rounds": 2,
+  "run_id": "run_02c23323cd4d",
+  "served_model_mismatch": null,
+  "served_models": [],
+  "status": "success",
+  "stop_reason": "final_answer",
+  "target": {
+    "business_domains": [
+      "billing"
+    ],
+    "lease_id": "lease_xh_a301_2025",
+    "matched_words": {
+      "billing": [
+        "没交"
+      ]
+    },
+    "mode": "targeted",
+    "source": "question_parse",
+    "unit_code": "A-301",
+    "unit_id": "unit_xh_a301"
+  },
+  "task_scope": {
+    "filters": {},
+    "lease_id": "lease_xh_a301_2025",
+    "lease_ids": [
+      "lease_xh_a301_2025"
+    ],
+    "mode": "targeted",
+    "requires_evidence": true,
+    "unit_id": "unit_xh_a301"
+  },
+  "tool_calls": [
+    {
+      "attempts": 1,
+      "call_id": "tc_605cc03ec007",
+      "status": "ok",
+      "tool": "billing.statement.read"
+    }
+  ],
+  "tool_trace_count": 1,
+  "trace_id": "trace_edef63673dae",
+  "trusted_conclusion": {
+    "check_detail": "叙述没有把金额绑定到应收/已收/未收字段，无法核对",
+    "check_status": "unverified",
+    "fund_conclusion": {
+      "currency": "CNY",
+      "invoiced_total": "52596.00",
+      "outstanding_total": "18036.00",
+      "paid_total": "34560.00",
+      "settled": false
+    },
+    "rendered": "应收 52596.00、已收 34560.00、未收 18036.00（CNY）",
+    "source": "tool_facts",
+    "verified": false
+  },
+  "usage": {
+    "completion_tokens": 0,
+    "prompt_tokens": 0,
+    "total_tokens": 0
+  },
+  "warnings": []
+}

@@ -1,9 +1,10 @@
 """LangGraph 调查工作流（Task 009）。
 
-图结构（真实条件分支 + 并发扇出 + 限次补查）：
+图结构（真实条件分支 + 并发扇出 + 限次补查 + 未命中回问）：
 
 ```text
-START → plan ─┬─(单能力/确定性)→ deterministic_answer → report → END
+START → plan ─┬─(未命中任何领域)→ clarification（回问，不调工具、不审批）→ END
+              ├─(单能力/确定性)→ deterministic_answer → report → END
               └─(多能力)→ dispatch ══Send══> run_subtask(并发 N 个) → verify
                                                           verify ─┬─ supported → report → END
                                                                   ├─ revise（≤1 次）→ dispatch
@@ -16,6 +17,9 @@ START → plan ─┬─(单能力/确定性)→ deterministic_answer → report
 2. **State 只放跨节点信息**：子任务结果按 `subtask_id` 归并，重放/补查不会重复计数。
 3. **合流必须等齐**：`verify` 依据计划中的预期子任务集合判定缺口，缺一即记 `MISSING_SUBTASK_RESULT`。
 4. **补查有硬上限**：`max_revisions = 1`，超过直接转报告并要求人工处理。
+5. **未命中不得猜领域**（Task 031 / 2.7）：词表完全未命中时返回
+   `needs_clarification` 并回问用户，禁止静默落到 billing；路由理由
+   （命中哪些词、落到哪个子任务）始终写入报告 `routing_reason`。
 """
 
 from __future__ import annotations
@@ -46,15 +50,24 @@ from .approval import (
     ApprovalValidationError,
     build_approval_request,
 )
+from .vocabulary import (
+    DOMAIN_CAPABILITIES,
+    DOMAIN_HINTS,
+    DOMAIN_LABELS,
+    DOMAINS,
+    matched_domains,
+)
 
 __all__ = [
     "DEFAULT_CAPABILITIES",
     "InvestigationResult",
     "InvestigationState",
     "Investigator",
+    "PlanDetail",
     "Planner",
     "RuleBasedPlanner",
     "ThreadIdentityConflictError",
+    "build_clarification_request",
     "build_investigation_graph",
     "build_reduction_draft",
     "verify_results",
@@ -91,6 +104,11 @@ class InvestigationState(TypedDict, total=False):
     route: str
     plan: list[dict[str, Any]]
     expected_subtasks: list[str]
+    #: Task 031 / 2.7：路由理由（命中哪些词、落到哪个子任务），plan_node 写入、
+    #: report_node 输出。普通运行也必须有，便于排查"为什么走了这个领域"。
+    routing_reason: list[dict[str, Any]]
+    #: Task 031 / 2.7：未命中任何领域时的回问信息（clarification 节点读取）
+    clarification: dict[str, Any]
     results: Annotated[list[dict[str, Any]], operator.add]
     failures: Annotated[list[dict[str, Any]], operator.add]
     warnings: Annotated[list[str], operator.add]
@@ -109,11 +127,38 @@ class InvestigationState(TypedDict, total=False):
     approved_draft: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class PlanDetail:
+    """`plan()` 的完整形态：子任务 + 路由 + 理由 + 澄清信息（Task 031 / 2.7）。
+
+    保留 `plan() -> (subtasks, route)` 是为了不破坏既有调用方与测试；
+    需要路由理由/澄清信息的调用方（图节点）改用 `plan_detailed()`。
+
+    - `route`：`deterministic`（单领域）/ `fanout`（多领域）/ `clarification`（未命中）；
+    - `routing_reason`：每个**已执行**子任务一条，形状见
+      `docs/architecture/planner_vocabulary.md`；
+    - `clarification`：仅 `route == "clarification"` 时非空。
+    """
+
+    subtasks: list[dict[str, Any]]
+    route: str
+    routing_reason: list[dict[str, Any]] = field(default_factory=list)
+    clarification: dict[str, Any] | None = None
+
+
 class Planner:
     """把用户问题转成受控子任务计划。"""
 
     def plan(self, question: str, payload: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
         raise NotImplementedError
+
+    def plan_detailed(
+        self, question: str, payload: dict[str, Any]
+    ) -> PlanDetail:
+        """默认实现：只有子任务与路由（自定义 Planner 无需实现路由理由）。"""
+
+        subtasks, route = self.plan(question, payload)
+        return PlanDetail(subtasks=subtasks, route=route)
 
 
 class RuleBasedPlanner(Planner):
@@ -125,36 +170,62 @@ class RuleBasedPlanner(Planner):
     - "简单问题不要拆多 Agent"这条纪律必须可被程序断言，规则比模型更可靠。
 
     复杂度判定采用"至少命中两类领域"的保守策略。
+
+    词表见 `.vocabulary`（唯一来源）。**未命中任何领域时不再默认 billing**
+    （Task 031 / 2.7）：返回 `clarification`，让用户补充领域，而不是猜一个领域
+    白跑工具、把"请帮我看看"当成账单调查返回一堆数字。
     """
 
-    _LEASE_HINTS = ("合同", "租约", "条款", "递增", "免租", "押金", "续租", "租期")
-    _BILLING_HINTS = ("账单", "租金", "费用", "欠费", "付款", "核销", "多收", "少收", "金额", "发票")
-    _PROPERTY_HINTS = ("空调", "维修", "工单", "报修", "故障", "投诉", "漏水", "电梯")
+    # 兼容 Task 009 的旧引用方式：词表已迁到 `vocabulary`，这里只是别名。
+    _LEASE_HINTS = DOMAIN_HINTS["lease"]
+    _BILLING_HINTS = DOMAIN_HINTS["billing"]
+    _PROPERTY_HINTS = DOMAIN_HINTS["property"]
 
     def plan(self, question: str, payload: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
-        text = question
-        domains = {
-            "lease": any(hint in text for hint in self._LEASE_HINTS),
-            "billing": any(hint in text for hint in self._BILLING_HINTS),
-            "property": any(hint in text for hint in self._PROPERTY_HINTS),
-        }
-        selected = [name for name, hit in domains.items() if hit]
-        if not selected:
-            selected = ["billing"]
+        detail = self.plan_detailed(question, payload)
+        return detail.subtasks, detail.route
+
+    def plan_detailed(
+        self, question: str, payload: dict[str, Any]
+    ) -> PlanDetail:
+        text = "" if question is None else str(question)
+        matched = matched_domains(text)
+        matched_order = [domain for domain in DOMAINS if domain in matched]
+
+        if not matched_order:
+            # 未命中任何领域：明确回问，禁止静默落到 billing。
+            return PlanDetail(
+                subtasks=[],
+                route="clarification",
+                routing_reason=[],
+                clarification=build_clarification_request(text),
+            )
+
+        selected = list(matched_order)
+        narrowing: dict[str, Any] | None = None
         # 单纯问"欠多少"这类同质问题：只保留一个领域，避免无意义扇出
         if len(selected) > 1 and _is_pure_arrears_question(text):
+            dropped = [domain for domain in selected if domain != "billing"]
             selected = ["billing"]
+            narrowing = {
+                "reason": "pure_arrears_question",
+                "dropped": [
+                    {
+                        "domain": domain,
+                        "label": DOMAIN_LABELS[domain],
+                        "matched": list(matched.get(domain, ())),
+                    }
+                    for domain in dropped
+                ],
+            }
 
         lease_id = str(payload.get("lease_id") or "").strip()
         unit_id = str(payload.get("unit_id") or "").strip()
 
         subtasks: list[dict[str, Any]] = []
+        routing_reason: list[dict[str, Any]] = []
         for index, domain in enumerate(selected, start=1):
-            capability = {
-                "lease": "lease.query",
-                "billing": "billing.statement",
-                "property": "property.work_orders",
-            }[domain]
+            capability = DOMAIN_CAPABILITIES[domain]
             # 原问题必须下发给每个领域子任务（Task 021 / N5）：
             # 模型只知道 "billing.statement" 这种能力名，没有原问题就无法判断"在问什么"，
             # 只能凭猜；这在本轮实测中表现为 `question=""`。
@@ -169,15 +240,71 @@ class RuleBasedPlanner(Planner):
                 # 条款检索需要原始问题作为查询依据；由 Planner 显式下发，
                 # Agent 不应自己去猜"该查什么条款"。
                 task_payload["query"] = text
+            subtask_id = f"st_{index}_{domain}"
             subtasks.append(
                 {
-                    "subtask_id": f"st_{index}_{domain}",
+                    "subtask_id": subtask_id,
                     "capability": capability,
                     "payload": task_payload,
                 }
             )
+            reason: dict[str, Any] = {
+                "domain": domain,
+                "label": DOMAIN_LABELS[domain],
+                "matched": list(matched.get(domain, ())),
+                "capability": capability,
+                "subtask_id": subtask_id,
+            }
+            if narrowing is not None and domain == "billing":
+                # 说清楚"为什么另外几个领域命中了却没有派发"，否则排查时
+                # 会以为词表漏词；收窄规则本身由 `_is_pure_arrears_question` 决定。
+                reason["narrowing"] = narrowing
+            routing_reason.append(reason)
+
         route = "deterministic" if len(subtasks) == 1 else "fanout"
-        return subtasks, route
+        return PlanDetail(
+            subtasks=subtasks, route=route, routing_reason=routing_reason
+        )
+
+
+#: 未命中领域时的用户可见说明（回复"无法判断属于哪一类"，而不是猜一类）。
+CLARIFICATION_MESSAGE = (
+    "无法判断这个问题属于合同、账单还是物业，因此本次没有执行调查，"
+    "也没有调用任何工具。"
+)
+
+CLARIFICATION_QUESTION = (
+    "请说明要核实的是哪一类：合同/租约（例如租期、免租期、递增条款）、"
+    "账单/费用（例如租金、欠费、发票），还是物业工单（例如空调维修、漏水）？"
+)
+
+
+def build_clarification_request(text: str = "") -> dict[str, Any]:
+    """构造"未命中任何领域"的回问信息（Task 031 / 2.7）。
+
+    形状**稳定且可 JSON 序列化**：CLI 的 `_investigation_payload` 直接读取
+    `report["clarification"]`。字段口径见
+    `docs/architecture/planner_vocabulary.md`：
+
+    - `reason`：目前只有 `no_domain_matched`，保留字段便于未来扩展；
+    - `message`：给用户看的说明（为什么没有执行调查）；
+    - `available_domains`：可选领域及中文标签（含能力名，便于排查）；
+    - `question`：回问用户的具体问题。
+    """
+
+    return {
+        "reason": "no_domain_matched",
+        "message": CLARIFICATION_MESSAGE,
+        "available_domains": [
+            {
+                "domain": domain,
+                "label": DOMAIN_LABELS[domain],
+                "capability": DOMAIN_CAPABILITIES[domain],
+            }
+            for domain in DOMAINS
+        ],
+        "question": CLARIFICATION_QUESTION,
+    }
 
 
 def _is_pure_arrears_question(text: str) -> bool:
@@ -186,7 +313,13 @@ def _is_pure_arrears_question(text: str) -> bool:
 
 
 def _mentions_hvac(text: str) -> bool:
-    return "空调" in text
+    """是否在问空调/暖通问题。
+
+    Task 031 / 2.7：词表新增了"冷气 / 不制冷"等口语说法，这里同步识别，
+    否则"冷气不制冷"会路由到物业却拿不到 `category=hvac` 的过滤参数。
+    """
+
+    return any(word in text for word in ("空调", "冷气", "不制冷"))
 
 
 @dataclass(frozen=True)
@@ -402,16 +535,63 @@ def build_investigation_graph(
     rule = approval_rule or DEFAULT_APPROVAL_RULE
 
     def plan_node(state: InvestigationState) -> dict[str, Any]:
-        subtasks, route = planner.plan(state["question"], dict(state))
+        detail = planner.plan_detailed(state["question"], dict(state))
         return {
-            "plan": subtasks,
-            "route": route,
-            "expected_subtasks": [item["subtask_id"] for item in subtasks],
+            "plan": detail.subtasks,
+            "route": detail.route,
+            "expected_subtasks": [item["subtask_id"] for item in detail.subtasks],
+            # Task 031 / 2.7：路由理由与澄清信息必须进 state，report_node 才能写进报告；
+            # 补查/审批恢复读的是 checkpoint，因此这里写入后不会丢。
+            "routing_reason": detail.routing_reason,
+            "clarification": detail.clarification or {},
             "revision": state.get("revision", 0),
         }
 
     def route_after_plan(state: InvestigationState) -> str:
-        return "deterministic_answer" if state.get("route") == "deterministic" else "dispatch"
+        route = state.get("route")
+        if route == "clarification":
+            # 未命中任何领域：直接回问，不派发任何子任务（Task 031 / 2.7）
+            return "clarification"
+        if route == "deterministic":
+            return "deterministic_answer"
+        return "dispatch"
+
+    def clarification_node(state: InvestigationState) -> dict[str, Any]:
+        """未命中任何领域：回问用户，零工具调用、零子任务、不进入审批。
+
+        为什么 `completeness` 写 `not_executed` 而不是 `partial`：这不是
+        "证据不完整"，而是"根本没开始"；混用会让人误以为工具跑过、只是缺资料。
+        """
+
+        clarification = state.get("clarification") or build_clarification_request(
+            state.get("question", "")
+        )
+        report = {
+            "question": state.get("question"),
+            "lease_id": state.get("lease_id"),
+            "verdict": "needs_clarification",
+            "route": "clarification",
+            "revision": state.get("revision", 0),
+            "findings": [],
+            "conflicts": [],
+            "missing_information": [],
+            "completeness": "not_executed",
+            "agent_results": [],
+            "failures": [],
+            "resolved_failures": [],
+            "narrative_discrepancies": [],
+            "authoritative_amounts": [],
+            # 未命中时没有子任务可解释；排查信息全在 clarification 里。
+            "routing_reason": [],
+            "clarification": clarification,
+            "requires_human_review": True,
+            "disclaimer": "本次未执行调查：未调用工具、未产生证据，也未进入审批",
+        }
+        return {
+            "report": report,
+            "verdict": "needs_clarification",
+            "approval_status": "not_required",
+        }
 
     def dispatch(state: InvestigationState) -> list[Send]:
         retry = set(state.get("retry_subtasks") or ())
@@ -621,6 +801,9 @@ def build_investigation_graph(
             "lease_id": state.get("lease_id"),
             "verdict": state.get("verdict", "insufficient"),
             "route": state.get("route"),
+            # Task 031 / 2.7：普通运行也写路由理由（命中哪些词、落到哪个子任务），
+            # 否则"为什么走了 billing"只能靠读代码猜。
+            "routing_reason": list(state.get("routing_reason") or []),
             "revision": state.get("revision", 0),
             "findings": findings,
             # conflicts/missing 是 append 通道，补查会让同一结论重复出现，报告必须去重
@@ -755,6 +938,7 @@ def build_investigation_graph(
 
     graph = StateGraph(InvestigationState)
     graph.add_node("plan", plan_node)
+    graph.add_node("clarification", clarification_node)
     graph.add_node("dispatch", lambda state: {})
     graph.add_node("run_subtask", run_subtask)
     graph.add_node("deterministic_answer", deterministic_answer)
@@ -765,8 +949,16 @@ def build_investigation_graph(
 
     graph.add_edge(START, "plan")
     graph.add_conditional_edges(
-        "plan", route_after_plan, {"deterministic_answer": "deterministic_answer", "dispatch": "dispatch"}
+        "plan",
+        route_after_plan,
+        {
+            "deterministic_answer": "deterministic_answer",
+            "dispatch": "dispatch",
+            "clarification": "clarification",
+        },
     )
+    # 回问分支直接结束：不派发子任务、不核验、不进入审批。
+    graph.add_edge("clarification", END)
     graph.add_conditional_edges("dispatch", dispatch, ["run_subtask"])
     graph.add_edge("run_subtask", "verify")
     graph.add_edge("deterministic_answer", "verify")

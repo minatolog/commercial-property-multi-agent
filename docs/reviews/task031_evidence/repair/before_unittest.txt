@@ -1,0 +1,32 @@
+..................................  [LOG] asyncio Executing <Task pending name='Task-1116' coro=<TestApprovalIdentityAndAudit.test_resume_reuses_persisted_request_id() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:427> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+...............  [LOG] asyncio Executing <Task pending name='Task-1175' coro=<TestNoApprovalWithoutControlPlane.test_arrears_question_still_surfaces_known_variance() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:614> wait_for=<Task pending name='Task-1176' coro=<RunnableCallable.ainvoke() running at D:\anacada\envs\commercial-agent\Lib\site-packages\langgraph\_internal\_runnable.py:484> cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\tasks.py:386> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+....  [LOG] asyncio Executing <Task pending name='Task-1292' coro=<TestPausedAndResumedFlow.test_investigation_pauses_then_resumes_across_control_plane() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:301> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+  [LOG] asyncio Executing <Task pending name='Task-1292' coro=<TestPausedAndResumedFlow.test_investigation_pauses_then_resumes_across_control_plane() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:314> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.125 seconds
+.  [LOG] asyncio Executing <Task pending name='Task-1351' coro=<TestPausedAndResumedFlow.test_rejected_draft_never_produces_approved_draft() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:348> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+...  [LOG] asyncio Executing <Task pending name='Task-1521' coro=<TestTerminalIdempotencyIsGuarded.test_unauthorised_principal_cannot_replay() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:549> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+.  [LOG] asyncio Executing <Task pending name='Task-1580' coro=<TestTerminalIdempotencyIsGuarded.test_wrong_version_cannot_replay_as_approved() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:531> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+.  [LOG] agent.lease agent 执行失败
+  [LOG] agent.property agent 执行失败
+  [LOG] agent.billing agent 执行失败
+  [LOG] agent.lease agent 执行失败
+  [LOG] agent.property agent 执行失败
+  [LOG] agent.billing agent 执行失败
+....  [LOG] asyncio Executing <Task pending name='Task-1922' coro=<TestThreadIdentityBoundary.test_repeated_investigate_on_same_run_is_refused() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:716> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+.....D:\anacada\envs\commercial-agent\Lib\site-packages\alembic\config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+  util.warn_deprecated(
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+...................................................................................................................................................................s.................................................................................................WARNI [agent.slow] agent 执行失败
+.WARNI [agent.slow] agent 执行失败
+.WARNI [agent.slow] agent 执行失败
+......WARNI [agent.scripted_tool_agent] agent 执行失败
+................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 529 tests in 27.703s
+
+OK (skipped=1)
+exit 0

@@ -4,9 +4,9 @@
 
 目标：任何一次开发任务都能被**追溯、复现和回滚**。文档不是代码快照，真正的代码回滚依赖 Git 提交记录。
 
-## 当前阅读入口与冲突规则（2026-11-09）
+## 当前阅读入口与冲突规则（2026-11-21）
 
-先读 [当前架构与文档基线](./architecture/CURRENT_BASELINE.md)，再按任务阅读现行架构、MVP、契约和评测文档。项目方向以用户确认的 Agent-first V1.0/ADR-005 为准；实现事实需有当前源码和对应版本证据。最新用户指令可调整流程与授权，Codex 不再是每个任务的强制审查环节。
+先读 [当前架构与文档基线](./architecture/CURRENT_BASELINE.md)，再按任务阅读现行架构、MVP、契约和评测文档。项目方向以用户确认的 Agent-first V1.0/ADR-005 为准；实现事实需有当前源码和对应版本证据。最新用户指令可调整流程与授权，Codex 不再是每个任务的强制审查环节。Task 031 已完成 Z1–Z3、CLI、逐 Agent 模型配置、配置真实性与路由兜底的实施与自检，**待独立复查**（见 [031 归档](./prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)）。
 
 下方编号表的状态文字是**任务交付当时的索引摘要**，不能替代 [当前进度表](./product/PROJECT_DEVELOPMENT_ROADMAP.md)。Prompt、日志、检查点、审查报告、冻结评分/测量与旧交接均为历史记录；其中“当前/下一步/未开始”按记录日期解读。`*_legacy_2026-11-09.md` 为 Task 026 保存的旧文原文，仅供追溯；不得继续按旧示例或旧优先级开发。原始 Prompt 和冻结测量不回写。
 
@@ -104,6 +104,7 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 028 | 2026-11-10 | 06_testing | Task 027 独立复查：403 tests / 57 项契约通过；发现状态与节点发现映射 U1–U3，待修后验收 | [2026-11-10_028_task027_ui_acceptance_review.md](./prompts/06_testing/2026-11-10_028_task027_ui_acceptance_review.md) |
 | 029 | 2026-11-10 | 05_frontend | 协作工作台 U1–U3 修复：失败子任务索引、finding 归属、异常报告判定（409 测试 OK、17 项浏览器级 JS 回归、10 张新截图，未提交） | [2026-11-10_029_ui_mapping_fixes.md](./prompts/05_frontend/2026-11-10_029_ui_mapping_fixes.md) |
 | 030 | 2026-11-10 | 06_testing | Task 029 独立复查：U1/U2 原始反例通过，U3 部分修复；409 tests / 57 契约通过，补充异常边界仍误绿灯 | [2026-11-10_030_task029_fixes_acceptance_review.md](./prompts/06_testing/2026-11-10_030_task029_fixes_acceptance_review.md) |
+| 031 | 2026-11-21 | 06_testing | Task 031 核心正确性收尾：Z1–Z3、CLI 清理（dry-run/退出码/身份来源）、逐 Agent 模型配置、配置真实性与路由兜底；529 tests / 70 项契约通过，离线 heldout A 20/B 21/C 24，未提交，待独立复查 | [2026-11-21_031_core_correctness_fixes.md](./prompts/06_testing/2026-11-21_031_core_correctness_fixes.md) |
 
 ---
 

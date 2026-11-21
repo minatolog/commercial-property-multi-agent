@@ -4,6 +4,15 @@
 
 > 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-21] 任务 031 - 核心正确性收尾（Pending）
+
+- **起点 / HEAD**：main / e3b3594；027–031 成果与本轮自检均未提交；不声明远端状态。
+- **变更**：Z1–Z3、CLI 清理、逐 Agent 模型配置、配置真实性、路由兜底实现；新增 6 个 Task 031 测试文件、词表模块与文档、031 归档与前后证据目录；同步当前基线、路线图、架构/开发指南、评测计划、根 README、backend README、开发日志与问题记录。评测用例、评分规则、历史报告未修改。
+- **验证**：529 tests OK（skipped=1）、70 项契约、`check` exit 0、无效配置 exit 2、Z1–Z3 原始反例前后复跑、脚本化 ask/investigate exit 0；离线 heldout A 20/30、B 21/30、C 24/30（C 的 H27 由失败变通过；H19/H25/H26 只变路由效率或人工评定；用例/fixture/评分校验和未变）。
+- **操作边界**：无付费模型调用（deepseek 只做占位密钥下的客户端构造）、无提交/推送/打 Tag/部署、未启动 Task 032/033。
+- **建议 Summary**：`fix(core): close Z1-Z3, per-agent model config and CLI/route fallbacks (Task 031)`
+- **建议 Description**：ask 装配可信目标并拒绝改写/缺失；失败调用只作审计、零事实失败、合法零结果保留；默认摘要分栏展示可信资金结论；CLI dry-run 改为纯校验、统一模型来源、删除无效参数、退出码分离、身份来源可见；模型客户端按各 Agent YAML 创建并逐 Agent 报告；检索配置只声明真实能力；路由未命中改为澄清并写路由理由。附前后反例与 heldout 对比证据。
+
 ## [2026-11-10] 任务 030 - Task 029 独立复查（Pending）
 
 - **起点 / HEAD**：main / 8569cc2，027–029 和本轮文档均未提交；不声明远端状态。

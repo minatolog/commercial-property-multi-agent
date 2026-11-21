@@ -1,23 +1,47 @@
-"""多 Agent 调查工作流装配（Task 009）。
+"""多 Agent 调查工作流装配（Task 009 / Task 031）。
 
 把 Registry、工具、预算、Trace 与 LangGraph 图接在一处：
 
 - 领域 Agent 只拿到 `tool_registry` / `budget` / `trace_log`；
 - Coordinator 只拿到 Registry（按 capability 解析），不认识具体 Agent 类；
 - 所有子任务共享同一个 `run_id` 与 `trace_id`，靠 `subtask_id` 区分来源。
+
+Task 031 / 2.5（模型配置真正生效）：领域 Agent 不再共用一个由 `single.yaml`
+创建的客户端，而是各自按自己的 YAML 构造：
+
+- `model_provider="offline"` → 确定性引擎，无模型（等价原行为）；
+- `"scripted"` → 用 `scripted_client_for_tools` 注入所有 LLM 领域 Agent
+  （脚本化模型按各 Agent 可用工具自行过滤调用）；
+- `"deepseek"` → 对每个 `engine="llm"` 白名单内的 Agent 配置调用
+  `build_model_client_for_config`（共享参数缓存），缺密钥时构造期即失败；
+- `client_factory(config)` 是 deepseek 分支的离线测试缝：按每个 YAML 调用它构造
+  假客户端，不联网、不需要密钥。
+
+`bundle.agent_models` 记录每个已注册 LLM Agent 实际使用的模型与参数，
+供评测报告按 Agent 输出（不是只写一个全局模型）。
 """
 
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Callable, Iterable
 
 from .agents.base.contracts import AgentContext
 from .agents.base.registry import AgentRegistry
-from .agents.factory import build_registry
+from .agents.factory import build_registry, implementations_for
+from .config.loader import load_all_agent_configs
 from .fixtures.repository import FixtureRepository
+from .llm.factory import (
+    MODEL_PROVIDERS,
+    ModelClientCache,
+    build_model_client_for_config,
+    describe_agent_model,
+    validate_model_config,
+)
 from .orchestration.investigation import InvestigationResult, Investigator, Planner
+from .paths import CONFIG_DIR
 from .rag.library import KnowledgeLibrary, build_knowledge_library, fixture_catalog
 from .runtime.budget import Budget
 from .runtime.types import TraceLog, TrustedContext
@@ -31,6 +55,9 @@ __all__ = [
     "resume_investigation",
     "run_investigation",
 ]
+
+#: 脚本化模型的默认总结台词（与 CLI / 历史报告保持一致）
+DEFAULT_SCRIPTED_SUMMARY = "已按受控工具结果核对；金额与日期均取自工具输出。"
 
 
 @dataclass
@@ -48,6 +75,92 @@ class InvestigationBundle:
     engine: str = "deterministic"
     model_provider: str = "offline"
     model_name: str = "none"
+    #: 每个注册的 LLM Agent 实际使用的模型（键 = Agent 名；offline 时为空 dict）。
+    #: 条目形状：provider / model_name / temperature / max_tokens / timeout_seconds /
+    #: api_key_env / api_key_env_present / client_is_shared / config_source。
+    agent_models: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+def _llm_agent_names(configs: dict[str, Any]) -> list[str]:
+    """配置文件里属于 llm 引擎白名单的 Agent 名（保持文件名顺序）。"""
+
+    allowed = implementations_for("llm")
+    return [name for name in configs if name in allowed]
+
+
+def _shared_by_identity(clients: dict[str, Any]) -> dict[str, bool]:
+    """按对象身份判断"是否与别的 Agent 共用同一个客户端实例"。"""
+
+    counts: dict[int, int] = {}
+    for client in clients.values():
+        counts[id(client)] = counts.get(id(client), 0) + 1
+    return {name: counts[id(client)] > 1 for name, client in clients.items()}
+
+
+def _models_for(configs: dict[str, Any], clients: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    shared = _shared_by_identity(clients)
+    return {
+        name: describe_agent_model(
+            configs[name],
+            client=clients[name],
+            client_is_shared=shared[name],
+            config_source=f"{name}.yaml",
+        )
+        for name in clients
+    }
+
+
+def _scripted_clients(
+    configs: dict[str, Any], names: list[str], scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    from .llm.scripted import scripted_client_for_tools
+
+    client = scripted_client_for_tools(
+        list(scripted_calls or ()), summary=DEFAULT_SCRIPTED_SUMMARY
+    )
+    clients = {name: client for name in names}
+    return clients, _models_for(configs, clients)
+
+
+def _deepseek_clients(
+    configs: dict[str, Any],
+    names: list[str],
+    *,
+    client_factory: Callable[[Any], Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """按每个 Agent 自己的 YAML 构造真实客户端；参数相同者共享缓存实例。"""
+
+    cache = ModelClientCache() if client_factory is None else None
+    clients: dict[str, Any] = {}
+    for name in names:
+        config = configs[name]
+        # 先校验：非法配置在构造任何客户端之前就失败，错误信息带上 Agent 名
+        validate_model_config(config)
+        if client_factory is not None:
+            client = client_factory(config)
+            if client is None:
+                raise ValueError(
+                    f"client_factory 为 Agent {name!r} 返回了 None；"
+                    "deepseek 路径要求每个 Agent 都有可用客户端"
+                )
+        else:
+            client = build_model_client_for_config(config, cache=cache)
+            if client is None:
+                raise ValueError(
+                    f"Agent {name!r} 的配置声明 model_provider='offline'，"
+                    "不能装配到 deepseek 模型路径；请修 YAML 或改用 offline 模式"
+                )
+        clients[name] = client
+    return clients, _models_for(configs, clients)
+
+
+def _injected_clients(
+    configs: dict[str, Any], names: list[str], client: Any
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """兼容既有 `engine="llm", model_client=...` 调用：同一个客户端注入所有 Agent。"""
+
+    clients = {name: client for name in names}
+    return clients, _models_for(configs, clients)
 
 
 def build_investigation_bundle(
@@ -65,8 +178,12 @@ def build_investigation_bundle(
     control_plane: Any = None,
     run_id: str | None = None,
     trace_id: str | None = None,
-    engine: str = "deterministic",
+    engine: str | None = None,
     model_client: Any = None,
+    model_provider: str = "offline",
+    scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
+    config_dir: str | Path | None = None,
+    client_factory: Callable[[Any], Any] | None = None,
 ) -> InvestigationBundle:
     """装配一次调查所需的全部依赖。
 
@@ -74,25 +191,93 @@ def build_investigation_bundle(
     API 的公开 run_id、checkpoint 的 context.run_id、每条 ToolTrace 的 run_id
     必须是**同一个值**，否则"这次运行"在三个地方有三个身份。
 
-    `engine` / `model_client`（Task 018）：`engine="llm"` 时领域 Agent 改由模型
-    决定调用哪个工具，但事实仍取自工具输出；没有注入 `model_client` 会直接失败，
-    而不是悄悄回退到确定性实现。
+    模型路径（Task 018 / Task 031）：
+    - `engine` 省略时由 `model_provider` / 注入客户端推导：有模型 → `"llm"`，
+      否则 `"deterministic"`；
+    - 显式 `engine="deterministic"` 与任何模型输入同时出现是冲突组合，直接 `ValueError`
+      （静默忽略模型输入会让报告把离线结果当成真实调用）；
+    - `engine="llm"` 却没有模型输入同样失败（不再静默回退到确定性实现）；
+    - 既有 `engine="llm", model_client=...` 调用保持兼容（脚本化/测试注入）。
     """
 
-    if engine not in ("deterministic", "llm"):
+    if engine is not None and engine not in ("deterministic", "llm"):
         raise ValueError(f"未知引擎: {engine!r}（可选 deterministic / llm）")
-    if engine == "llm" and model_client is None:
-        raise ValueError("engine='llm' 必须同时注入 model_client")
+    if model_provider not in MODEL_PROVIDERS:
+        raise ValueError(
+            f"未知模型 provider: {model_provider!r}（可选 {list(MODEL_PROVIDERS)}）"
+        )
+    if model_client is not None and model_provider != "offline":
+        raise ValueError(
+            "model_provider 与 model_client 不能同时使用："
+            "前者按各 Agent YAML 构造客户端，后者是显式单实例注入（脚本化/测试）"
+        )
+    if client_factory is not None and model_provider != "deepseek":
+        raise ValueError(
+            "client_factory 只作为 model_provider='deepseek' 的离线测试缝使用"
+        )
+
+    has_model_input = (
+        model_provider in ("scripted", "deepseek")
+        or model_client is not None
+        or client_factory is not None
+    )
+    effective_engine = (
+        engine if engine is not None else ("llm" if has_model_input else "deterministic")
+    )
+    if effective_engine == "deterministic" and has_model_input:
+        raise ValueError(
+            "冲突组合：engine='deterministic' 不接受模型输入"
+            "（model_provider/model_client/client_factory）；确定性引擎不使用模型"
+        )
+    if effective_engine == "llm" and not has_model_input:
+        raise ValueError(
+            "engine='llm' 必须同时注入模型：model_provider='scripted'/'deepseek'，"
+            "或显式 model_client（脚本化/测试），或 client_factory"
+        )
+    if backend not in ("fixture", "sqlite"):
+        raise ValueError(f"未知 backend: {backend!r}（可选 fixture / sqlite）")
+
+    directory = Path(config_dir) if config_dir is not None else CONFIG_DIR
+
+    model_clients: dict[str, Any] = {}
+    agent_models: dict[str, dict[str, Any]] = {}
+    bundle_provider = model_provider
+    bundle_model_name = "none"
+
+    if effective_engine == "llm":
+        configs = load_all_agent_configs(directory)
+        names = _llm_agent_names(configs)
+        if not names:
+            raise ValueError(
+                f"配置目录 {directory} 中没有属于 llm 引擎白名单的 Agent 配置"
+            )
+        if model_provider == "deepseek":
+            model_clients, agent_models = _deepseek_clients(
+                configs, names, client_factory=client_factory
+            )
+            bundle_model_name = ",".join(
+                sorted({entry["model_name"] for entry in agent_models.values()})
+            )
+        elif model_provider == "scripted":
+            model_clients, agent_models = _scripted_clients(
+                configs, names, scripted_calls
+            )
+            bundle_model_name = next(iter(model_clients.values())).model_name
+        else:  # 兼容既有显式注入
+            model_clients, agent_models = _injected_clients(
+                configs, names, model_client
+            )
+            bundle_provider = getattr(model_client, "provider", "offline")
+            bundle_model_name = getattr(model_client, "model_name", "none")
+
     if backend == "fixture":
         repository = FixtureRepository.load(None, variant=variant)
-    elif backend == "sqlite":
+    else:
         if variant is not None:
             raise ValueError("sqlite 后端暂不支持 fixture 变体（变体仅用于 fixture 对比）")
         from .db.bootstrap import build_sqlite_repository
 
         _, repository = build_sqlite_repository()
-    else:
-        raise ValueError(f"未知 backend: {backend!r}（可选 fixture / sqlite）")
 
     tool_registry = ToolRegistry()
     for tool in build_fixture_tools(repository):
@@ -120,11 +305,13 @@ def build_investigation_bundle(
     trace_log = TraceLog()
 
     report = build_registry(
+        directory,
         tool_registry=tool_registry,
         budget=budget,
         trace_log=trace_log,
-        engine=engine,
-        model_client=model_client,
+        engine=effective_engine,
+        model_clients=model_clients or None,
+        model_client=model_client if not model_clients else None,
     )
     investigator = Investigator(
         registry=report.registry,
@@ -152,9 +339,10 @@ def build_investigation_bundle(
         trusted=trusted,
         context=context,
         knowledge=knowledge,
-        engine=engine,
-        model_provider=getattr(model_client, "provider", "offline"),
-        model_name=getattr(model_client, "model_name", "none"),
+        engine=effective_engine,
+        model_provider=bundle_provider,
+        model_name=bundle_model_name,
+        agent_models=agent_models,
     )
 
 

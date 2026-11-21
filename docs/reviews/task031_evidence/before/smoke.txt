@@ -1,0 +1,76 @@
+
+== 1. ���ü����� Schema У�� ==
+  [PASS] ���ص� 5 �� Agent ����
+  [PASS] lease ����
+  [PASS] compliance Ĭ�Ͻ���
+  [PASS] billing.temperature Ϊ null��������֤�����ü��
+  [PASS] ÿ�� Agent �� prompt_path ������ͬ
+  [PASS] �ܾ��� YAML ��д�� api_key -> ValidationError
+  [PASS] �ܾ�����·�� prompt_path -> ValidationError
+  [PASS] �ܾ�·����Խ prompt_path -> ValidationError
+  [PASS] �ܾ��Ƿ� capability ��ʽ -> ValidationError
+  [PASS] �ܾ� rerank_top_n > top_k -> ValidationError
+  [PASS] �ܾ�δ֪�ֶ� -> ValidationError
+  [PASS] �ܾ��Ƿ� api_key_env ���� -> ValidationError
+  [PASS] ��ʵ�ֵİ����������ñ��������Ǳ���
+  [PASS] ��������� Registry
+  [PASS] strict ģʽ�ܾ���ʵ�ֵ����� -> AgentNotRegisteredError
+  [PASS] �ļ����� name ��һ��ʱ���� -> AgentConfigError
+
+== 2. Registry��ע�ᡢ���֡����á���ͻ ==
+  [PASS] ȫ�� 5 �� Agent ��ע��
+  [PASS] �����ñ�����
+  [PASS] �����������������õ� compliance.check
+  [PASS] ���������ɱ�������ѯ
+  [PASS] ���������� Agent
+  [PASS] ����������ʱ�� AgentDisabledError -> AgentDisabledError
+  [PASS] ����������ʱ�� CapabilityUnavailableError -> CapabilityUnavailableError
+  [PASS] �ظ�ע��ͬ�� Agent ���ܾ� -> DuplicateAgentError
+  [PASS] �����ѱ�ռ��ʱ�ܾ�ע�� -> CapabilityConflictError
+  [PASS] �ӿڲ����ݵĶ��󱻾ܾ� -> IncompatibleAgentError
+
+== 3. Agent ִ�������Լ�� ==
+  [LOG] agent.void agent ִ��ʧ��
+  [PASS] δʵ�ֵ� Agent ���� FAILED �������쳣
+  [PASS] ������Ϊ NOT_IMPLEMENTED
+  [PASS] ��������Ա��Ϊ False
+  [PASS] ���Я�� agent_name / version
+  [PASS] ���Я�� trace_id
+  [PASS] �����¼ latency_ms
+  [LOG] agent.void agent ִ��ʧ��
+  [PASS] ����δ������������ CAPABILITY_NOT_DECLARED
+  [LOG] agent.compliance agent ִ��ʧ��
+  [PASS] �����õ� Agent ֱ�ӵ��÷��� AGENT_NOT_ENABLED
+
+== 4. Prompt �빤����Ȩ���� ==
+  [PASS] lease �ܼ����Լ��� Prompt
+  [PASS] billing �ܼ����Լ��� Prompt
+  [PASS] ���� Agent �� Prompt ���ݻ���Ӱ��
+  [PASS] ��Ȩ���ߵ���ͨ��
+  [PASS] δ��Ȩ���߱��ܾ� -> ToolNotAllowedError
+  [PASS] ȱ��ҵ��Ȩ��ʱ���ܾ� -> PermissionDeniedError
+  [PASS] �߱�Ȩ���ҹ�������Ȩʱͨ��
+
+== 5. ģ�����������ü�����Կ��Դ ==
+  [PASS] lease ���� temperature
+  [PASS] temperature Ϊ null ʱ���·��ò���
+  [PASS] max_tokens �����·�
+  [PASS] model ������������
+  [PASS] δ�Ǽǳ��̱��ܾ� -> UnsupportedProviderError
+  [PASS] ȱ�� API Key ��������ʱ���� -> MissingApiKeyError
+  [PASS] API Key �ӻ���������ȡ
+
+== 6. �ƻ������Լ���벿�ֳɹ��ۺ� ==
+  [PASS] ������������ȷ����
+  [PASS] �����������������
+  [PASS] ȱʧ�������������
+  [PASS] ����ȱ��ʱ�ƻ�������
+  [PASS] ȫ��ʧ��ʱ�ۺ�Ϊ FAILED
+  [PASS] ��ֹ���ֳɹ�ʱ�ۺ�Ϊ FAILED
+  [PASS] �ս���ۺ�Ϊ FAILED
+
+== 7. ���������� ==
+  [PASS] ������������� Agent
+  [PASS] ��������� name �޷�ʵ��������������̬���룩 -> AgentNotRegisteredError
+
+ȫ��ͨ����57 ����

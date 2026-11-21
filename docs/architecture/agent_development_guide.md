@@ -1,6 +1,6 @@
 # Agent 开发指南（当前版）
 
-- 更新：2026-11-09，Task 026。
+- 更新：2026-11-21，Task 031。
 - 上位依据：[当前基线](CURRENT_BASELINE.md)、[ADR-005](../decisions/ADR-005-agent-first-refocus.md)、[运行时契约](agent_runtime_contracts.md)。
 - 旧示例和原文：[历史快照](agent_development_guide_legacy_2026-11-09.md)，不再用其中直接 invoke 工具的示例开发。
 
@@ -41,8 +41,8 @@
 | 禁用 | YAML enabled=false，重建装配；Registry 报 disabled，相关图路径明确降级/失败 |
 | 替换实现 | 工厂指向兼容实现，同步类/YAML version 和 capabilities；检查 Registry 原子替换及相关工作流 |
 | 修改 Prompt | 修改独立文件，重建装配，验证相关工具选择、证据与回答；不写死业务真值 |
-| 修改模型 | 当前共享客户端来自 single.yaml；每 Agent 独立模型策略仍待完成，不能承诺只改领域 YAML 就能换模型 |
-| 修改检索 | 只承诺实际消费的参数；BM25 以外的字段为预留，需实现与评测后才能宣称生效 |
+| 修改模型 | Task 031 起客户端按各 Agent 自己的 YAML 创建（provider/model_name/temperature/max_tokens/api_key_env/timeout），同参数缓存共享；修改后重建装配并核对 `agent_models`/`models_by_agent` 的实际值。非法配置启动期失败，不允许静默回退；脚本化客户端必须显式注入脚本，不能写进 YAML |
+| 修改检索 | 只承诺实际消费的参数；当前实现只有 BM25，`retrieval_settings` 只接受 `enabled`/`top_k`，向量/嵌入/rerank 等未实现字段写入即加载失败，需实现并评测后才能进入 Schema |
 | 移除模块 | 当前默认保留历史实现；确需删除须先确认任务范围并检查能力引用、配置、工厂和迁移 |
 
 ## 5. State、恢复和回归
@@ -59,7 +59,7 @@ python -m unittest discover -s tests -p "test_*.py"
 python -m app.cli check
 ```
 
-按变更选择相关回归；纯文档修正检查引用、格式、事实与历史保护即可，不强制付费调用或重建数据库。当前规范中的未闭合要求见 Task 025 Z1–Z3，不通过弱化要求来让测试变绿。
+按变更选择相关回归；纯文档修正检查引用、格式、事实与历史保护即可，不强制付费调用或重建数据库。Z1–Z3、逐 Agent 模型配置与路由兜底已由 Task 031 实现并有回归，但**待独立复查**；不通过弱化要求来让测试变绿，也不以本轮自检替代修复验收。
 
 ## 6. 文档与 Git
 

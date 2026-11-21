@@ -11,18 +11,27 @@
 **关于模型**：本机没有 `DEEPSEEK_API_KEY`，因此 B/C 都在**离线**模式下运行
 （B 不调用模型，C 用确定性 Planner + 确定性工具）。报告里 `model.provider` 会明确写
 `offline_deterministic`，`total_tokens=0`，`cost=null`——不得把这些数字当成真实模型的成本或质量。
+
+Task 031 / 2.5：走模型路径时，B/C 都要如实记录**每个 Agent 实际使用的模型**
+（`BaselineResult.models_by_agent`），由 runner 汇总进报告；离线时统一为 `{}`。
 """
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable
 
 from ..agents.base.contracts import AgentContext, AgentRequest, TaskStatus
 from ..agents.factory import build_registry
 from ..fixtures.repository import FixtureRepository
 from ..investigation_demo import build_investigation_bundle
+from ..llm.factory import (
+    MODEL_PROVIDERS,
+    build_model_client_for_config,
+    describe_agent_model,
+)
 from ..rag.library import build_knowledge_library
 from ..runtime.budget import Budget
 from ..runtime.types import TraceLog, TrustedContext
@@ -67,6 +76,9 @@ class BaselineResult:
     approval_draft_version: int | None = None
     #: 工具输出里出现过的金额（N6）：最终答案核验与事实契约共用同一份可信集合
     verified_amounts: list[str] = field(default_factory=list)
+    #: 每个 Agent 实际使用的模型（Task 031 / 2.5）。离线时统一为 `{}`（表示无模型参与）。
+    #: 条目形状与 `InvestigationBundle.agent_models` 一致。
+    models_by_agent: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +97,9 @@ class BaselineResult:
             "approval_status": self.approval_status,
             "approval_draft_version": self.approval_draft_version,
             "verified_amounts": list(self.verified_amounts),
+            "models_by_agent": {
+                name: dict(entry) for name, entry in self.models_by_agent.items()
+            },
         }
 
 
@@ -214,17 +229,85 @@ class _Baseline:
         max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
         model_client: Any = None,
         max_total_tokens: int = DEFAULT_MAX_TOTAL_TOKENS,
+        model_provider: str = "offline",
+        scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
+        client_factory: Any = None,
+        config_dir: str | Path | None = None,
     ) -> None:
+        if model_provider not in MODEL_PROVIDERS:
+            raise ValueError(
+                f"未知模型 provider: {model_provider!r}（可选 {list(MODEL_PROVIDERS)}）"
+            )
+        if model_client is not None and model_provider != "offline":
+            raise ValueError(
+                "model_provider 与 model_client 不能同时使用："
+                "前者按各 Agent YAML 构造客户端，后者是显式单实例注入"
+            )
+        if client_factory is not None and model_provider != "deepseek":
+            raise ValueError(
+                "client_factory 只作为 model_provider='deepseek' 的离线测试缝使用"
+            )
         self.max_tool_calls = max_tool_calls
         #: 注入模型客户端时，B/C 改走**模型驱动**路径（Task 018）；
         #: `None` 保持原有的离线规则路径，历史报告仍可复现。
         self.model_client = model_client
         self.max_total_tokens = max_total_tokens
+        #: Task 031 / 2.5：按各 Agent 自己的 YAML 构造模型客户端。
+        self.model_provider = model_provider
+        self.scripted_calls = list(scripted_calls or ())
+        self.client_factory = client_factory
+        self.config_dir = config_dir
         self._knowledge = None
 
     @property
+    def uses_model(self) -> bool:
+        return self.model_client is not None or self.model_provider in (
+            "scripted",
+            "deepseek",
+        )
+
+    @property
     def engine(self) -> str:
-        return "llm" if self.model_client is not None else "deterministic"
+        return "llm" if self.uses_model else "deterministic"
+
+    @property
+    def model_provider_label(self) -> str:
+        """报告用：本次实际使用的模型来源（显式客户端时以其 provider 为准）。"""
+
+        if self.model_client is not None:
+            return str(getattr(self.model_client, "provider", self.model_provider))
+        return self.model_provider
+
+    def _resolve_single_client(self) -> Any:
+        """B 基线（单 Agent）的模型客户端：single.yaml 就是它自己的配置。"""
+
+        if self.model_client is not None:
+            return self.model_client
+        if self.model_provider == "offline":
+            return None
+        config = _single_agent_config(self.config_dir)
+        if self.client_factory is not None:
+            client = self.client_factory(config)
+            if client is None:
+                raise ValueError(
+                    "client_factory 为 single 基线返回了 None；模型路径必须有客户端"
+                )
+            return client
+        if self.model_provider == "scripted":
+            from ..llm.scripted import scripted_client_for_tools
+
+            return scripted_client_for_tools(
+                list(self.scripted_calls), summary="已按受控工具结果核对。"
+            )
+        return build_model_client_for_config(config)
+
+    def _single_models(self, client: Any) -> dict[str, dict[str, Any]]:
+        config = _single_agent_config(self.config_dir)
+        return {
+            config.name: describe_agent_model(
+                config, client=client, client_is_shared=False, config_source="single.yaml"
+            )
+        }
 
     # 三条基线共享的只读工具集合（含合同条款检索）
     def _tools(self, repository: FixtureRepository) -> ToolRegistry:
@@ -346,11 +429,14 @@ class SingleAgentBaseline(_Baseline):
     name = "B_single_agent"
 
     async def run(self, *, case: Any) -> BaselineResult:
-        if self.model_client is not None:
-            return await self._run_with_model(case)
-        return await self._run_offline(case)
+        client = None
+        if self.model_client is not None or self.model_provider != "offline":
+            client = self._resolve_single_client()
+        if client is None:
+            return await self._run_offline(case)
+        return await self._run_with_model(case, client)
 
-    async def _run_with_model(self, case: Any) -> BaselineResult:
+    async def _run_with_model(self, case: Any, model_client: Any) -> BaselineResult:
         from ..agents.single.agent import SingleToolAgent
 
         started = time.perf_counter()
@@ -366,10 +452,10 @@ class SingleAgentBaseline(_Baseline):
             max_total_tokens=self.max_total_tokens,
         )
         trace_log = TraceLog()
-        agent_config = _single_agent_config()
+        agent_config = _single_agent_config(self.config_dir)
         agent = SingleToolAgent(
             agent_config,
-            model_client=self.model_client,
+            model_client=model_client,
             tool_registry=registry,
             budget=budget,
             trace_log=trace_log,
@@ -386,8 +472,15 @@ class SingleAgentBaseline(_Baseline):
             status="ok",
             answer="",
             route="single_agent",
+            models_by_agent=self._single_models(model_client),
         )
         agent_result = await agent.handle(request, context)
+        # R2：配置名之外，记录本题服务端实际声明的应答模型
+        _merge_served_models(
+            result.models_by_agent,
+            agent_config.name,
+            ((agent_result.output or {}).get("model") or {}).get("served_models"),
+        )
         snapshot = budget.snapshot()
         result.tool_calls = snapshot.used_tool_calls
         result.model_calls = snapshot.used_model_calls
@@ -496,17 +589,27 @@ class MultiAgentBaseline(_Baseline):
             max_tool_calls=self.max_tool_calls,
             engine=self.engine,
             model_client=self.model_client,
+            model_provider=self.model_provider,
+            scripted_calls=self.scripted_calls,
+            config_dir=self.config_dir,
+            client_factory=self.client_factory,
             max_model_calls=(
-                0 if self.model_client is None else max(4, self.max_tool_calls * 2)
+                0 if not self.uses_model else max(4, self.max_tool_calls * 2)
             ),
             # 离线路径不需要 token 闸门（`None` = 未配置上限）；
             # 有模型客户端时必须给出真实上限（Task 024 / Q1）。
             max_total_tokens=(
-                None if self.model_client is None else self.max_total_tokens
+                None if not self.uses_model else self.max_total_tokens
             ),
         )
         result = BaselineResult(
-            baseline=self.name, case_id=case.case_id, status="ok", answer="", route=""
+            baseline=self.name,
+            case_id=case.case_id,
+            status="ok",
+            answer="",
+            route="",
+            # Task 031 / 2.5：C 基线的实际模型来自每个 Agent 自己的 YAML 装配结果
+            models_by_agent={name: dict(entry) for name, entry in bundle.agent_models.items()},
         )
         investigation = await bundle.investigator.investigate(
             question=case.user_input,
@@ -525,6 +628,12 @@ class MultiAgentBaseline(_Baseline):
         for item in investigation.results:
             output = item.get("output") or {}
             capability = item.get("capability")
+            # R2：每个 LLM Agent 本题实际应答的模型（scripted/离线为空）
+            _merge_served_models(
+                result.models_by_agent,
+                str(item.get("agent") or ""),
+                (output.get("model") or {}).get("served_models"),
+            )
             evidence.extend(_evidence_ids(output))
             amounts.extend(str(value) for value in output.get("verified_amounts") or ())
             if capability == "billing.statement":
@@ -580,6 +689,28 @@ class MultiAgentBaseline(_Baseline):
         )
         result.latency_ms = int((time.perf_counter() - started) * 1000)
         return result
+
+
+def _merge_served_models(
+    models_by_agent: dict[str, dict[str, Any]], agent: str, served: Any
+) -> None:
+    """把服务端实际应答模型并入 `models_by_agent[agent]`（R2）。
+
+    `model_name` 保持为**配置名**；`served_models` 是响应元数据里的模型名（去重、
+    保持顺序）；二者不一致时 `served_model_mismatch=True`，没有记录时为 `None`。
+    """
+
+    entry = models_by_agent.get(agent)
+    if entry is None:
+        return
+    names = list(entry.get("served_models") or ())
+    for name in served or ():
+        if name and str(name) not in names:
+            names.append(str(name))
+    entry["served_models"] = names
+    entry["served_model_mismatch"] = (
+        None if not names else any(name != entry.get("model_name") for name in names)
+    )
 
 
 # ---------------------------------------------------------------- 工具选择
@@ -655,13 +786,14 @@ def _evidence_ids(output: dict[str, Any]) -> list[str]:
     return ids
 
 
-def _single_agent_config() -> Any:
+def _single_agent_config(config_dir: str | Path | None = None) -> Any:
     """B 基线（模型路径）使用的 Agent 配置：与生产同一份 YAML。"""
 
     from ..config.loader import load_agent_config
     from ..paths import CONFIG_DIR
 
-    return load_agent_config(CONFIG_DIR / "single.yaml")
+    directory = Path(config_dir) if config_dir is not None else CONFIG_DIR
+    return load_agent_config(directory / "single.yaml")
 
 
 def build_baseline(
@@ -670,6 +802,10 @@ def build_baseline(
     max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS,
     model_client: Any = None,
     max_total_tokens: int = DEFAULT_MAX_TOTAL_TOKENS,
+    model_provider: str = "offline",
+    scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
+    client_factory: Any = None,
+    config_dir: str | Path | None = None,
 ) -> _Baseline:
     mapping = {
         "A_deterministic": DeterministicBaseline,
@@ -678,11 +814,22 @@ def build_baseline(
     }
     if name not in mapping:
         raise ValueError(f"未知基线: {name!r}（可选 {BASELINES}）")
-    if model_client is not None and name == "A_deterministic":
+    uses_model_input = (
+        model_client is not None
+        or model_provider != "offline"
+        or client_factory is not None
+    )
+    if uses_model_input and name == "A_deterministic":
         # A 的定义就是"无 Agent、无模型"：给它接模型会改变基线含义
-        raise ValueError("A_deterministic 不接受 model_client（该基线不使用模型）")
+        raise ValueError(
+            "A_deterministic 不接受模型输入（该基线不使用模型）"
+        )
     return mapping[name](
         max_tool_calls=max_tool_calls,
         model_client=model_client,
         max_total_tokens=max_total_tokens,
+        model_provider=model_provider,
+        scripted_calls=scripted_calls,
+        client_factory=client_factory,
+        config_dir=config_dir,
     )

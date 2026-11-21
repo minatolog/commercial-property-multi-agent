@@ -85,10 +85,24 @@ class TestPlanner(unittest.TestCase):
         )
         self.assertEqual(property_task["payload"].get("category"), "hvac")
 
-    def test_unknown_question_defaults_to_billing(self) -> None:
+    def test_unknown_question_is_clarified_not_billed(self) -> None:
+        """Task 031 / 2.7：未命中任何领域时必须回问，不得静默落到 billing。
+
+        修复前这里断言 `billing.statement`：规划器把"帮我看看情况"当成账单调查，
+        会白跑一次工具并返回一堆与问题无关的数字。
+        """
+
+        detail = self.planner.plan_detailed("帮我看看情况", {"lease_id": "l1"})
+        self.assertEqual(detail.route, "clarification")
+        self.assertEqual(detail.subtasks, [])
+        self.assertEqual(detail.routing_reason, [])
+        self.assertIsNotNone(detail.clarification)
+        assert detail.clarification is not None
+        self.assertIn("无法判断", detail.clarification["message"])
+
+        # `plan()` 的旧契约仍保持两元组（不破坏既有调用方）
         subtasks, route = self.planner.plan("帮我看看情况", {"lease_id": "l1"})
-        self.assertEqual(route, "deterministic")
-        self.assertEqual(subtasks[0]["capability"], "billing.statement")
+        self.assertEqual((subtasks, route), ([], "clarification"))
 
 
 class TestVerifyResults(unittest.TestCase):

@@ -554,7 +554,8 @@ class TestDeepSeekClientWiring(unittest.TestCase):
                 os.environ["DEEPSEEK_API_KEY"] = saved
         self.assertIsInstance(client, LangChainChatModelClient)
         self.assertEqual(client.provider, "deepseek")
-        self.assertEqual(client.model_name, "deepseek-chat")
+        # 模型名以 YAML 为准（2026-11-21 核对：deepseek-chat 已下线，当前为 deepseek-flash）
+        self.assertEqual(client.model_name, _config().model_name)
 
     def test_openai_tool_schema_shape(self) -> None:
         from app.llm.langchain_client import _to_openai_tool

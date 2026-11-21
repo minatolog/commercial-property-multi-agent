@@ -467,6 +467,52 @@ class TestRunnerBindings(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report.model["provider"], "offline_deterministic")
         self.assertIn("未调用任何模型", report.model["note"])
 
+    async def test_report_lists_models_by_agent(self) -> None:
+        """Task 031 / 2.5：按 Agent 列出实际模型；离线统一为空 dict。"""
+
+        from app.evaluation.runner import evaluate, render_markdown
+
+        case = load_cases(split="heldout")[0]
+        offline = await evaluate(
+            baseline="A_deterministic", cases=[case], split="heldout"
+        )
+        self.assertEqual(offline.summary["models_by_agent"], {})
+        self.assertEqual(offline.as_dict()["bindings"]["models_by_agent"], {})
+        markdown = render_markdown([offline])
+        self.assertIn("## 各 Agent 实际模型", markdown)
+        self.assertIn("离线 = 确定性引擎，无模型参与", markdown)
+
+        from app.llm.scripted import scripted_client_for_tools
+
+        client = scripted_client_for_tools(
+            [("billing.statement.read", {"lease_id": "lease_xh_a301_2025"})],
+            summary="已核对。",
+        )
+        with_model = await evaluate(
+            baseline="B_single_agent",
+            cases=[case],
+            split="heldout",
+            model_client=client,
+        )
+        models = with_model.summary["models_by_agent"]
+        self.assertEqual(set(models), {"single"})
+        self.assertEqual(models["single"]["provider"], "scripted")
+        self.assertEqual(models["single"]["config_source"], "single.yaml")
+        self.assertEqual(
+            with_model.as_dict()["bindings"]["models_by_agent"], models
+        )
+        self.assertIn("scripted", render_markdown([with_model]))
+
+    def test_baseline_result_as_dict_includes_models_by_agent(self) -> None:
+        entry = {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.1,
+        }
+        result = _result(models_by_agent={"lease": entry})
+        self.assertEqual(result.as_dict()["models_by_agent"], {"lease": entry})
+        self.assertEqual(result.models_by_agent, {"lease": entry})
+
 
 if __name__ == "__main__":
     unittest.main()

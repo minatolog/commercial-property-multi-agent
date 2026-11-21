@@ -1,0 +1,6 @@
+{
+  "name": "commercial-property-flowise",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": { "flowise": "3.1.4" }
+}

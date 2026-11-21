@@ -1,6 +1,6 @@
 # 评测计划（Agent-first 当前版）
 
-- 更新：2026-11-09，Task 026。
+- 更新：2026-11-21，Task 031。
 - 依据：[当前基线](../architecture/CURRENT_BASELINE.md)、[MVP 范围](../product/mvp_scope_v2.md)。
 - 早期 8 题规格、场景展开和参考检查：[历史快照](evaluation_plan_legacy_2026-11-09.md)；这些规格不等于 runner 已执行全部场景。
 - 当前代码：backend/app/evaluation/；评分 **scoring-v3.3**，见 [scoring_v3.md](scoring_v3.md)。
@@ -12,10 +12,10 @@
 | 共享 fixture | fixtures/agent_first_v1.json，合成数据、变体、可信主体与审批规则 |
 | 开发题 | cases/smoke_v1.jsonl，8 道自然语言断言/人工量表题；自动 0/7 不能解读为真实模型质量全错 |
 | 保留题 | 当前 cases/heldout_v3.jsonl，32 题；H25/H26 scorable=false，30 题参与自动计分；旧版本保留 |
-| runner / A、B、C | 已实现；共用工具、数据、权限和总预算约束；offline/scripted/deepseek 路径分开 |
+| runner / A、B、C | 已实现；共用工具、数据、权限和总预算约束；offline/scripted/deepseek 路径分开；Task 031 起模型路径按各 Agent 自己的 YAML 建客户端，报告逐 Agent 记录实际模型 |
 | PDF / RAG | 合成合同 PDF 已实际生成/解析，BM25、真实页码/条款/版本核对已有；fixture 来源定位和 PDF 物理分页的验证需分别说明 |
-| 历史真实调用 | reports/real_model_dev/ 与 reports/real_model_v2/ 有 DeepSeek dev/单题证据；原测量不回写 |
-| 尚未完成 | 正式真实 heldout B/C 对照、预先冻结的重复测量、人工量表；先修复 Z1–Z3 与明确配置策略 |
+| 历史真实调用 | reports/real_model_dev/ 与 reports/real_model_v2/ 有 DeepSeek dev/单题证据；原测量不回写。历史模型名 `deepseek-chat` 已于 2026-07-24 下线，当前配置为 `deepseek-flash`（Task 031 核对官方文档，未新增真实调用） |
+| 尚未完成 | 正式真实 heldout B/C 对照、预先冻结的重复测量、人工量表；Z1–Z3/模型配置/路由兜底已在 Task 031 实施但待独立复查 |
 
 P0 总题量目标仍为 30–50，当前为 40。题量达到目标不等于评测完成或所有题目通过。
 
@@ -37,7 +37,7 @@ P0 总题量目标仍为 30–50，当前为 40。题量达到目标不等于评
 - 预期拒绝/失败须按 expected_outcome 对称评分；人工 rubric、契约外不可判定项不混入自动分母。
 - 历史 scoring-v1/v2/v3/v3.1 报告保留。规则变更另升版本、另建报告，不用新规则重写真实历史测量，也不跨评分版本比较通过率。
 
-现有离线 scoring-v3.3：A 20/30、B 21/30、C 23/30；它们只证明当前离线路径在该数据/评分下的表现。真实 dev 与单题只证明有界运行，不能支持正式 B/C 质量优劣结论。最新独立证据见 [Task 025](../reviews/2026-11-07_q1_q3_acceptance_review.md)。
+现有离线 scoring-v3.3（Task 031 后新报告）：A 20/30、B 21/30、C 24/30；它们只证明当前离线路径在该数据/评分下的表现。相对 Task 025 时期（C 23/30），C 的变化来自 H27：该题 `expected_outcome=failed`，旧逻辑静默落 billing 反而"答出内容"，2.7 路由兜底修复后回问＝明确失败，因此按预期通过；H19 路由由 deterministic 变 fanout、H25/H26 变为 clarification，均只影响效率/人工评定题，没有"通过变失败"的题。真实 dev 与单题只证明有界运行，不能支持正式 B/C 质量优劣结论。最新独立证据见 [Task 025](../reviews/2026-11-07_q1_q3_acceptance_review.md)，本轮自检见 [Task 031 归档](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)。
 
 ## 4. 数据、变体与场景协议
 
@@ -47,7 +47,7 @@ C06 超时主路径/恢复 probe、C08 六个审批场景的原始协议保留�
 
 ## 5. 正式实验步骤
 
-1. 先闭合当前代码缺陷和模型配置策略；固定候选代码、数据、评分、Prompt、模型参数、预算、检索配置。
+1. 先闭合当前代码缺陷和模型配置策略（Task 031 已实施并自检，待独立复查）；固定候选代码、数据、评分、Prompt、模型参数、预算、检索配置。
 2. 事前固定重复次数（可采用 N=3，最终以实验方案为准），同批次不调参；保存全部运行，不挑最好的一次。
 3. 对 B/C 跑同一批题，并保留 A 的确定性参照。记录实际 provider/model、配置摘要、代码/数据校验和、模型物理请求、工具逻辑调用及尝试、tokens、失败/拒绝/超限和墙钟延迟。
 4. 完成人工量表与无法机械判断的资金/引用题；预先明确通过标准和评分人，报告人工与自动结果各自的分母。
@@ -63,6 +63,6 @@ C06 超时主路径/恢复 probe、C08 六个审批场景的原始协议保留�
 python -m app.cli evaluate --split heldout
 ```
 
-真实实验使用 --model-provider deepseek，在已有有效凭据、明确预算和新报告位置的条件下按冻结方案执行；本次文档任务不调用真实模型。scripted 只验证装配，缺密钥明确失败，不降级冒充真实测量。
+真实实验使用 --model-provider deepseek，在已有有效凭据、明确预算和新报告位置的条件下按冻结方案执行；本次文档任务不调用真实模型。scripted 只验证装配，缺密钥明确失败，不降级冒充真实测量。Task 031 起报告包含 `bindings.models_by_agent`（逐 Agent 实际 provider/model/参数）与 `bindings.model` 整体信息；离线时 `models_by_agent` 为空并在 markdown 注明"无模型参与"，不把它写成"未记录"。
 
 完成标准：质量/安全/恢复/可插拔证据可复查，逐题与重复结果齐全，人工队列实际评分，失败和限制如实披露。PostgreSQL 实机等其他 MVP 验收要求不因评测报告生成而自动关闭。

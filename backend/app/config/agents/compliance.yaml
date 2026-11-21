@@ -1,17 +1,20 @@
 # Compliance Agent 配置
 # 示例：默认禁用。禁用后该能力会从可用能力清单中消失，
 # 调用方必须显式处理 AgentDisabledError，不允许静默忽略。
+# 业务逻辑**未实现**（调用只会返回 NOT_IMPLEMENTED）；本文件只描述真实状态。
 
 name: compliance
 version: 0.1.0
 enabled: false
-description: 合同合规检查与租约风险提示（默认禁用）
+description: 合同合规检查与租约风险提示（默认禁用，业务逻辑未实现）
 
 capabilities:
   - compliance.check
 
 model_provider: deepseek
-model_name: deepseek-chat
+# 2026-11-21 核对官方 API 文档：`deepseek-chat` 已于 2026-07-24 15:59 UTC 下线，
+# 当前模型名 `deepseek-flash`（DeepSeek-V4.1-Flash-1017）。
+model_name: deepseek-flash
 temperature: 0.0
 max_tokens: 2048
 api_key_env: DEEPSEEK_API_KEY
@@ -24,14 +27,10 @@ allowed_tools:
   - compliance.checklist.read
   - lease.term_extract
 
+# Compliance Agent 未实现，检索也未接入：不得声明任何未实现的检索能力
+# （vector_store/embedding_model/rerank 等字段已被 Schema 移除，写了会校验失败）。
 retrieval_settings:
-  enabled: true
+  enabled: false
   top_k: 8
-  rerank_top_n: 4
-  vector_store: chroma
-  embedding_model: BAAI/bge-base-zh-v1.5
-  bm25_weight: 0.5
-  vector_weight: 0.5
-  min_score: 0.15
 
 log_level: INFO

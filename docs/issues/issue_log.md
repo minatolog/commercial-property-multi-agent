@@ -4,6 +4,36 @@
 
 > 各条目的“已解决/待修”是当时结论，后续复查可能发现遗漏；当前开放项以 [当前基线](../architecture/CURRENT_BASELINE.md) 和最新审查为准。
 
+## [2026-11-21] Task 031 返修 - R1–R4
+
+- **状态**：已返修并自检，**待另一模型独立复查**；未提交。证据见 [031 归档第 10 节](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md) 与 [返修证据](../reviews/task031_evidence/repair/)。R5（`ask` 保守边界）用户 2026-11-21 决定**保持现状**，未改。
+
+| 编号 | 现象与根因 | 解决 | 预防 |
+|---|---|---|---|
+| R1 / P2 | “A-301 租期和欠款？”账单调用失败、合同调用成功，Single 路径仍 SUCCESS。根因：`minimum_evidence_reason` 只判 facts 是否非空，不看问题涉及的领域是否各自取到事实；原用例断言 `{SUCCESS, PARTIAL}` 放过了该情况 | `evidence.domain_coverage`/`missing_domain_outcome`：存在失败调用时，部分领域缺事实 → PARTIAL 并告警；问题涉及的领域全部缺失 → insufficient_evidence。领域口径复用 `matched_domains`、工具命名空间与 `required_permissions` | 状态断言只接受单一期望值，不写集合；对照用例（两领域都成功 / 先失败后纠正 / 无失败不介入）固定边界；输出 `domain_coverage` 供审计 |
+| R2 / P2 | 报告 `model_name` 只是配置名；`deepseek-chat` 官方已下线，但 11-06 报告仍以该名调用成功，实际应答模型从未记录；归档误写“真实调用会失败” | `ModelTurn.served_model` 读取 `response_metadata["model_name"]`；Agent 输出与评测 `models_by_agent` 增加 `served_models`/`served_model_mismatch`，Markdown 增加“实际应答模型”列；更正归档与基线表述，不改历史报告 | 配置值与运行时观测值分开记录、分开命名；未记录用 `None` 表示未知，不能当一致；结论性表述（“会失败”）必须有实测依据 |
+| R3 / P3 | 27 个已跟踪文本文件被改成 CRLF，原始 diff +15k/−13k 行噪音。根因：仓库无 `.gitattributes`；`Path.write_text` 在 Windows 默认写 CRLF；编辑工具沿用 autocrlf 检出的 CRLF | 新增 `.gitattributes`（`* text=auto eol=lf`，二进制 `binary`）；转回 LF；两处 `write_text` 加 `newline="\n"`，并有回归断言报告不含 `\r` | 提交前比较 `git diff --stat` 与 `--ignore-cr-at-eol`；写文件统一显式 `newline`；`git ls-files --eol` 检查工作区 |
+| R4 / P3 | dry-run 副本依次 `shutil.copy2` 主库、`-wal`、`-shm`，并发写入时不一致，`-shm` 不应复制 | 改用 `sqlite3` 备份接口生成一致性快照；源连接 `query_only`（不用 `mode=ro`：只读连接会在台账目录遗留 `-wal`/`-shm`），两个连接显式关闭 | 回归断言预演前后主库/`-wal`/`-shm` SHA-256 不变、WAL 中未 checkpoint 的提交可见、预演与真实执行一致；遗留边界（崩溃残留 WAL）写入归档 |
+
+## [2026-11-21] Task 031 - Z1–Z3、CLI、模型配置、配置真实性与路由兜底
+
+- **状态**：已实现并自检，**待独立复查**；未提交。证据见 [031 归档](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md) 与 [前后证据](../reviews/task031_evidence/)。
+- **对应问题**：Task 025 的 Z1/Z2（P1）、Z3（P2），以及外部复查列出的 CLI、模型配置、配置真实性、路由兜底问题。
+
+| 编号 | 现象与根因 | 解决 | 预防 |
+|---|---|---|---|
+| Z1 / P1 | 默认 `ask` 只传 question，TaskScope 进入 explain，模型可用 B-101 数据回答 A-301 且 exit 0。根因是默认装配未提供可信目标，约束只在 Agent 内、入口没有 | `ask` 增加 `--lease`/`--unit` 并从问题文本解析商铺编号，经 `TaskScope` 注入/拒绝；有业务领域词但无目标即用法错误；回归全部经真实 CLI main→装配→Runtime | 入口级回归替代"只手工构造带 lease_id 的 AgentRequest"；目标来源写入 `target.source` 供审计 |
+| Z2 / P1 | 明确 targeted 的请求在工具参数校验失败后仍 success、facts={}、evidence=0。根因：accepts 未排除失败 ToolExecution（失败 data 为 None，实体校验发现不了），最低取证只看 accepted；越界成功调用的证据也会漏进最终证据集 | `evidence.py` 单点定义"成功且属于目标"才 accepted；失败/拒绝/超时/预算耗尽/越界只作审计；有目标零事实失败、合法零结果保留；Single 与 LLM 共用；证据只取 accepted | 完成条件按 facts 判断而非 accepted 数量；失败审计字段（`failed_tool_calls`）可见；两条 Agent 路径共用同一实现 |
+| Z3 / P2 | Agent 内部有 fund_conclusion/authoritative_answer/fund_check，但默认 CLI 摘要只投影原始模型答案，investigate 默认摘要漏掉 authoritative_amounts | 默认摘要分栏：`trusted_conclusion`（来源 tool_facts、核验状态、渲染文本）与 `model_narrative` 分离；出现 mismatch 时输出 `narrative_discrepancies`；investigate 默认输出 `authoritative_amounts`/`model_narratives`/`narrative_discrepancies` | 测试必须验证默认用户路径而不只验证 Agent 内部字段；差异提示复用既有核对结果，不另做语义判断 |
+| CLI-dryrun | `approve --dry-run` 实际调用 `store.decide()` 写审批台账但不恢复图，台账与 checkpoint 不一致 | 改为在台账**副本**上执行真实 `decide()` 做纯校验：规则只有一份实现，原台账/checkpoint 零字节变化，预演异常与真实执行一致；台账不存在时 exit 3 且不创建 | 回归比较 dry-run 前后全部文件 SHA-256 与台账决定数；帮助文本写明"只校验" |
+| CLI-thread | `approve --thread-id` 定义后从未使用，接通反而可能恢复到非请求线索 | 删除；恢复所用 thread_id 一律取自台账请求并在帮助文本说明 | 解析器级回归断言该参数被拒绝；参数清理时同时检查帮助文本与行为 |
+| CLI-exit | 退出码不区分业务失败与用法错误，脚本无法判断失败层级 | 0 成功 / 1 业务结果失败（零事实、clarification）/ 2 用法或配置错误 / 3 审批错误；写入 `--help` 与 backend README | 每个退出码至少一条测试；`_investigation_exit_code` 与 ask 状态映射集中定义 |
+| CLI-identity | `--principal` 默认值写死，与 API 的 `DEMO_PRINCIPAL_ID` 不一致；显式自报身份无提示 | 默认读 `DEMO_PRINCIPAL_ID`（缺失回退原默认）；显式传入 stderr 提示开发模式并把 `identity_source=cli_flag` 写入报告元数据；approve 无审批权限时回退默认审批人并提示 | 测试断言默认/环境/显式三种来源；不使用 SSO/OAuth（不在本任务范围） |
+| 模型配置 | 领域 YAML 的 model_name/temperature/max_tokens/timeout 不生效，所有 LLM Agent 共用 single.yaml 客户端 | 按各 Agent YAML 构造客户端（同参数缓存共享，键含全部行为参数）；非法配置启动期失败；`agent_models`/`models_by_agent` 逐 Agent 报告实际模型 | 离线测试修改单个领域 YAML 证明只影响该 Agent；`validate_model_config` 不读网络；报告按 Agent 列出实际值 |
+| 模型下线 | 配置写 `deepseek-chat`，官方已于 2026-07-24 完全退役 | 核对官方文档后只改 YAML 为 `deepseek-flash`，记录依据 URL/日期；未调用接口 | 模型名属于配置事实，需在归档中给出官方依据；历史报告保留当时模型名不回写 |
+| 配置真实性 | compliance.yaml 声明 chroma 向量库与 bge 嵌入，代码只有 BM25 | Schema 移除未实现检索字段（声明即加载失败）；修正 YAML；Compliance 保持禁用 | 配置只声明已实现能力；`check` 输出 models/retrieval_settings；非法配置回归 |
+| 路由兜底 | RuleBasedPlanner 未命中领域时静默落 billing，问题会"有答案但不是被问的领域"，且无路由理由 | 词表唯一来源 `vocabulary.py`；未命中返回 `needs_clarification`（零工具、不审批）；报告始终写 `routing_reason`；逐词来源见 planner_vocabulary.md | 不为某道评测题加词；评测如实报告 H19/H25/H26/H27 的路由/通过变化；澄清报告形状稳定并有回归 |
+
 ## [2026-11-10] Task 030 - U3 修复复查仍有遗漏
 
 - **状态**：U1/U2 原始反例通过；U3 部分修复，以下两处 P2 未修。见 [独立复查](../reviews/2026-11-10_task029_ui_fixes_acceptance_review.md)。下方 029 是当时自检结论。

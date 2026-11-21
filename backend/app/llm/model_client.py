@@ -30,6 +30,8 @@ __all__ = [
     "ModelTurn",
     "ToolSpec",
     "ToolSpecBuilder",
+    "describe_served_models",
+    "served_models_of",
 ]
 
 
@@ -96,6 +98,35 @@ class ModelTurn(BaseModel):
     invalid_tool_calls: tuple[InvalidToolCallRecord, ...] = ()
     usage: TokenUsage | None = None
     finish_reason: str | None = None
+    #: R2：服务端响应里声明的应答模型（OpenAI 兼容接口的 `model` 字段）；
+    #: 与配置的 `model_name` 不是一回事——同一个配置名可能被服务端路由到别的模型。
+    #: 离线 / 脚本 / 服务端未返回时为 `None`。
+    served_model: str | None = None
+
+
+def served_models_of(turns: Any) -> list[str]:
+    """按出现顺序去重的实际应答模型名（忽略 `None`）。"""
+
+    seen: dict[str, None] = {}
+    for turn in turns or ():
+        name = getattr(turn, "served_model", None)
+        if name:
+            seen.setdefault(str(name), None)
+    return list(seen)
+
+
+def describe_served_models(configured: str | None, served: list[str]) -> dict[str, Any]:
+    """配置名与实际应答名并列给出；不一致时 `served_model_mismatch=True`。
+
+    `served_models` 为空时 mismatch 为 `None`（未知，不是"一致"）。
+    """
+
+    return {
+        "served_models": list(served),
+        "served_model_mismatch": (
+            None if not served else any(name != configured for name in served)
+        ),
+    }
 
 
 class ToolSpec(BaseModel):

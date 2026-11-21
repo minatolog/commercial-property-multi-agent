@@ -1,0 +1,41 @@
+{
+  "agents": [
+    "billing",
+    "compliance",
+    "lease",
+    "property",
+    "single"
+  ],
+  "capabilities": [
+    "billing.arrears_check",
+    "billing.statement",
+    "lease.query",
+    "lease.renewal_evaluation",
+    "property.work_orders",
+    "single.investigate"
+  ],
+  "declared_allowed_tools": [
+    "billing.arrears.calculate",
+    "billing.statement.read",
+    "compliance.checklist.read",
+    "document.search",
+    "lease.lookup",
+    "lease.term_extract",
+    "property.work_orders.read"
+  ],
+  "disabled_capabilities": [
+    "compliance.check"
+  ],
+  "registered_tools": [
+    "billing.arrears.calculate",
+    "billing.statement.read",
+    "document.search",
+    "lease.lookup",
+    "property.work_orders.read"
+  ],
+  "skipped": [],
+  "unimplemented_allowed_tools": [
+    "compliance.checklist.read",
+    "lease.term_extract"
+  ]
+}

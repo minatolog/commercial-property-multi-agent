@@ -27,24 +27,23 @@ _FORBIDDEN_SECRET_KEYS = frozenset(
 
 
 class RetrievalSettings(BaseModel):
+    """检索配置：**只声明当前真实实现的能力**（Task 031 / 2.6）。
+
+    实际实现只有 BM25（`app/rag/bm25.py` + `app/rag/service.py`）：确定性、零外部服务。
+    向量库（chroma）、嵌入模型（bge）、重排（rerank）、混合权重等**尚未实现**，
+    因此不再出现在 Schema 里——写了会因 `extra="forbid"` 在加载期直接失败，
+    而不是留下一份"看起来支持、实际被忽略"的运行配置。未来计划写进文档，不写进配置。
+
+    保留字段的取舍：
+    - `enabled`：该 Agent 是否启用文档检索（装配层据此决定是否挂检索工具）。
+    - `top_k`：检索返回条数的声明值；当前检索工具由调用方 payload 指定 `top_k`，
+      因此该字段是**声明**而非强约束，保留它是为了记录 Agent 的意图上限。
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: bool = False
     top_k: int = Field(default=5, ge=1, le=50)
-    rerank_top_n: int = Field(default=3, ge=1, le=50)
-    vector_store: str = "chroma"
-    embedding_model: str = "BAAI/bge-base-zh-v1.5"
-    bm25_weight: float = Field(default=0.5, ge=0.0, le=1.0)
-    vector_weight: float = Field(default=0.5, ge=0.0, le=1.0)
-    min_score: float = Field(default=0.0, ge=0.0, le=1.0)
-
-    @model_validator(mode="after")
-    def _check_weights(self) -> "RetrievalSettings":
-        if self.rerank_top_n > self.top_k:
-            raise ValueError("rerank_top_n 不能大于 top_k")
-        if self.bm25_weight + self.vector_weight <= 0:
-            raise ValueError("bm25_weight 与 vector_weight 不能同时为 0")
-        return self
 
 
 class AgentConfig(BaseModel):

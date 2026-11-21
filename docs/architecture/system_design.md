@@ -70,4 +70,4 @@ RAG 当前为 BM25，真实解析的是合成 PDF；页码、条款、版本与�
 
 工具/模型共享预算；模型请求按物理次数计量，工具按一次逻辑调用计量并另记尝试。checkpoint 使用本机 SQLite；一条 thread 只承载一次新调查，恢复走现有恢复入口。审批只产出 approved_draft_only，业务副作用为空。
 
-最新代码问题 Z1–Z3、独立模型配置、真实评测、人工量表与 PostgreSQL 实机均未因本文更新而完成。细节见 [当前基线](CURRENT_BASELINE.md)、[运行时契约](agent_runtime_contracts.md) 与 [进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。部署、分布式化和 MCP 属后续可选扩展。
+最新代码问题：Z1–Z3、CLI 契约、逐 Agent 模型配置、配置真实性与路由兜底已由 Task 031 实施并自检，**待独立复查**；真实评测、人工量表与 PostgreSQL 实机仍未完成。细节见 [当前基线](CURRENT_BASELINE.md)、[运行时契约](agent_runtime_contracts.md) 与 [进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。部署、分布式化和 MCP 属后续可选扩展。

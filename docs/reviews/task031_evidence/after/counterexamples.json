@@ -1,0 +1,193 @@
+{
+  "z1_ask_wrong_target": {
+    "argv": [
+      "ask",
+      "A301现在还欠多少",
+      "--provider",
+      "fake"
+    ],
+    "exit": 1,
+    "status": "failed",
+    "error_code": "insufficient_evidence",
+    "stdout_keys": [
+      "budget",
+      "error",
+      "evidence",
+      "evidence_count",
+      "failed_tool_calls",
+      "identity",
+      "model",
+      "model_narrative",
+      "narrative_discrepancies",
+      "provider",
+      "rejected_outputs",
+      "rounds",
+      "run_id",
+      "status",
+      "stop_reason",
+      "target",
+      "task_scope",
+      "tool_calls",
+      "tool_trace_count",
+      "trace_id",
+      "trusted_conclusion",
+      "usage",
+      "warnings"
+    ],
+    "stderr_head": [
+      "[deprecated] --provider 已弃用，请改用 --model-provider（fake→scripted，deepseek→deepseek）",
+      "agent 执行失败"
+    ],
+    "answer_or_narrative": null,
+    "target_mode": "targeted",
+    "target_lease": "lease_xh_a301_2025",
+    "evidence_count": 0,
+    "failed_tool_calls": [
+      {
+        "call_id": null,
+        "error_code": "invalid_tool_arguments",
+        "message": "参数 lease_id='lease_jl_b101_2025' 超出本次任务范围（应为 'lease_xh_a301_2025'）；工具 billing.statement.read 的调用已被拒绝",
+        "status": "rejected_arguments",
+        "tool": "billing.statement.read"
+      }
+    ],
+    "trusted_conclusion_source": "none"
+  },
+  "z2_failed_tool_counted_as_evidence": {
+    "status": "failed",
+    "error_code": "insufficient_evidence",
+    "facts": null,
+    "evidence_count": 0,
+    "tool_calls": null,
+    "failed_tool_calls": null,
+    "error_details_keys": [
+      "failed_tool_calls",
+      "rejected_outputs",
+      "task_scope",
+      "tool_calls",
+      "warnings"
+    ]
+  },
+  "z3_default_summary": {
+    "ask": {
+      "argv": [
+        "ask",
+        "A-301 还欠多少？",
+        "--provider",
+        "fake"
+      ],
+      "exit": 0,
+      "status": "success",
+      "error_code": null,
+      "stdout_keys": [
+        "budget",
+        "error",
+        "evidence",
+        "evidence_count",
+        "failed_tool_calls",
+        "identity",
+        "model",
+        "model_narrative",
+        "narrative_discrepancies",
+        "provider",
+        "rejected_outputs",
+        "rounds",
+        "run_id",
+        "status",
+        "stop_reason",
+        "target",
+        "task_scope",
+        "tool_calls",
+        "tool_trace_count",
+        "trace_id",
+        "trusted_conclusion",
+        "usage",
+        "warnings"
+      ],
+      "stderr_head": [
+        "[deprecated] --provider 已弃用，请改用 --model-provider（fake→scripted，deepseek→deepseek）"
+      ],
+      "has_trusted_conclusion": true,
+      "trusted_conclusion": {
+        "check_detail": "字段金额与工具事实一致",
+        "check_status": "verified",
+        "fund_conclusion": {
+          "currency": "CNY",
+          "invoiced_total": "52596.00",
+          "outstanding_total": "18036.00",
+          "paid_total": "34560.00",
+          "settled": false
+        },
+        "rendered": "应收 52596.00、已收 34560.00、未收 18036.00（CNY）",
+        "source": "tool_facts",
+        "verified": true
+      },
+      "raw_answer_field": null,
+      "model_narrative": {
+        "answer": "应收 52596.00、已收 34560.00、未收 18036.00。",
+        "answer_check_detail": "答案金额与工具事实一致",
+        "answer_check_status": "consistent",
+        "fund_check_status": "verified"
+      },
+      "narrative_discrepancies": []
+    },
+    "investigate": {
+      "argv": [
+        "investigate"
+      ],
+      "exit": 0,
+      "status": null,
+      "error_code": null,
+      "stdout_keys": [
+        "agent_models",
+        "agent_results",
+        "approval_request",
+        "approval_status",
+        "approved_draft",
+        "authoritative_amounts",
+        "budget",
+        "clarification",
+        "conflicts",
+        "disclaimer",
+        "failures",
+        "findings",
+        "identity",
+        "lease_id",
+        "missing_information",
+        "model_narratives",
+        "narrative_discrepancies",
+        "proposed_draft",
+        "requires_human_review",
+        "revision",
+        "route",
+        "routing_reason",
+        "thread_id",
+        "tool_traces",
+        "verdict",
+        "warnings"
+      ],
+      "stderr_head": [],
+      "has_authoritative_amounts": true,
+      "authoritative_amounts": [
+        {
+          "agent": "billing",
+          "capability": "billing.statement",
+          "check_note": "本子任务没有模型叙述，核对状态不适用",
+          "check_status": "not_checkable",
+          "fund_conclusion": {
+            "currency": "CNY",
+            "invoiced_total": "52596.00",
+            "outstanding_total": "18036.00",
+            "paid_total": "34560.00",
+            "settled": false
+          },
+          "rendered": "应收 52596.00、已收 34560.00、未收 18036.00（CNY）",
+          "source": "tool_facts",
+          "subtask_id": "st_2_billing"
+        }
+      ],
+      "model_narratives": [],
+      "narrative_discrepancies": []
+    }
+  }
+}

@@ -55,6 +55,7 @@ from app.agents.factory import AGENT_IMPLEMENTATIONS, build_agent, build_registr
 from app.config.loader import load_all_agent_configs
 from app.config.schema import AgentConfig
 from app.llm.adapter import get_adapter
+from app.llm.factory import validate_model_config
 from app.orchestration.coordinator import check_plan_feasibility, summarize_results
 from app.tools.base import assert_tool_allowed, assert_tool_invocable
 
@@ -151,7 +152,40 @@ def main() -> int:
         ("拒绝绝对路径 prompt_path", {"prompt_path": "D:/tmp/system.md"}),
         ("拒绝路径穿越 prompt_path", {"prompt_path": "../secret.md"}),
         ("拒绝非法 capability 格式", {"capabilities": ["leasequery"]}),
-        ("拒绝 rerank_top_n > top_k", {"retrieval_settings": {"top_k": 2, "rerank_top_n": 5}}),
+        # Task 031 / 2.6：检索实现只有 BM25；未实现的检索能力不得出现在运行配置里。
+        (
+            "拒绝未实现的 vector_store",
+            {"retrieval_settings": {"enabled": True, "top_k": 5, "vector_store": "chroma"}},
+        ),
+        (
+            "拒绝未实现的 embedding_model",
+            {
+                "retrieval_settings": {
+                    "enabled": True,
+                    "top_k": 5,
+                    "embedding_model": "BAAI/bge-base-zh-v1.5",
+                }
+            },
+        ),
+        (
+            "拒绝未实现的 rerank_top_n",
+            {"retrieval_settings": {"enabled": True, "top_k": 5, "rerank_top_n": 3}},
+        ),
+        (
+            "拒绝未实现的 bm25_weight/vector_weight 混合权重",
+            {
+                "retrieval_settings": {
+                    "enabled": True,
+                    "top_k": 5,
+                    "bm25_weight": 0.4,
+                    "vector_weight": 0.6,
+                }
+            },
+        ),
+        (
+            "拒绝未实现的 min_score",
+            {"retrieval_settings": {"enabled": True, "top_k": 5, "min_score": 0.2}},
+        ),
         ("拒绝未知字段", {"unexpected_field": 1}),
         ("拒绝非法 api_key_env 命名", {"api_key_env": "deepseek-key"}),
     ]
@@ -163,11 +197,37 @@ def main() -> int:
             lambda o=override: AgentConfig.model_validate({**base, **o}),
         )
 
+    check(
+        "检索配置只保留已实现字段（enabled/top_k）",
+        configs["lease"].retrieval_settings is not None
+        and configs["lease"].retrieval_settings.top_k == 6
+        and not hasattr(configs["lease"].retrieval_settings, "vector_store"),
+    )
+    check("compliance 仍为禁用且未实现业务逻辑", configs["compliance"].enabled is False)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # 加载器必须在**加载期**拒绝声明未实现检索能力的配置（app.cli check 依赖这一点）
+        bad = Path(tmp) / "lease.yaml"
+        bad.write_text(
+            "name: lease\nversion: 1.0.0\ncapabilities: [lease.query]\n"
+            "model_provider: deepseek\nmodel_name: deepseek-flash\n"
+            "api_key_env: DEEPSEEK_API_KEY\n"
+            "prompt_path: app/agents/lease/prompts/system.md\n"
+            "retrieval_settings:\n  enabled: true\n  top_k: 5\n  vector_store: chroma\n",
+            encoding="utf-8",
+        )
+        exc = expect_error(
+            "加载期拒绝未实现的 vector_store",
+            AgentConfigError,
+            lambda: load_all_agent_configs(tmp),
+        )
+        check("错误信息点名未实现字段", "vector_store" in str(exc))
+
     with tempfile.TemporaryDirectory() as tmp:
         ghost = Path(tmp) / "ghost.yaml"
         ghost.write_text(
             "name: ghost\nversion: 0.1.0\ncapabilities: [ghost.check]\n"
-            "model_provider: deepseek\nmodel_name: deepseek-chat\n"
+            "model_provider: deepseek\nmodel_name: deepseek-flash\n"
             "prompt_path: app/agents/lease/prompts/system.md\n",
             encoding="utf-8",
         )
@@ -183,7 +243,7 @@ def main() -> int:
         mismatch = Path(tmp) / "lease.yaml"
         mismatch.write_text(
             "name: wrong_name\nversion: 0.1.0\ncapabilities: [x.y]\n"
-            "model_provider: deepseek\nmodel_name: deepseek-chat\n"
+            "model_provider: deepseek\nmodel_name: deepseek-flash\n"
             "prompt_path: app/agents/lease/prompts/system.md\n",
             encoding="utf-8",
         )
@@ -242,7 +302,7 @@ def main() -> int:
             "version": "0.0.1",
             "capabilities": ["lease.query"],
             "model_provider": "deepseek",
-            "model_name": "deepseek-chat",
+            "model_name": "deepseek-flash",
             "prompt_path": "app/agents/lease/prompts/system.md",
         }
     )
@@ -318,11 +378,57 @@ def main() -> int:
     check("lease 传递 temperature", lease_params["temperature"] == 0.1)
     check("temperature 为 null 时不下发该参数", "temperature" not in billing_params)
     check("max_tokens 正常下发", billing_params["max_tokens"] == 1024)
-    check("model 名称来自配置", lease_params["model"] == "deepseek-chat")
+    # 2026-11-21 核对官方文档：`deepseek-chat` 已于 2026-07-24 15:59 UTC 下线，
+    # 当前模型名 `deepseek-flash`（DeepSeek-V4.1-Flash-1017）。
+    check(
+        "model 名称来自配置（当前官方模型名 deepseek-flash）",
+        lease_params["model"] == "deepseek-flash"
+        and lease_params["model"] == configs["lease"].model_name,
+    )
     expect_error(
         "未登记厂商被拒绝",
         UnsupportedProviderError,
         lambda: get_adapter("openai"),
+    )
+
+    # Task 031 / 2.5：每个 Agent 的模型声明独立校验并输出可审计参数
+    lease_model = validate_model_config(configs["lease"])
+    billing_model = validate_model_config(configs["billing"])
+    check(
+        "逐 Agent 模型参数可审计（lease 与 billing 不同）",
+        lease_model["temperature"] == 0.1
+        and lease_model["max_tokens"] == 2048
+        and lease_model["timeout_seconds"] == 30
+        and billing_model["temperature"] is None
+        and billing_model["max_tokens"] == 1024
+        and billing_model["timeout_seconds"] == 20,
+    )
+    check(
+        "审计字段包含 provider/model/api_key_env",
+        lease_model["provider"] == "deepseek"
+        and lease_model["model_name"] == "deepseek-flash"
+        and lease_model["api_key_env"] == "DEEPSEEK_API_KEY",
+    )
+    expect_error(
+        "未知 provider 在模型校验期报错",
+        AgentConfigError,
+        lambda: validate_model_config(
+            configs["lease"].model_copy(update={"model_provider": "openai"})
+        ),
+    )
+    expect_error(
+        "缺 api_key_env 在模型校验期报错",
+        AgentConfigError,
+        lambda: validate_model_config(
+            configs["lease"].model_copy(update={"api_key_env": None})
+        ),
+    )
+    expect_error(
+        "temperature 越界在模型校验期报错（绕过 Schema 也必须拦住）",
+        AgentConfigError,
+        lambda: validate_model_config(
+            configs["lease"].model_copy(update={"temperature": 9.9})
+        ),
     )
 
     saved = os.environ.pop("DEEPSEEK_API_KEY", None)

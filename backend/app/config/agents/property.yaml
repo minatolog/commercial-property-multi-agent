@@ -10,7 +10,9 @@ capabilities:
   - property.work_orders
 
 model_provider: deepseek
-model_name: deepseek-chat
+# 2026-11-21 核对官方 API 文档：`deepseek-chat` 已于 2026-07-24 15:59 UTC 下线，
+# 当前模型名 `deepseek-flash`（DeepSeek-V4.1-Flash-1017）。
+model_name: deepseek-flash
 temperature: null
 max_tokens: 1024
 api_key_env: DEEPSEEK_API_KEY

@@ -69,6 +69,9 @@ logs/
 Thumbs.db
 desktop.ini
 .idea/
+tools/flowise/.runtime/
+tools/flowise/.data/
+tools/flowise/node_modules/
 
 # ---------------------------------------------------------------------------
 # Runtime state (Task 012) - LangGraph checkpoints / approval ledger / local

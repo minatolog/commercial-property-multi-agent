@@ -4,6 +4,30 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-21] 任务 031 返修 - R1–R4（Claude Code）
+
+- **起点**：main / e3b3594 + Task 031 未提交改动；依据 [Task 031 复查](../reviews/2026-11-21_task031_acceptance_review.md) 与 `docs/handoffs/CLAUDE_CODE_HANDOFF_2026-11-21.md`。返修前复跑 529 tests OK（skipped=1）、70 项契约，与 Task 031 自报一致。
+- **R3 换行符**：新增 `.gitattributes`（`* text=auto eol=lf`，二进制声明 `binary`）；本轮改动/新增的文本文件统一为 LF；`runner.write_report` 与 CLI summary 写文件加 `newline="\n"`；`git diff --stat` 与 `--ignore-cr-at-eol` 一致，`.gitignore` 只剩 Flowise 三行。
+- **R1 部分取证**：Single 路径存在失败调用时按问题领域（`matched_domains`）核对事实覆盖：部分缺失 → PARTIAL 并告警缺哪个领域；全部缺失（只剩无关领域事实）→ insufficient_evidence。LLM 领域 Agent 只负责单一 capability，保持能力契约判定（理由见归档 10.2）。
+- **R2 实际应答模型**：`ModelTurn.served_model` 读取 `response_metadata`；Agent 输出、评测 `models_by_agent` 与 `ask` 摘要同时给出配置名与实际应答名，不一致时标注，未记录为 `None`；更正归档中“真实调用会失败”的表述，基线注明历史报告模型名为配置名。未调用付费接口。
+- **R4 dry-run 快照**：`_copy_for_preview` 改用 `sqlite3` 备份接口（源连接 `query_only`，两个连接显式关闭），不再复制 `-wal`/`-shm`。
+- **验证**：551 tests OK（skipped=1，新增 22）、70 项契约；`check`/`ask`/`investigate --model-provider scripted` exit 0；离线 heldout 重跑（`20261121T093757_*`）与 Task 031 报告逐题一致。
+- **归档**：[031 归档第 10 节](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)、[返修证据](../reviews/task031_evidence/repair/)、复查报告“返修结果”节。R5 未改：用户 2026-11-21 决定**保持现状**。未提交/推送。**待另一模型独立复查。**
+
+## [2026-11-21] 任务 031 - 核心正确性收尾（Z1–Z3、CLI、逐 Agent 模型配置、配置真实性、路由兜底）
+
+- **起点**：main / e3b3594；保留未提交 `.gitignore` 与未跟踪 `tools/flowise/`；本轮未提交/推送/打 Tag/部署。
+- **原始 Prompt**：[031 归档](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md) 第 3 节（逐字保存）。
+- **协作**：按 Prompt 第 7 节使用 Agent Teams：1 名负责人 + 3 名成员（Z2 取证、2.5/2.6 模型与配置、2.7 路由与词表）；`cli.py` 只由负责人修改，改动合并后由负责人统一重跑评测与对比。
+- **Z1**：`ask` 新增 `--lease`/`--unit`，并从问题文本的商铺编号解析可信目标，经 `TaskScope` 注入/拒绝；有业务领域词但无目标 → 用法错误（不再静默 explain）；纯说明问题仍可 explain。原始反例由 exit 0/success 变为 exit 1/failed（`insufficient_evidence`）。
+- **Z2**：accepted 只含"执行成功且输出仍属于本次目标"的调用；失败/被拒绝/超时/预算耗尽/越界只作审计；有目标零事实失败，合法零结果（零工单、条款无命中）保留成功；Single 与 LLM 路径共用 `evidence.py` 单点口径。
+- **Z3**：`ask`/`investigate` 默认摘要分栏展示可信资金结论、核验状态与差异提示（复用 `fund_check`/`narrative_discrepancies`），模型原话单列。
+- **CLI**：统一 `--model-provider`（旧 `--provider` 为弃用别名，fake→scripted）；`investigate --budget-model-calls`；`approve --dry-run` 改为只校验、不写台账/不恢复图（台账与 checkpoint 逐字节不变）；删除无效 `approve --thread-id`；退出码 0/1/2/3 分离并写入帮助与 backend README；`--principal` 默认读 `DEMO_PRINCIPAL_ID`，显式传入提示开发模式并记录 `identity_source`。
+- **模型配置**：每个 Agent 按自己的 YAML 建客户端（同参数缓存共享，缓存键含全部行为参数），非法配置启动期失败；`bundle.agent_models` 与评测 `models_by_agent` 逐 Agent 记录实际 provider/model/参数。官方文档核对：`deepseek-chat` 已于 2026-07-24 下线，5 个 YAML 改为 `deepseek-flash`（未调用付费接口）。
+- **配置真实性与路由**：`RetrievalSettings` 只保留 `enabled`/`top_k`，声明 chroma/bge/rerank 等未实现项即加载失败；`RuleBasedPlanner` 未命中返回 `needs_clarification`，报告始终写 `routing_reason`，词表见 [planner_vocabulary](../architecture/planner_vocabulary.md)。
+- **验证**：529 tests OK（skipped=1）、70 项契约、`check` exit 0、无效配置 exit 2；脚本化 `ask`/`investigate` 均 exit 0；Z1–Z3 原始反例逐条前后对照；离线 heldout 改动后 A 20/30、B 21/30、C 24/30（C 的 H27 由失败变通过；H19/H25/H26 只变路由效率或人工评定题；用例/fixture/评分校验和未变）。
+- **证据与归档**：[031 归档](../prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)、[前后证据目录](../reviews/task031_evidence/)；同步当前基线、路线图、架构与开发指南、评测计划、根 README、backend README、问题记录与检查点。**待独立复查**。
+
 ## [2026-11-10] 任务 030 - Task 029 修复独立复查
 
 - **起点**：main / 8569cc2，保留 027–029 未提交成果；仅新增审查文档和同步状态，未改实现、测试或提交/推送。

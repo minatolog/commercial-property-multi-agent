@@ -260,6 +260,45 @@ class TestInvestigationEngine(unittest.TestCase):
         self.assertEqual(bundle.engine, "deterministic")
         self.assertEqual(bundle.model_provider, "offline")
 
+    def test_deterministic_engine_has_no_agent_models(self) -> None:
+        """Task 031 / 2.5：离线时 agent_models 必须为空（没模型参与，不是"未记录"）。"""
+
+        bundle = build_investigation_bundle()
+        self.assertEqual(bundle.agent_models, {})
+
+    def test_llm_engine_by_name_client_records_per_agent_models(self) -> None:
+        """既有 `engine="llm", model_client=...` 兼容路径也要记录逐 Agent 模型。"""
+
+        bundle = build_investigation_bundle(engine="llm", model_client=_scripted())
+        self.assertEqual(
+            set(bundle.agent_models), {"lease", "billing", "property", "single"}
+        )
+        for entry in bundle.agent_models.values():
+            self.assertEqual(entry["provider"], "scripted")
+            self.assertEqual(entry["model_name"], "scripted-tool-model")
+            self.assertTrue(entry["client_is_shared"])
+        # 每个条目的 config_source 必须是对应 Agent 自己的 YAML 文件名
+        self.assertEqual(
+            {name: entry["config_source"] for name, entry in bundle.agent_models.items()},
+            {name: f"{name}.yaml" for name in bundle.agent_models},
+        )
+
+    def test_model_provider_conflicts_are_explicit(self) -> None:
+        """冲突/缺失组合必须显式失败，不允许静默忽略模型输入。"""
+
+        with self.assertRaises(ValueError):
+            build_investigation_bundle(engine="deterministic", model_provider="deepseek")
+        with self.assertRaises(ValueError):
+            build_investigation_bundle(
+                engine="llm",
+                model_provider="deepseek",
+                model_client=_scripted(),
+            )
+        with self.assertRaises(ValueError):
+            build_investigation_bundle(model_provider="magic")
+        with self.assertRaises(ValueError):
+            build_investigation_bundle(client_factory=lambda config: _scripted())
+
 
 class TestConcurrentBudgetAccounting(unittest.TestCase):
     """回归（Task 018）：并发子 Agent 的模型调用必须**逐次**记账，不能被 ID 去重吞掉。"""
@@ -322,6 +361,12 @@ class TestBaselineModelPaths(unittest.TestCase):
         self.assertTrue(result.facts, "模型路径也必须产出可评分事实")
         self.assertGreater(result.model_calls, 0)
         self.assertEqual(result.answer, "已按工具结果核对。")
+        # Task 031 / 2.5：B 基线要记录实际模型（来自注入客户端 + single.yaml）
+        self.assertEqual(set(result.models_by_agent), {"single"})
+        entry = result.models_by_agent["single"]
+        self.assertEqual(entry["provider"], "scripted")
+        self.assertEqual(entry["model_name"], "scripted-tool-model")
+        self.assertEqual(entry["config_source"], "single.yaml")
 
     def test_multi_agent_baseline_uses_model_when_injected(self) -> None:
         case = self._case()
@@ -330,12 +375,24 @@ class TestBaselineModelPaths(unittest.TestCase):
         self.assertGreater(result.model_calls, 0)
         self.assertTrue(result.facts)
         self.assertNotIn("（本次没有取到可用事实）", result.answer)
+        # Task 031 / 2.5：C 基线的逐 Agent 模型来自 bundle.agent_models
+        self.assertEqual(
+            set(result.models_by_agent), {"lease", "billing", "property", "single"}
+        )
+        self.assertTrue(
+            all(
+                entry["provider"] == "scripted"
+                for entry in result.models_by_agent.values()
+            )
+        )
 
     def test_offline_baselines_unchanged(self) -> None:
         case = self._case()
         offline = asyncio.run(SingleAgentBaseline().run(case=case))
         self.assertEqual(offline.model_calls, 0)
         self.assertEqual(SingleAgentBaseline().engine, "deterministic")
+        # 离线统一 `{}`：没有模型参与
+        self.assertEqual(offline.models_by_agent, {})
 
 
 class TestModelProviderFactory(unittest.TestCase):
@@ -357,6 +414,30 @@ class TestModelProviderFactory(unittest.TestCase):
             self.skipTest("本机已配置 DEEPSEEK_API_KEY，跳过缺密钥用例")
         with self.assertRaises(MissingApiKeyError):
             build_model_client("deepseek")
+
+    def test_deepseek_provider_still_reads_single_yaml(self) -> None:
+        """Task 031：`build_model_client("deepseek")` 的既有语义不变（Provider 级入口）。
+
+        按各 Agent YAML 构造客户端是新增的 `build_model_client_for_config`；
+        这里守住旧入口不被顺手改掉（cli.py 的 evaluate/ask 依赖它）。
+        """
+
+        import os
+
+        from app.config.loader import load_agent_config
+
+        single = load_agent_config(CONFIG_DIR / "single.yaml")
+        saved = os.environ.get("DEEPSEEK_API_KEY")
+        os.environ["DEEPSEEK_API_KEY"] = "placeholder-not-used"
+        try:
+            client = build_model_client("deepseek")
+        finally:
+            if saved is None:
+                os.environ.pop("DEEPSEEK_API_KEY", None)
+            else:
+                os.environ["DEEPSEEK_API_KEY"] = saved
+        self.assertEqual(client.provider, "deepseek")
+        self.assertEqual(client.model_name, single.model_name)
 
     def test_unknown_provider_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

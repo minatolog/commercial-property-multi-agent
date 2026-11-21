@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import tempfile
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -567,6 +568,91 @@ class ApprovalStore:
         return ApprovalDecisionOutcome(
             request=updated, decided_role=role, decision=decision
         )
+
+    def preview_decision(
+        self,
+        request_id: str,
+        *,
+        principal_id: str,
+        decision: str,
+        draft_version: int,
+        principal: dict[str, Any],
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """只做校验的审批预演（Task 031 / 2.4.2）：**不写入原台账、不恢复图**。
+
+        为什么在**副本**上执行真实 `decide()` 而不是重写一套校验：
+
+        - 校验规则（权限/角色/版本/自批/重复/终态/过期/阶段顺序/并发唯一约束）
+          只允许有一份实现，复制一份必然随时间漂移；
+        - 副本由 SQLite 在线备份接口生成一致性快照（含 WAL 中已提交的内容，R4），
+          校验结果与真实执行完全一致；原台账文件一个字节都不会被写；
+        - 过期/幂等/冲突等异常与真实执行**同样抛出**，因此"dry-run 通过"确实意味着
+          "真实执行也会通过"。
+
+        代价是每次预演会复制一份台账到临时目录；台账是本地 SQLite 演示规模，可接受。
+        """
+
+        if decision not in {"approve", "reject"}:
+            raise ApprovalValidationError(f"非法审批决定: {decision!r}")
+
+        with tempfile.TemporaryDirectory(prefix="approval_preview_") as tmp:
+            copy_path = Path(tmp) / "approval_preview.sqlite"
+            self._copy_for_preview(copy_path)
+            preview_store = ApprovalStore(copy_path)
+            outcome = preview_store.decide(
+                request_id,
+                principal_id=principal_id,
+                decision=decision,
+                draft_version=draft_version,
+                principal=principal,
+                reason=reason,
+            )
+            return {
+                "request_id": request_id,
+                "decision": decision,
+                "draft_version": draft_version,
+                "decided_role": outcome.decided_role,
+                "idempotent": outcome.idempotent,
+                "would_write": not outcome.idempotent,
+                "current_status": outcome.request.status,
+                "request": outcome.request.as_dict(),
+                "note": "dry-run 只做校验：未写入审批台账、未恢复图",
+            }
+
+    def _copy_for_preview(self, target: Path) -> None:
+        """用 SQLite 在线备份接口把台账做成一致性快照（Task 031 返修 / R4）。
+
+        为什么不再逐个 `shutil.copy2` 主库、`-wal`、`-shm`：三个文件不是同一时刻复制的，
+        并发写入时快照可能不一致；`-shm` 是进程间共享内存索引，本就不该复制。
+        `Connection.backup()` 在一个读事务里拷贝页面，WAL 中已提交的内容也包含在内。
+
+        源连接为什么不用只读 URI（`mode=ro`）：WAL 库在没有 `-wal`/`-shm` 时，只读连接会
+        创建这两个文件且关闭时无法删除，原台账目录会多出文件。这里用普通连接 +
+        `PRAGMA query_only=ON`（拒绝任何写语句）：本连接只读页面；关闭时若是最后一个连接，
+        SQLite 删除自己创建的空 `-wal`/`-shm`，主库字节不变。
+        已知边界：若进程崩溃遗留了含未 checkpoint 帧的 `-wal` 且此刻没有其他连接，
+        关闭时 SQLite 会把这些已提交帧 checkpoint 进主库（内容等价、字节会变）。
+        `ApprovalStore` 每次操作都关闭连接，正常运行不会出现这种遗留。
+
+        两个连接都显式关闭，否则 Windows 下临时目录无法清理。
+        """
+
+        if not self.path.is_file():
+            raise ApprovalRequestNotFoundError(
+                f"审批台账不存在: {self.path}（dry-run 不会创建台账）"
+            )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source = sqlite3.connect(self.path, timeout=10.0)
+        try:
+            source.execute("PRAGMA query_only=ON")
+            destination = sqlite3.connect(target)
+            try:
+                source.backup(destination)
+            finally:
+                destination.close()
+        finally:
+            source.close()
 
     # ---------------- 幂等恢复 ----------------
 

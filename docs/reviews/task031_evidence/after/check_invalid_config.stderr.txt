@@ -1,0 +1,1 @@
+[error] AgentConfigError: 配置校验失败: D:\commercial-property-multi-agent\backend\app\config\agents\compliance.yaml: retrieval_settings.vector_store: Extra inputs are not permitted

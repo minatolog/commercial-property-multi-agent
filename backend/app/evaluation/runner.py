@@ -73,6 +73,8 @@ class EvaluationReport:
                 "fixture_sha256": self.fixture_sha256,
                 "scoring_version": self.scoring_version,
                 "model": self.model,
+                # Task 031 / 2.5：按 Agent 列出实际模型（离线时为 {}）
+                "models_by_agent": self.summary.get("models_by_agent") or {},
                 "config": self.config,
             },
             "started_at": self.started_at,
@@ -124,6 +126,43 @@ def _fund_summary(scores: list[CaseScore]) -> dict[str, Any]:
             "unverified=叙述未绑定字段（未验证，不算通过）"
         ),
     }
+
+
+def _models_by_agent_of(results: list[BaselineResult]) -> dict[str, dict[str, Any]]:
+    """从基线条目里取"每个 Agent 实际使用的模型"。
+
+    配置部分（provider/model_name/参数）同一基线内各题一致，取第一条；
+    R2：`served_models`（服务端实际声明的应答模型）逐题可能不同，按全部题目合并去重，
+    与配置名不一致时 `served_model_mismatch=True`；从未记录到时为 `None`（未知）。
+    """
+
+    merged: dict[str, dict[str, Any]] = {}
+    for result in results:
+        for name, entry in (result.models_by_agent or {}).items():
+            target = merged.setdefault(name, dict(entry))
+            served = list(target.get("served_models") or ())
+            for model in entry.get("served_models") or ():
+                if model and str(model) not in served:
+                    served.append(str(model))
+            target["served_models"] = served
+    for target in merged.values():
+        served = target.get("served_models") or []
+        target["served_model_mismatch"] = (
+            None if not served else any(model != target.get("model_name") for model in served)
+        )
+    return merged
+
+
+def _served_cell(entry: dict[str, Any]) -> str:
+    """报告里的"实际应答模型"一格：未记录 / 一致 / ⚠ 与配置名不一致。"""
+
+    served = [str(item) for item in entry.get("served_models") or ()]
+    if not served:
+        return "未记录"
+    text = ", ".join(served)
+    if entry.get("served_model_mismatch"):
+        return f"⚠ {text}（与配置名不一致）"
+    return text
 
 
 def _summarise(
@@ -205,6 +244,8 @@ def _summarise(
         "manual_queue_count": manual,
         "failed_cases": failures,
         "by_case_count": len(cases),
+        # Task 031 / 2.5：按 Agent 列出实际 provider/model/参数；离线为 {}
+        "models_by_agent": _models_by_agent_of(results),
     }
 
 
@@ -216,6 +257,10 @@ async def evaluate(
     split: str = "dev",
     max_tool_calls: int = 12,
     model_client: Any = None,
+    model_provider: str = "offline",
+    scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
+    client_factory: Any = None,
+    config_dir: str | Path | None = None,
 ) -> EvaluationReport:
     from ..paths import CASES_DIR
 
@@ -224,7 +269,13 @@ async def evaluate(
         CASES_DIR / ("smoke_v1.jsonl" if split == "dev" else HELDOUT_CASES.name)
     )
     runner = build_baseline(
-        baseline, max_tool_calls=max_tool_calls, model_client=model_client
+        baseline,
+        max_tool_calls=max_tool_calls,
+        model_client=model_client,
+        model_provider=model_provider,
+        scripted_calls=scripted_calls,
+        client_factory=client_factory,
+        config_dir=config_dir,
     )
     started = datetime.now(timezone.utc)
     t0 = time.perf_counter()
@@ -236,6 +287,9 @@ async def evaluate(
         results.append(result)
         scores.append(score_case(case, result))
 
+    summary = _summarise(
+        scores, results, selected, model_used=runner.uses_model
+    )
     report = EvaluationReport(
         baseline=baseline,
         split=split,
@@ -244,11 +298,16 @@ async def evaluate(
         fixture_sha256=cases_checksum(DEFAULT_FIXTURE_PATH),
         code_commit=_git_commit(),
         scoring_version=SCORING_VERSION,
-        model=_model_binding(model_client),
+        model=_model_binding(
+            model_client,
+            model_provider=model_provider,
+            models_by_agent=summary.get("models_by_agent") or {},
+        ),
         config={
             "max_tool_calls": max_tool_calls,
             "max_total_tokens": runner.max_total_tokens,
             "baselines": list(BASELINES),
+            "model_provider": runner.model_provider_label,
             "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具",
         },
         started_at=started.isoformat(),
@@ -257,25 +316,45 @@ async def evaluate(
             {**score.as_dict(), "result": result.as_dict()}
             for score, result in zip(scores, results)
         ],
-        summary=_summarise(
-            scores, results, selected, model_used=model_client is not None
-        ),
+        summary=summary,
     )
     return report
 
 
-def _model_binding(model_client: Any) -> dict[str, str]:
-    """如实描述本次评测用了什么模型（Task 020）。
+def _model_binding(
+    model_client: Any,
+    *,
+    model_provider: str = "offline",
+    models_by_agent: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, str]:
+    """如实描述本次评测用了什么模型（Task 020 / Task 031）。
 
     以前这里硬编码 `offline_deterministic`，于是接入真实模型后报告仍然写着
     "无 DEEPSEEK_API_KEY、未调用真实模型"——报告与事实相反，比数据错误更糟。
+
+    Task 031：模型可能按**每个 Agent 各自的 YAML** 构造，此时 `bindings.model`
+    保留整体信息（provider/model 集合），逐 Agent 明细在 `models_by_agent`。
     """
 
-    if model_client is None:
+    if model_client is None and model_provider == "offline":
         return {
             "provider": "offline_deterministic",
             "model_name": "none",
             "note": "本报告未调用任何模型（确定性规则路径）；token/成本不适用",
+        }
+    if model_client is None:
+        entries = list((models_by_agent or {}).values())
+        providers = sorted({str(entry.get("provider")) for entry in entries})
+        names = sorted({str(entry.get("model_name")) for entry in entries})
+        return {
+            "provider": ",".join(providers) or model_provider,
+            "model_name": ",".join(names) or "unknown",
+            "note": (
+                "模型按各 Agent 自己的 YAML 配置创建（provider/model 为合集，"
+                "逐 Agent 明细见 bindings.models_by_agent）；model_name 为配置名，"
+                "服务端实际应答模型见 models_by_agent.*.served_models；token 与延迟来自实际调用；"
+                "成本未内置定价，故不换算金额"
+            ),
         }
     provider = str(getattr(model_client, "provider", "unknown"))
     model_name = str(getattr(model_client, "model_name", "unknown"))
@@ -286,7 +365,8 @@ def _model_binding(model_client: Any) -> dict[str, str]:
         )
     else:
         note = (
-            f"真实模型调用（{provider}/{model_name}）：token 与延迟来自实际调用；"
+            f"真实模型调用（{provider}/{model_name}，model_name 为配置名，"
+            "服务端实际应答模型见 models_by_agent.*.served_models）：token 与延迟来自实际调用；"
             "成本未内置定价，故不换算金额"
         )
     return {"provider": provider, "model_name": model_name, "note": note}
@@ -375,6 +455,53 @@ def render_markdown(reports: list[EvaluationReport]) -> str:
     )
     lines.append("")
 
+    # Task 031 / 2.5：按 Agent 列出**实际使用的**模型，而不是只写一个全局模型。
+    lines.append("## 各 Agent 实际模型（models_by_agent）")
+    lines.append("")
+    any_models = False
+    for report in reports:
+        models = report.summary.get("models_by_agent") or {}
+        if not models:
+            lines.append(
+                f"- `{report.baseline}`：离线 = 确定性引擎，无模型参与"
+                "（`models_by_agent` 为空）"
+            )
+            continue
+        any_models = True
+        lines.append(f"### {report.baseline}")
+        lines.append("")
+        lines.append(
+            "| Agent | provider | 配置模型名 | 实际应答模型 | temperature | max_tokens | timeout(s) | 共享客户端 | 配置来源 |"
+        )
+        lines.append("|---|---|---|---|---|---|---|---|---|")
+        for name, entry in models.items():
+            lines.append(
+                "| {agent} | {provider} | {model} | {served} | {temp} | {tokens} | {timeout} | {shared} | {source} |".format(
+                    agent=name,
+                    provider=entry.get("provider", "-"),
+                    model=entry.get("model_name", "-"),
+                    served=_served_cell(entry),
+                    temp=entry.get("temperature", "-"),
+                    tokens=entry.get("max_tokens", "-"),
+                    timeout=entry.get("timeout_seconds", "-"),
+                    shared="是" if entry.get("client_is_shared") else "否",
+                    source=entry.get("config_source", "-"),
+                )
+            )
+        lines.append("")
+        if any(str(entry.get("provider")) == "scripted" for entry in models.values()):
+            lines.append(
+                "> 脚本化模型（非真实推理）：表中 temperature/max_tokens/timeout 为 YAML 声明值，"
+                "脚本客户端不使用这些参数；结果不代表模型质量。"
+            )
+            lines.append("")
+    if not any_models:
+        lines.append(
+            "> 本次全部基线均为离线确定性引擎，没有调用任何模型；"
+            "`models_by_agent` 为空表示\"无模型参与\"，不是\"未记录\"。"
+        )
+        lines.append("")
+
     for report in reports:
         lines.append(f"## {report.baseline}")
         lines.append("")
@@ -415,7 +542,10 @@ def write_report(report: EvaluationReport, *, out_dir: str | Path | None = None)
     directory.mkdir(parents=True, exist_ok=True)
     stamp = report.started_at.replace(":", "").replace("-", "")[:15]
     target = directory / f"{stamp}_{report.split}_{report.baseline}.json"
+    # newline="\n"：Windows 上默认会写出 CRLF，与仓库 LF 约定（.gitattributes）不一致。
     target.write_text(
-        json.dumps(report.as_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(report.as_dict(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+        newline="\n",
     )
     return target

@@ -1,0 +1,61 @@
+{
+  "agent_models": {},
+  "agent_results": [],
+  "approval_request": null,
+  "approval_status": "not_required",
+  "approved_draft": null,
+  "authoritative_amounts": [],
+  "budget": {
+    "exceeded_tokens": 0,
+    "max_model_calls": 0,
+    "max_tool_calls": 12,
+    "max_total_tokens": null,
+    "tokens_exhausted": false,
+    "used_model_calls": 0,
+    "used_tool_calls": 0,
+    "used_total_tokens": 0
+  },
+  "clarification": {
+    "available_domains": [
+      {
+        "capability": "lease.query",
+        "domain": "lease",
+        "label": "合同/租约"
+      },
+      {
+        "capability": "billing.statement",
+        "domain": "billing",
+        "label": "账单/费用"
+      },
+      {
+        "capability": "property.work_orders",
+        "domain": "property",
+        "label": "物业工单"
+      }
+    ],
+    "message": "无法判断这个问题属于合同、账单还是物业，因此本次没有执行调查，也没有调用任何工具。",
+    "question": "请说明要核实的是哪一类：合同/租约（例如租期、免租期、递增条款）、账单/费用（例如租金、欠费、发票），还是物业工单（例如空调维修、漏水）？",
+    "reason": "no_domain_matched"
+  },
+  "conflicts": [],
+  "disclaimer": "本次未执行调查：未调用工具、未产生证据，也未进入审批",
+  "failures": [],
+  "findings": [],
+  "identity": {
+    "identity_source": "env:DEMO_PRINCIPAL_ID",
+    "principal_id": "principal_ops_xinghui"
+  },
+  "lease_id": "lease_xh_a301_2025",
+  "missing_information": [],
+  "model_narratives": [],
+  "narrative_discrepancies": [],
+  "proposed_draft": null,
+  "requires_human_review": true,
+  "revision": 0,
+  "route": "clarification",
+  "routing_reason": [],
+  "thread_id": "thread_run_0ec62aed25a4",
+  "tool_traces": [],
+  "verdict": "needs_clarification",
+  "warnings": []
+}

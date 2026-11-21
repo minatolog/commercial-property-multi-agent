@@ -1,0 +1,60 @@
+{
+  "exit_codes_help_contains": [
+    "0=成功",
+    "1=业务结果失败",
+    "2=用法或配置错误",
+    "3=审批错误"
+  ],
+  "ask_offline_usage_exit": 2,
+  "ask_no_target_usage_exit": 2,
+  "clarification_business_failure_exit": 1,
+  "ask_scripted_success_exit": 0,
+  "investigate_scripted_success_exit": 0,
+  "approve_dry_run": {
+    "investigate_exit": 0,
+    "request_id": "apr_28b44fb63780",
+    "draft_version": 2,
+    "dry_run_exit": 0,
+    "dry_run_key_fields": {
+      "dry_run": true,
+      "wrote_data": false,
+      "resumed_graph": false,
+      "decided_role": "property_manager",
+      "idempotent": false,
+      "current_status": "pending",
+      "note": "dry-run 只做校验：未写入审批台账、未恢复图"
+    },
+    "dry_run_stderr": [
+      "[dev-mode] 开发模式：命令行自报身份（--principal），不可用于生产"
+    ],
+    "ledger_bytes_identical_before_after_dry_run": true,
+    "pending_decisions_after_dry_run": [],
+    "real_approve_exit": 0,
+    "real_approve_status": "pending_next_stage",
+    "pending_decisions_after_real_approve": [
+      {
+        "decided_at": "2026-11-21T08:55:36.974336+00:00",
+        "decision": "approve",
+        "draft_version": 2,
+        "principal_id": "principal_property_manager_xinghui",
+        "reason": null,
+        "request_id": "apr_28b44fb63780",
+        "role": "property_manager",
+        "seq": 1
+      }
+    ]
+  },
+  "identity": {
+    "env_default": {
+      "identity_source": "env:DEMO_PRINCIPAL_ID",
+      "principal_id": "principal_ops_xinghui"
+    },
+    "explicit_flag": {
+      "identity_source": "cli_flag",
+      "principal_id": "principal_ops_xinghui"
+    },
+    "explicit_stderr": [
+      "[dev-mode] 开发模式：命令行自报身份（--principal），不可用于生产"
+    ]
+  }
+}
