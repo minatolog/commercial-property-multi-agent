@@ -86,3 +86,5 @@ data/
 *.db
 *.db-wal
 *.db-shm
+# dev_loop 自动编码/审查循环的运行日志
+tmp/dev_loop/
