@@ -146,17 +146,15 @@ $coderEnv["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
 $coderEnv["DEEPSEEK_API_KEY"] = $null
 $coderEnv["PYTHONUTF8"] = "1"
 $coderEnv["PYTHONIOENCODING"] = "utf-8"
-$reviewerEnv = @{
-    ANTHROPIC_BASE_URL            = $null
-    ANTHROPIC_AUTH_TOKEN          = $null
-    ANTHROPIC_MODEL               = $null
-    ANTHROPIC_SMALL_FAST_MODEL    = $null
-    ANTHROPIC_DEFAULT_HAIKU_MODEL = $null
-    CLAUDECODE                    = $null
-    DEEPSEEK_API_KEY              = $null
-    PYTHONUTF8                    = "1"
-    PYTHONIOENCODING              = "utf-8"
-}
+# 审查方：同样清掉宿主注入的 CLAUDE* / ANTHROPIC* 变量（桌面 App 会注入宿主会话 ID、
+# 消息管道、宿主认证刷新等，子进程继承后可能挂到宿主会话上），让它像终端里直接运行的
+# claude 一样，用你本机 claude 命令行的登录（~/.claude）。只保留你自己设的配置目录与 API key。
+$reviewerEnv = @{}
+Get-ChildItem env: | Where-Object { $_.Name -match '^(CLAUDE|ANTHROPIC)' -and $_.Name -notin @('CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY') } |
+    ForEach-Object { $reviewerEnv[$_.Name] = $null }
+$reviewerEnv["DEEPSEEK_API_KEY"] = $null
+$reviewerEnv["PYTHONUTF8"] = "1"
+$reviewerEnv["PYTHONIOENCODING"] = "utf-8"
 
 # 注意：两边都放行了 conda 的 python.exe，它能执行任意代码，所以下面的禁止规则只能防止
 # 模型“直接敲 git 命令”，挡不住它用 python 绕过。真正的兜底是每轮结束后的 Assert-GitUnchanged。

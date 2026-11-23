@@ -32,12 +32,27 @@
 
 ## 准备
 
-1. **claude 命令行**：PATH 里有 `claude` 就用它；没有时自动使用 Claude 桌面 App 自带的 `claude.exe`；也可以用 `-ClaudeExe` 指定路径。审查方使用你的 Claude 登录。
+1. **claude 命令行**：PATH 里有 `claude` 就用它；没有时自动使用 Claude 桌面 App 自带的 `claude.exe`；也可以用 `-ClaudeExe` 指定路径。
+   审查方使用**本机 claude 命令行自己的登录**（`~/.claude`），不借用桌面 App 的会话。运行前在终端里确认：`claude auth status` 应显示 `"loggedIn": true`；没登录先运行一次 `claude` 按提示登录。审查用量计入你的 Claude 订阅额度。
 2. **DeepSeek key**：读环境变量 `DEEPSEEK_API_KEY`，没有时读仓库根目录 `.env` 里的同名项。
 
 ### 认证隔离（重要）
 
 在 Claude 桌面 App 或另一个 Claude Code 会话里运行时，子进程会继承宿主的登录认证，其优先级高于 `ANTHROPIC_AUTH_TOKEN`，**会把 Claude 登录令牌发给 DeepSeek**。脚本因此在启动编码方前清空所有 `CLAUDE*` / `ANTHROPIC*` 环境变量，并使用独立配置目录 `tmp/dev_loop/.coder-config`。修改这部分代码后，可以把 `DEV_LOOP_CODER_BASE_URL` 指向本地假服务器，检查实际发出的认证头。
+
+审查方同样清空宿主注入的 `CLAUDE*` / `ANTHROPIC*` 变量（桌面 App 会注入宿主会话 ID、消息管道、宿主认证刷新等），只保留你自己设的 `CLAUDE_CONFIG_DIR` 与 `ANTHROPIC_API_KEY`。
+
+### 已验证的部分（2026-11-23）
+
+在临时仓库里用真实 `claude.exe`（2.1.330）跑编码方，`DEV_LOOP_CODER_BASE_URL` 指向本地假 Anthropic 服务器，审查方用假脚本代替（未调用任何真实模型）：
+
+- 编码方每个请求只带 `Authorization: Bearer <DeepSeek key>`，没有 `x-api-key`、没有 Claude 令牌；子进程里没有 `DEEPSEEK_API_KEY`；也没有标题生成之类的额外请求。
+- 权限规则：`Bash(D:/anacada/envs/commercial-agent/python.exe:*)` 能放行；`git commit` 被拒绝；`acceptEdits` 下 Write 可用。
+- 第 2 轮 `--resume` 能接上第 1 轮的会话；提示词开头没有 BOM。
+- 用完工具轮数时 CLI 输出 `subtype: "error_max_turns"`、`is_error: true`、带 `session_id`，脚本按预期继续测试与审查。
+- 清空宿主变量后，`claude auth status` 仍显示已登录，审查方可以独立认证。
+
+**仍未验证**：真实 DeepSeek 接口（`deepseek-chat` 模型名与长时间工具调用的兼容性）与真实 Claude 审查。CLI 会在 stderr 提示 `unrecognized_model`，可以忽略；JSON 里的费用估计不准（见“日志”）。
 
 ## 用法
 
