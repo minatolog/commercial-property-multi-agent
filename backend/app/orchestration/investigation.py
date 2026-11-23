@@ -68,7 +68,9 @@ __all__ = [
     "RuleBasedPlanner",
     "ThreadIdentityConflictError",
     "build_clarification_request",
+    "build_domain_subtasks",
     "build_investigation_graph",
+    "rule_planning_record",
     "build_reduction_draft",
     "verify_results",
 ]
@@ -109,6 +111,9 @@ class InvestigationState(TypedDict, total=False):
     routing_reason: list[dict[str, Any]]
     #: Task 031 / 2.7：未命中任何领域时的回问信息（clarification 节点读取）
     clarification: dict[str, Any]
+    #: Task 034：规划来源（planner_mode / plan_source / fallback_reason / 模型 / 校验后的计划），
+    #: plan_node 写入、report/clarification 节点原样输出。补查不重新规划，因此只写一次。
+    planning: dict[str, Any]
     results: Annotated[list[dict[str, Any]], operator.add]
     failures: Annotated[list[dict[str, Any]], operator.add]
     warnings: Annotated[list[str], operator.add]
@@ -137,13 +142,18 @@ class PlanDetail:
     - `route`：`deterministic`（单领域）/ `fanout`（多领域）/ `clarification`（未命中）；
     - `routing_reason`：每个**已执行**子任务一条，形状见
       `docs/architecture/planner_vocabulary.md`；
-    - `clarification`：仅 `route == "clarification"` 时非空。
+    - `clarification`：仅 `route == "clarification"` 时非空；
+    - `planning`（Task 034）：规划来源记录，键为 `planner_mode` / `plan_source` /
+      `fallback_reason` / `planner_model` / `supervisor_plan` 等，形状见
+      `docs/architecture/agent_runtime_contracts.md`。自定义 Planner 可留空，
+      图会补成 `planner_mode="custom"`。
     """
 
     subtasks: list[dict[str, Any]]
     route: str
     routing_reason: list[dict[str, Any]] = field(default_factory=list)
     clarification: dict[str, Any] | None = None
+    planning: dict[str, Any] = field(default_factory=dict)
 
 
 class Planner:
@@ -159,6 +169,105 @@ class Planner:
 
         subtasks, route = self.plan(question, payload)
         return PlanDetail(subtasks=subtasks, route=route)
+
+    async def aplan_detailed(
+        self, question: str, payload: dict[str, Any]
+    ) -> PlanDetail:
+        """图节点调用的异步入口（Task 034）。
+
+        模型客户端是异步的（`ChatModelClient.complete`），图也一直用 `ainvoke` 执行，
+        因此 LLM 规划器只需覆盖本方法；同步规划器（规则）沿用默认实现，
+        既有的 `plan()` / `plan_detailed()` 调用方与测试不受影响。
+        """
+
+        return self.plan_detailed(question, payload)
+
+
+def rule_planning_record(
+    *,
+    rule_domains: list[str] | tuple[str, ...] = (),
+    planner_mode: str = "rule",
+) -> dict[str, Any]:
+    """规则来源的规划记录（Task 034）：零模型调用、无回退。"""
+
+    return {
+        "planner_mode": planner_mode,
+        "plan_source": "rule",
+        "fallback_reason": None,
+        "fallback_detail": None,
+        "planner_model": None,
+        "supervisor_plan": None,
+        "rule_domains": list(rule_domains),
+        "ambiguity_signals": [],
+        "escalated_to_model": False,
+        # 三种来源键形状一致（复查 P3-4）；只有 hybrid 升级到模型时才有值
+        "escalation_reason": None,
+        "rule_domains_not_planned": [],
+        "warnings": [],
+        "model_calls": 0,
+        "total_tokens": 0,
+        "latency_ms": 0,
+    }
+
+
+def build_domain_subtasks(
+    domains: list[str] | tuple[str, ...],
+    text: str,
+    payload: dict[str, Any],
+    *,
+    reason_for: Callable[[str, str], dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """按**领域选择**构造子任务与路由理由（Task 034 抽出的共享逻辑）。
+
+    规则规划器与 LLM Supervisor 共用本函数，保证"同样的领域选择得到同样的子任务"：
+
+    - 能力名只由 `DOMAIN_CAPABILITIES` 映射，不接受调用方（模型）给出；
+    - `lease_id` / `unit_id` **只取自可信 payload**（与 Z1 一致）；
+    - `question` / `query` / `category` 的下发规则与 Task 021 / 031 相同。
+
+    `reason_for(domain, subtask_id)` 返回该子任务路由理由的**附加字段**
+    （规则：命中词与收窄说明；LLM：模型理由与来源）。
+    """
+
+    lease_id = str(payload.get("lease_id") or "").strip()
+    unit_id = str(payload.get("unit_id") or "").strip()
+
+    subtasks: list[dict[str, Any]] = []
+    routing_reason: list[dict[str, Any]] = []
+    for index, domain in enumerate(domains, start=1):
+        capability = DOMAIN_CAPABILITIES[domain]
+        # 原问题必须下发给每个领域子任务（Task 021 / N5）：
+        # 模型只知道 "billing.statement" 这种能力名，没有原问题就无法判断"在问什么"，
+        # 只能凭猜；这在本轮实测中表现为 `question=""`。
+        task_payload: dict[str, Any] = {"question": text}
+        if lease_id:
+            task_payload["lease_id"] = lease_id
+        if unit_id:
+            task_payload["unit_id"] = unit_id
+        if domain == "property" and _mentions_hvac(text):
+            task_payload["category"] = "hvac"
+        if domain == "lease":
+            # 条款检索需要原始问题作为查询依据；由 Planner 显式下发，
+            # Agent 不应自己去猜"该查什么条款"。
+            task_payload["query"] = text
+        subtask_id = f"st_{index}_{domain}"
+        subtasks.append(
+            {
+                "subtask_id": subtask_id,
+                "capability": capability,
+                "payload": task_payload,
+            }
+        )
+        reason: dict[str, Any] = {
+            "domain": domain,
+            "label": DOMAIN_LABELS[domain],
+            "capability": capability,
+            "subtask_id": subtask_id,
+        }
+        if reason_for is not None:
+            reason.update(reason_for(domain, subtask_id))
+        routing_reason.append(reason)
+    return subtasks, routing_reason
 
 
 class RuleBasedPlanner(Planner):
@@ -199,6 +308,7 @@ class RuleBasedPlanner(Planner):
                 route="clarification",
                 routing_reason=[],
                 clarification=build_clarification_request(text),
+                planning=rule_planning_record(),
             )
 
         selected = list(matched_order)
@@ -219,51 +329,23 @@ class RuleBasedPlanner(Planner):
                 ],
             }
 
-        lease_id = str(payload.get("lease_id") or "").strip()
-        unit_id = str(payload.get("unit_id") or "").strip()
-
-        subtasks: list[dict[str, Any]] = []
-        routing_reason: list[dict[str, Any]] = []
-        for index, domain in enumerate(selected, start=1):
-            capability = DOMAIN_CAPABILITIES[domain]
-            # 原问题必须下发给每个领域子任务（Task 021 / N5）：
-            # 模型只知道 "billing.statement" 这种能力名，没有原问题就无法判断"在问什么"，
-            # 只能凭猜；这在本轮实测中表现为 `question=""`。
-            task_payload: dict[str, Any] = {"question": text}
-            if lease_id:
-                task_payload["lease_id"] = lease_id
-            if unit_id:
-                task_payload["unit_id"] = unit_id
-            if domain == "property" and _mentions_hvac(text):
-                task_payload["category"] = "hvac"
-            if domain == "lease":
-                # 条款检索需要原始问题作为查询依据；由 Planner 显式下发，
-                # Agent 不应自己去猜"该查什么条款"。
-                task_payload["query"] = text
-            subtask_id = f"st_{index}_{domain}"
-            subtasks.append(
-                {
-                    "subtask_id": subtask_id,
-                    "capability": capability,
-                    "payload": task_payload,
-                }
-            )
-            reason: dict[str, Any] = {
-                "domain": domain,
-                "label": DOMAIN_LABELS[domain],
-                "matched": list(matched.get(domain, ())),
-                "capability": capability,
-                "subtask_id": subtask_id,
-            }
+        def _rule_reason(domain: str, _subtask_id: str) -> dict[str, Any]:
+            extra: dict[str, Any] = {"matched": list(matched.get(domain, ()))}
             if narrowing is not None and domain == "billing":
                 # 说清楚"为什么另外几个领域命中了却没有派发"，否则排查时
                 # 会以为词表漏词；收窄规则本身由 `_is_pure_arrears_question` 决定。
-                reason["narrowing"] = narrowing
-            routing_reason.append(reason)
+                extra["narrowing"] = narrowing
+            return extra
 
+        subtasks, routing_reason = build_domain_subtasks(
+            selected, text, payload, reason_for=_rule_reason
+        )
         route = "deterministic" if len(subtasks) == 1 else "fanout"
         return PlanDetail(
-            subtasks=subtasks, route=route, routing_reason=routing_reason
+            subtasks=subtasks,
+            route=route,
+            routing_reason=routing_reason,
+            planning=rule_planning_record(rule_domains=matched_order),
         )
 
 
@@ -279,22 +361,29 @@ CLARIFICATION_QUESTION = (
 )
 
 
-def build_clarification_request(text: str = "") -> dict[str, Any]:
+def build_clarification_request(
+    text: str = "",
+    *,
+    reason: str = "no_domain_matched",
+    message: str | None = None,
+    question: str | None = None,
+) -> dict[str, Any]:
     """构造"未命中任何领域"的回问信息（Task 031 / 2.7）。
 
     形状**稳定且可 JSON 序列化**：CLI 的 `_investigation_payload` 直接读取
     `report["clarification"]`。字段口径见
     `docs/architecture/planner_vocabulary.md`：
 
-    - `reason`：目前只有 `no_domain_matched`，保留字段便于未来扩展；
+    - `reason`：`no_domain_matched`（规则未命中）或 `supervisor_clarify`
+      （Task 034：规划模型判断需要回问）；
     - `message`：给用户看的说明（为什么没有执行调查）；
     - `available_domains`：可选领域及中文标签（含能力名，便于排查）；
     - `question`：回问用户的具体问题。
     """
 
     return {
-        "reason": "no_domain_matched",
-        "message": CLARIFICATION_MESSAGE,
+        "reason": reason,
+        "message": message or CLARIFICATION_MESSAGE,
         "available_domains": [
             {
                 "domain": domain,
@@ -303,7 +392,7 @@ def build_clarification_request(text: str = "") -> dict[str, Any]:
             }
             for domain in DOMAINS
         ],
-        "question": CLARIFICATION_QUESTION,
+        "question": question or CLARIFICATION_QUESTION,
     }
 
 
@@ -534,9 +623,16 @@ def build_investigation_graph(
     planner = planner or RuleBasedPlanner()
     rule = approval_rule or DEFAULT_APPROVAL_RULE
 
-    def plan_node(state: InvestigationState) -> dict[str, Any]:
-        detail = planner.plan_detailed(state["question"], dict(state))
-        return {
+    async def plan_node(state: InvestigationState) -> dict[str, Any]:
+        detail = await planner.aplan_detailed(state["question"], dict(state))
+        planning = dict(detail.planning) if detail.planning else {
+            # 自定义 Planner 没有给出来源记录：如实标成 custom，而不是冒充 rule
+            "planner_mode": "custom",
+            "plan_source": type(planner).__name__,
+            "fallback_reason": None,
+        }
+        update: dict[str, Any] = {
+            "planning": planning,
             "plan": detail.subtasks,
             "route": detail.route,
             "expected_subtasks": [item["subtask_id"] for item in detail.subtasks],
@@ -546,6 +642,11 @@ def build_investigation_graph(
             "clarification": detail.clarification or {},
             "revision": state.get("revision", 0),
         }
+        # Task 034：规划阶段的告警（模型越界输出被剥离、回退原因等）进入运行告警
+        planning_warnings = [str(item) for item in planning.get("warnings") or ()]
+        if planning_warnings:
+            update["warnings"] = planning_warnings
+        return update
 
     def route_after_plan(state: InvestigationState) -> str:
         route = state.get("route")
@@ -584,6 +685,8 @@ def build_investigation_graph(
             # 未命中时没有子任务可解释；排查信息全在 clarification 里。
             "routing_reason": [],
             "clarification": clarification,
+            # Task 034：回问也要写明是谁决定的（规则未命中 / 模型回问 / 回退）
+            "planning": dict(state.get("planning") or {}),
             "requires_human_review": True,
             "disclaimer": "本次未执行调查：未调用工具、未产生证据，也未进入审批",
         }
@@ -804,6 +907,8 @@ def build_investigation_graph(
             # Task 031 / 2.7：普通运行也写路由理由（命中哪些词、落到哪个子任务），
             # 否则"为什么走了 billing"只能靠读代码猜。
             "routing_reason": list(state.get("routing_reason") or []),
+            # Task 034：规划来源（规则 / 模型 / 回退及原因）
+            "planning": dict(state.get("planning") or {}),
             "revision": state.get("revision", 0),
             "findings": findings,
             # conflicts/missing 是 append 通道，补查会让同一结论重复出现，报告必须去重

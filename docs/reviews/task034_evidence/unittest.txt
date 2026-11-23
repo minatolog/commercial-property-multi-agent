@@ -1,0 +1,27 @@
+.....................................................  [LOG] asyncio Executing <Task pending name='Task-1292' coro=<TestPausedAndResumedFlow.test_investigation_pauses_then_resumes_across_control_plane() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:314> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.125 seconds
+...  [LOG] asyncio Executing <Task pending name='Task-1462' coro=<TestTerminalIdempotencyIsGuarded.test_correct_replay_is_still_idempotent() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:563> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+.  [LOG] asyncio Executing <Task pending name='Task-1521' coro=<TestTerminalIdempotencyIsGuarded.test_unauthorised_principal_cannot_replay() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:549> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+..  [LOG] asyncio Executing <Task pending name='Task-1639' coro=<TestThreadIdentityBoundary.test_fresh_thread_still_works_and_denies_intruder() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:738> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.156 seconds
+  [LOG] agent.lease agent 执行失败
+  [LOG] agent.property agent 执行失败
+  [LOG] agent.billing agent 执行失败
+  [LOG] agent.lease agent 执行失败
+  [LOG] agent.property agent 执行失败
+  [LOG] agent.billing agent 执行失败
+.........D:\anacada\envs\commercial-agent\Lib\site-packages\alembic\config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+  util.warn_deprecated(
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+...................................................................................................................................................................s.................................................................................................WARNI [agent.slow] agent 执行失败
+.WARNI [agent.slow] agent 执行失败
+.WARNI [agent.slow] agent 执行失败
+......WARNI [agent.scripted_tool_agent] agent 执行失败
+..................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 595 tests in 31.762s
+
+OK (skipped=1)

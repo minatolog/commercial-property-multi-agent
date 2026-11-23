@@ -1,0 +1,89 @@
+
+== 1. 配置加载与 Schema 校验 ==
+  [PASS] 加载到 5 个 Agent 配置
+  [PASS] lease 启用
+  [PASS] compliance 默认禁用
+  [PASS] billing.temperature 为 null（用于验证参数裁剪）
+  [PASS] 每个 Agent 的 prompt_path 互不相同
+  [PASS] 拒绝在 YAML 中写入 api_key -> ValidationError
+  [PASS] 拒绝绝对路径 prompt_path -> ValidationError
+  [PASS] 拒绝路径穿越 prompt_path -> ValidationError
+  [PASS] 拒绝非法 capability 格式 -> ValidationError
+  [PASS] 拒绝未实现的 vector_store -> ValidationError
+  [PASS] 拒绝未实现的 embedding_model -> ValidationError
+  [PASS] 拒绝未实现的 rerank_top_n -> ValidationError
+  [PASS] 拒绝未实现的 bm25_weight/vector_weight 混合权重 -> ValidationError
+  [PASS] 拒绝未实现的 min_score -> ValidationError
+  [PASS] 拒绝未知字段 -> ValidationError
+  [PASS] 拒绝非法 api_key_env 命名 -> ValidationError
+  [PASS] 检索配置只保留已实现字段（enabled/top_k）
+  [PASS] compliance 仍为禁用且未实现业务逻辑
+  [PASS] 加载期拒绝未实现的 vector_store -> AgentConfigError
+  [PASS] 错误信息点名未实现字段
+  [PASS] 无实现的白名单外配置被跳过而非报错
+  [PASS] 跳过项不进入 Registry
+  [PASS] strict 模式拒绝无实现的配置 -> AgentNotRegisteredError
+  [PASS] 文件名与 name 不一致时报错 -> AgentConfigError
+
+== 2. Registry：注册、发现、禁用、冲突 ==
+  [PASS] 全部 5 个 Agent 已注册
+  [PASS] 无配置被跳过
+  [PASS] 可用能力不含被禁用的 compliance.check
+  [PASS] 禁用能力可被单独查询
+  [PASS] 按能力发现 Agent
+  [PASS] 能力被禁用时抛 AgentDisabledError -> AgentDisabledError
+  [PASS] 能力不存在时抛 CapabilityUnavailableError -> CapabilityUnavailableError
+  [PASS] 重复注册同名 Agent 被拒绝 -> DuplicateAgentError
+  [PASS] 能力已被占用时拒绝注册 -> CapabilityConflictError
+  [PASS] 接口不兼容的对象被拒绝 -> IncompatibleAgentError
+
+== 3. Agent 执行与错误约定 ==
+  [LOG] agent.void agent 执行失败
+  [PASS] 未实现的 Agent 返回 FAILED 而非抛异常
+  [PASS] 错误码为 NOT_IMPLEMENTED
+  [PASS] 错误可重试标记为 False
+  [PASS] 结果携带 agent_name / version
+  [PASS] 结果携带 trace_id
+  [PASS] 结果记录 latency_ms
+  [LOG] agent.void agent 执行失败
+  [PASS] 调用未声明能力返回 CAPABILITY_NOT_DECLARED
+  [LOG] agent.compliance agent 执行失败
+  [PASS] 被禁用的 Agent 直接调用返回 AGENT_NOT_ENABLED
+
+== 4. Prompt 与工具授权隔离 ==
+  [PASS] lease 能加载自己的 Prompt
+  [PASS] billing 能加载自己的 Prompt
+  [PASS] 两个 Agent 的 Prompt 内容互不影响
+  [PASS] 授权工具调用通过
+  [PASS] 未授权工具被拒绝 -> ToolNotAllowedError
+  [PASS] 缺少业务权限时被拒绝 -> PermissionDeniedError
+  [PASS] 具备权限且工具已授权时通过
+
+== 5. 模型适配层参数裁剪与密钥来源 ==
+  [PASS] lease 传递 temperature
+  [PASS] temperature 为 null 时不下发该参数
+  [PASS] max_tokens 正常下发
+  [PASS] model 名称来自配置（当前官方模型名 deepseek-flash）
+  [PASS] 未登记厂商被拒绝 -> UnsupportedProviderError
+  [PASS] 逐 Agent 模型参数可审计（lease 与 billing 不同）
+  [PASS] 审计字段包含 provider/model/api_key_env
+  [PASS] 未知 provider 在模型校验期报错 -> AgentConfigError
+  [PASS] 缺 api_key_env 在模型校验期报错 -> AgentConfigError
+  [PASS] temperature 越界在模型校验期报错（绕过 Schema 也必须拦住） -> AgentConfigError
+  [PASS] 缺少 API Key 环境变量时报错 -> MissingApiKeyError
+  [PASS] API Key 从环境变量读取
+
+== 6. 计划可行性检查与部分成功聚合 ==
+  [PASS] 可用能力被正确解析
+  [PASS] 禁用能力被单独标出
+  [PASS] 缺失能力被单独标出
+  [PASS] 存在缺口时计划不可行
+  [PASS] 全部失败时聚合为 FAILED
+  [PASS] 禁止部分成功时聚合为 FAILED
+  [PASS] 空结果聚合为 FAILED
+
+== 7. 工厂白名单 ==
+  [PASS] 白名单包含五个 Agent
+  [PASS] 白名单外的 name 无法实例化（不触发动态导入） -> AgentNotRegisteredError
+
+全部通过：70 项检查

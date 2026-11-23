@@ -269,6 +269,32 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    investigate.add_argument(
+        "--planner",
+        default=None,
+        choices=("rule", "llm", "hybrid"),
+        help=(
+            "规划模式（默认读 app/config/planner.yaml，当前为 rule）："
+            "rule=词表规则（零模型调用）；llm=LLM Supervisor；"
+            "hybrid=规则能确定就用规则，否则交给 Supervisor"
+        ),
+    )
+    investigate.add_argument(
+        "--planner-provider",
+        default=None,
+        choices=("scripted", "deepseek"),
+        help=(
+            "规划模型来源（仅 llm/hybrid）：scripted=脚本化（离线，只证明链路）；"
+            "deepseek=真实模型（planner.yaml 的参数）。省略时沿用 --model-provider"
+        ),
+    )
+    investigate.add_argument(
+        "--hybrid-multi-domain",
+        default=None,
+        choices=("rule", "llm"),
+        help="hybrid 下规则命中多个领域时：llm=交给模型复核（默认）；rule=直接用规则",
+    )
+
     search = sub.add_parser(
         "search",
         help="在已归档合同 PDF 中检索条款（离线 BM25，返回真实页码与原文摘录）",
@@ -358,6 +384,42 @@ def build_parser() -> argparse.ArgumentParser:
             "B/C 的引擎：offline=确定性规则（默认，历史结果口径）；"
             "deepseek=真实模型（需 DEEPSEEK_API_KEY；A 基线始终离线）"
         ),
+    )
+    evaluate_parser.add_argument(
+        "--suite",
+        default="baselines",
+        choices=("baselines", "planner"),
+        help=(
+            "baselines=三基线（默认）；planner=规划层评测（planner_paraphrase 用例，"
+            "只运行规划器，对比 rule/llm/hybrid）"
+        ),
+    )
+    evaluate_parser.add_argument(
+        "--planner",
+        default=None,
+        choices=("rule", "llm", "hybrid"),
+        help=(
+            "baselines 套件：C_multi_agent 的规划模式（默认读 planner.yaml，当前 rule；"
+            "非 rule 时只运行 C）。planner 套件：只跑这一种配置（默认四种全跑）"
+        ),
+    )
+    evaluate_parser.add_argument(
+        "--planner-provider",
+        default=None,
+        choices=("scripted", "deepseek"),
+        help="规划模型来源（llm/hybrid）：scripted=离线脚本（只证明链路）；deepseek=真实模型",
+    )
+    evaluate_parser.add_argument(
+        "--hybrid-multi-domain",
+        default=None,
+        choices=("rule", "llm"),
+        help="hybrid 下规则命中多个领域时：llm=交给模型复核；rule=直接用规则",
+    )
+    evaluate_parser.add_argument(
+        "--planner-cases",
+        default="v1",
+        choices=("v1", "v2", "all"),
+        help="planner 套件的用例版本（默认 v1；all=v1 与 v2 各跑一遍）",
     )
     return parser
 
@@ -476,7 +538,18 @@ def _cmd_check() -> int:
         )
         for name, config in sorted(configs.items())
     }
+    # Task 034：规划器配置同样在启动期校验（非法即 exit 2）
+    from .config.loader import load_planner_config
+
+    planner_config = load_planner_config()
     payload = {
+        "planner": {
+            "mode": planner_config.mode,
+            "hybrid_multi_domain": planner_config.hybrid_multi_domain,
+            "max_domains": planner_config.max_domains,
+            "prompt_path": planner_config.prompt_path,
+            "model": validate_model_config(planner_config),
+        },
         "agents": list(report.registered),
         "skipped": list(report.skipped),
         "capabilities": sorted(report.registry.available_capabilities()),
@@ -747,18 +820,38 @@ def _build_investigation_bundle(args: argparse.Namespace, *, control_plane: Any 
     from .investigation_demo import build_investigation_bundle
 
     provider = getattr(args, "model_provider", "offline")
+    planner_mode = _effective_planner_mode(args)
+    uses_model = provider != "offline" or planner_mode != "rule"
+    if planner_mode != "rule" and provider == "offline" and not args.planner_provider:
+        raise UsageError(
+            f"--planner {planner_mode} 需要规划模型：请加 --planner-provider scripted|deepseek，"
+            "或使用 --model-provider scripted|deepseek"
+        )
     return build_investigation_bundle(
         principal_id=args.principal,
         variant=args.variant,
         max_tool_calls=args.budget_tool_calls,
-        max_model_calls=(0 if provider == "offline" else args.budget_model_calls),
-        max_total_tokens=(None if provider == "offline" else args.budget_tokens),
+        # Task 034：规划模型与 Agent 共享模型调用 / token 预算
+        max_model_calls=(args.budget_model_calls if uses_model else 0),
+        max_total_tokens=(args.budget_tokens if uses_model else None),
         max_revisions=args.max_revisions,
         backend=args.backend,
         control_plane=control_plane,
         model_provider=provider,
         scripted_calls=(_scripted_calls_for(args) if provider == "scripted" else None),
+        planner_mode=planner_mode,
+        planner_provider=args.planner_provider,
+        hybrid_multi_domain=args.hybrid_multi_domain,
     )
+
+
+def _effective_planner_mode(args: argparse.Namespace) -> str:
+    """命令行未指定时读 planner.yaml（默认 rule）。非法配置在这里就失败（exit 2）。"""
+
+    from .config.loader import load_planner_config
+
+    explicit = getattr(args, "planner", None)
+    return explicit or load_planner_config().mode
 
 
 def _cmd_investigate(args: argparse.Namespace) -> int:
@@ -818,6 +911,7 @@ def _investigation_output(result: Any, bundle: Any, args: argparse.Namespace) ->
     if args.full:
         payload = dict(result.report or {})
         payload["agent_models"] = getattr(bundle, "agent_models", {})
+        payload["planner"] = getattr(bundle, "planner_info", {})
         payload["identity"] = _identity_payload(bundle, args)
         return payload
     return _investigation_payload(result, bundle, args)
@@ -906,6 +1000,9 @@ def _investigation_payload(
         # Task 031 / 2.7：路由理由（命中了哪些词）与"无法判断领域"的澄清结果
         "routing_reason": report.get("routing_reason", []),
         "clarification": report.get("clarification"),
+        # Task 034：规划来源（planner_mode / plan_source / fallback_reason / 规划模型）
+        "planner": getattr(bundle, "planner_info", {}),
+        "planning": report.get("planning", {}),
         "approval_status": result.approval_status,
         "approval_request": result.approval_request,
         "approved_draft": result.approved_draft,
@@ -1088,12 +1185,57 @@ def _cmd_pending(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------- evaluate
 
 
+def _cmd_evaluate_planner(args: argparse.Namespace) -> int:
+    """规划层评测（Task 034）：不执行 Agent，只比较规划决策。"""
+
+    from .evaluation.planner_suite import PLANNER_CONFIGS, render_planner_markdown, run_planner_suite
+
+    if args.planner is None:
+        configs = list(PLANNER_CONFIGS)
+    elif args.planner == "hybrid":
+        configs = ["hybrid_multi_rule" if args.hybrid_multi_domain == "rule" else "hybrid"]
+    else:
+        configs = [args.planner]
+    needs_model = any(name != "rule" for name in configs)
+    provider = args.planner_provider
+    if needs_model and provider is None:
+        if args.model_provider == "deepseek":
+            provider = "deepseek"
+        else:
+            raise UsageError(
+                "规划层评测的 llm/hybrid 需要规划模型：请指定 --planner-provider scripted|deepseek"
+            )
+    versions = ["v1", "v2"] if args.planner_cases == "all" else [args.planner_cases]
+    for version in versions:
+        reports, written = run_planner_suite(
+            configs, cases_version=version, provider=provider, out_dir=args.out
+        )
+        if not args.quiet:
+            print(render_planner_markdown(reports))
+        for path in written:
+            print(f"[report] {path}")
+    return EXIT_OK
+
+
 def _cmd_evaluate(args: argparse.Namespace) -> int:
     from .evaluation import evaluate, render_markdown, write_report
     from .evaluation.baselines import BASELINES
     from .paths import REPORT_DIR
 
+    if getattr(args, "suite", "baselines") == "planner":
+        return _cmd_evaluate_planner(args)
+
     names = list(BASELINES) if args.baseline == "all" else [args.baseline]
+    planner_mode = getattr(args, "planner", None)
+    if planner_mode not in (None, "rule"):
+        # 只有 C 有规划器：LLM / 混合规划只作用于 C
+        if args.baseline not in ("all", "C_multi_agent"):
+            raise UsageError(f"--planner {planner_mode} 只作用于 C_multi_agent")
+        names = ["C_multi_agent"]
+        if args.planner_provider is None and args.model_provider == "offline":
+            raise UsageError(
+                f"--planner {planner_mode} 需要规划模型：请指定 --planner-provider scripted|deepseek"
+            )
     provider = getattr(args, "model_provider", "offline")
     if provider != "offline" and "A_deterministic" in names:
         # A 的定义是"无 Agent、无模型"：混进来会改变基线含义
@@ -1111,6 +1253,11 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
                 split=args.split,
                 max_tool_calls=args.max_tool_calls,
                 model_provider=provider,
+                planner_mode=planner_mode if name == "C_multi_agent" else None,
+                planner_provider=args.planner_provider if name == "C_multi_agent" else None,
+                hybrid_multi_domain=(
+                    args.hybrid_multi_domain if name == "C_multi_agent" else None
+                ),
             )
         )
         reports.append(report)

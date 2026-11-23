@@ -4,340 +4,244 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
-  <title>商业地产 · Agent 协作工作台</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23206bc4'/%3E%3Cpath d='M8 22V10h5.5a4 4 0 0 1 0 8H11v4z' fill='%23fff'/%3E%3Ccircle cx='23' cy='12' r='2.5' fill='%230ca678'/%3E%3Ccircle cx='23' cy='21' r='2.5' fill='%23f59f00'/%3E%3C/svg%3E" />
+  <title>商业地产 · 争议案件处理台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d3d6b'/%3E%3Cpath d='M9 23V9h6a4 4 0 0 1 0 8h-3v6z' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/static/vendor/tabler/css/tabler.min.css" />
   <link rel="stylesheet" href="/static/css/workbench.css" />
 </head>
-<body>
-  <div class="page">
-    <header class="navbar navbar-expand-md navbar-light d-print-none wb-navbar">
-      <div class="container-xl">
-        <div class="navbar-brand navbar-brand-autodark d-flex align-items-center gap-2 me-auto">
-          <span class="wb-brand-mark" aria-hidden="true">
-            <span class="wb-brand-dot"></span>
-            <span class="wb-brand-dot"></span>
-            <span class="wb-brand-dot"></span>
-          </span>
-          <span class="d-flex flex-column lh-sm">
-            <span class="fw-bold">商业地产 · Agent 协作工作台</span>
-            <span class="text-secondary small">合同 / 账单 / 物业工单的跨系统争议调查</span>
-          </span>
+<body class="wb-body">
+  <header class="wb-topbar">
+    <div class="wb-topbar-inner">
+      <button type="button" class="wb-icon-btn wb-sidebar-toggle" id="sidebar-toggle"
+              aria-controls="case-sidebar" aria-expanded="true" title="收起 / 展开案件列表">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <span class="visually-hidden">案件列表</span>
+      </button>
+      <div class="wb-brand">
+        <span class="wb-brand-name">争议案件处理台</span>
+        <span class="wb-brand-sub">合同 · 账单 · 物业工单 跨系统调查</span>
+      </div>
+      <div class="wb-topbar-right">
+        <span class="wb-mode" id="mode-badge" title="当前为规则规划演示，数据为合成数据，不调用模型">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
+          规则演示 · 合成数据
+        </span>
+        <span class="wb-role" id="role-label" title="当前登录角色（由服务端注入）">角色加载中…</span>
+        <button type="button" class="wb-btn wb-btn-primary wb-new-top" id="new-run-btn-top">新建调查</button>
+        <button type="button" class="wb-btn wb-btn-ghost" id="refresh-btn">刷新</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wb-shell" id="wb-shell">
+    <aside class="wb-sidebar" id="case-sidebar" aria-label="案件列表">
+      <div class="wb-sidebar-head">
+        <h2 class="wb-sidebar-title">案件</h2>
+        <span class="wb-muted" id="runs-count">—</span>
+      </div>
+      <button type="button" class="wb-btn wb-btn-primary wb-btn-block" id="new-run-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        新建调查
+      </button>
+      <div class="wb-sidebar-filters">
+        <label class="visually-hidden" for="run-search">搜索案件</label>
+        <input type="search" class="wb-input" id="run-search" placeholder="搜索租户、铺位或问题" autocomplete="off" />
+        <label class="visually-hidden" for="run-filter">按状态筛选</label>
+        <select class="wb-input" id="run-filter">
+          <option value="all">全部状态</option>
+          <option value="awaiting_approval">待审批</option>
+          <option value="completed">已结束</option>
+          <option value="failed">失败</option>
+        </select>
+      </div>
+      <div class="wb-case-list" id="runs-list" role="list"></div>
+      <div class="wb-empty d-none" id="runs-empty">
+        <div class="wb-empty-title">没有匹配的案件</div>
+        <div class="wb-muted">调整筛选条件，或新建一次调查。</div>
+      </div>
+      <div class="wb-muted d-none" id="runs-loading">正在读取案件列表…</div>
+      <p class="wb-sidebar-foot wb-muted">只显示最近 50 个案件；搜索只在已加载结果中进行。</p>
+    </aside>
+
+    <main class="wb-main" id="wb-main">
+      <div class="wb-alert d-none" id="page-alert" role="alert"></div>
+
+      <section class="wb-case-head" aria-labelledby="header-title">
+        <div class="wb-case-kicker" id="header-pretitle">尚未选择案件</div>
+        <div class="wb-case-title-row">
+          <h1 class="wb-case-title" id="header-title">选择左侧案件，或新建一次调查</h1>
+          <span class="wb-chip-issue d-none" id="header-issue"></span>
+          <span class="wb-status" data-status="idle" id="run-status-badge">未选择</span>
         </div>
-        <div class="navbar-nav flex-row align-items-center gap-2 ms-md-auto">
-          <span class="badge bg-azure-lt wb-mode-badge" id="mode-badge"
-                title="页面展示后端实际使用的执行模式；默认离线确定性规则路径，无模型参与">
-            规则演示 · 合成数据
-          </span>
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-btn">
-            刷新数据
+        <p class="wb-case-question" id="header-question"></p>
+        <div class="wb-case-meta" id="header-sub">本页只呈现事实、证据与审批状态，不执行调账、减免或派单。</div>
+      </section>
+
+      <ol class="wb-steps" id="progress-steps" aria-label="案件流程进度"></ol>
+
+      <section class="wb-cards" id="conclusion-cards" aria-label="结论"></section>
+
+      <section class="wb-panel" id="collab-card" tabindex="-1" aria-labelledby="collab-title">
+        <div class="wb-panel-head">
+          <h2 class="wb-panel-title" id="collab-title">协作视图</h2>
+          <span class="wb-muted">规划 → 合同 / 账单 / 物业 → 核验 → 报告 → 审批 · 高亮为本次实际参与</span>
+        </div>
+        <div class="wb-canvas" id="graph-canvas">
+          <svg class="wb-links" id="graph-links" aria-hidden="true" focusable="false"></svg>
+
+          <button type="button" class="wb-node wb-node-plan" data-node="plan" aria-pressed="false">
+            <span class="wb-node-head">
+              <span class="wb-node-title">任务规划</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">按问题涉及的事项分派调查</span>
+          </button>
+
+          <button type="button" class="wb-node wb-node-agent" data-node="agent:lease" data-domain="lease" aria-pressed="false" title="合同查询（lease.query）">
+            <span class="wb-node-head">
+              <span class="wb-node-title">合同</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">租期、条款与合同版本</span>
+          </button>
+
+          <button type="button" class="wb-node wb-node-agent" data-node="agent:billing" data-domain="billing" aria-pressed="false" title="账单核对（billing.statement）">
+            <span class="wb-node-head">
+              <span class="wb-node-title">账单</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">应收、已收、欠费与差异</span>
+          </button>
+
+          <button type="button" class="wb-node wb-node-agent" data-node="agent:property" data-domain="property" aria-pressed="false" title="工单查询（property.work_orders）">
+            <span class="wb-node-head">
+              <span class="wb-node-title">物业</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">报修记录与未关闭工单</span>
+          </button>
+
+          <div class="wb-merge" id="merge-caption"><span class="visually-hidden">各领域结果合并后进入证据核验</span></div>
+
+          <button type="button" class="wb-node wb-node-sink" data-node="verify" aria-pressed="false">
+            <span class="wb-node-head">
+              <span class="wb-node-title">证据核验</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">核对冲突、资料缺口与结论</span>
+          </button>
+
+          <button type="button" class="wb-node wb-node-sink" data-node="report" aria-pressed="false">
+            <span class="wb-node-head">
+              <span class="wb-node-title">调查报告</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">汇总事实、冲突与缺失</span>
+          </button>
+
+          <button type="button" class="wb-node wb-node-sink" data-node="approval" aria-pressed="false">
+            <span class="wb-node-head">
+              <span class="wb-node-title">人工审批</span>
+              <span class="wb-status" data-status="idle">等待运行</span>
+            </span>
+            <span class="wb-node-finding" data-role="finding">物业 → 财务 两级审批草案</span>
           </button>
         </div>
-      </div>
-    </header>
+        <p class="wb-muted wb-graph-note" id="graph-note">
+          连线表示流程结构。接口一次性返回完整结果，节点按返回结果回顾，不显示逐步进度或耗时。点击节点查看详情。
+        </p>
+        <div class="wb-node-detail d-none" id="node-detail">
+          <div class="wb-node-detail-head">
+            <div>
+              <div class="wb-muted" id="node-detail-kicker">节点详情</div>
+              <h3 class="wb-node-detail-title" id="node-detail-title">—</h3>
+              <div class="wb-muted" id="node-detail-sub"></div>
+            </div>
+            <button type="button" class="wb-btn wb-btn-ghost" id="node-detail-close">关闭</button>
+          </div>
+          <div id="node-detail-body"></div>
+        </div>
+      </section>
 
-    <div class="page-wrapper">
-      <div class="page-header d-print-none wb-page-header">
-        <div class="container-xl">
-          <div class="row g-2 align-items-end">
-            <div class="col">
-              <div class="page-pretitle" id="header-pretitle">尚未选择运行</div>
-              <h1 class="page-title" id="header-title">选择历史运行，或提交一次新的调查</h1>
-              <div class="text-secondary small mt-1" id="header-sub">
-                身份由服务端注入；本页只呈现事实、证据与审批状态，不执行调账或派单。
+      <section class="wb-panel" id="report-card" aria-label="案件详情">
+        <div class="wb-tabs" role="tablist" aria-label="案件详情页签">
+          <button type="button" class="wb-tab is-active" role="tab" id="tab-summary" aria-controls="pane-summary" aria-selected="true">案件摘要</button>
+          <button type="button" class="wb-tab" role="tab" id="tab-conflicts" aria-controls="pane-conflicts" aria-selected="false">冲突对照</button>
+          <button type="button" class="wb-tab" role="tab" id="tab-evidence" aria-controls="pane-evidence" aria-selected="false">证据</button>
+          <button type="button" class="wb-tab" role="tab" id="tab-approval" aria-controls="pane-approval" aria-selected="false">审批单</button>
+          <button type="button" class="wb-tab" role="tab" id="tab-tech" aria-controls="pane-tech" aria-selected="false">技术视图</button>
+          <span class="wb-muted wb-tabs-meta" id="report-meta"></span>
+        </div>
+        <div class="wb-tab-panes">
+          <div class="wb-pane" id="pane-summary" role="tabpanel" aria-labelledby="tab-summary"></div>
+          <div class="wb-pane d-none" id="pane-conflicts" role="tabpanel" aria-labelledby="tab-conflicts"></div>
+          <div class="wb-pane d-none" id="pane-evidence" role="tabpanel" aria-labelledby="tab-evidence"></div>
+          <div class="wb-pane d-none" id="pane-approval" role="tabpanel" aria-labelledby="tab-approval"></div>
+          <div class="wb-pane d-none" id="pane-tech" role="tabpanel" aria-labelledby="tab-tech">
+            <details class="wb-tech" id="tech-details">
+              <summary>展开技术视图（调用记录、Trace、原始 JSON，面向开发与复查）</summary>
+              <div class="wb-tech-body">
+                <h3 class="wb-section-title">工具调用记录</h3>
+                <div id="pane-calls"></div>
+                <h3 class="wb-section-title">原始数据</h3>
+                <div id="pane-raw"></div>
               </div>
-            </div>
-            <div class="col-auto">
-              <div class="btn-list align-items-center">
-                <span class="badge wb-status" data-status="idle" id="run-status-badge">未选择运行</span>
-                <button type="button" class="btn btn-primary" id="new-run-btn">新建调查</button>
-              </div>
-            </div>
+            </details>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="page-body">
-        <div class="container-xl">
-          <div class="alert d-none" id="page-alert" role="alert"></div>
-          <div class="row row-cards">
-            <div class="col-12 col-lg-4 col-xxl-3">
-              <form class="card" id="run-form" novalidate>
-                <div class="card-header">
-                  <h2 class="card-title">新建调查</h2>
-                  <div class="card-actions">
-                    <span class="text-secondary small">POST /api/runs</span>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <div class="mb-3">
-                    <label class="form-label" for="question">调查问题</label>
-                    <textarea class="form-control" id="question" name="question" rows="4" maxlength="2000"
-                              required>商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，并要求减免费用。请核对合同、账单、付款和工单。</textarea>
-                    <div class="form-hint">问题原文会下发给每个领域子任务，不做前端改写。</div>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label" for="lease-id">租约 ID</label>
-                    <input type="text" class="form-control" id="lease-id" name="lease_id"
-                           value="lease_xh_a301_2025" maxlength="64" autocomplete="off" required />
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" id="with-approval" checked />
-                      <span class="form-check-label">启用人工审批（暂停 → 恢复）</span>
-                    </label>
-                    <div class="form-hint">关闭后不接审批通道，草案只停留在报告中。</div>
-                  </div>
-                  <div class="mb-2">
-                    <div class="text-secondary small mb-1">示例问题（点击填入，不会创建运行）</div>
-                    <div class="wb-examples">
-                      <button type="button" class="btn btn-sm btn-outline-secondary wb-example"
-                              data-question="商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，并要求减免费用。请核对合同、账单、付款和工单。">跨系统冲突</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary wb-example"
-                              data-question="A-301 现在还有多少钱没交？">单一账单查询</button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary wb-example"
-                              data-question="A-301 的租期是什么时候？">仅查询租约条款</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="card-footer">
-                  <div class="d-flex align-items-center gap-2">
-                    <button type="submit" class="btn btn-primary" id="submit-btn">
-                      <span class="spinner-border spinner-border-sm d-none me-1" id="submit-spinner"
-                            role="presentation" aria-hidden="true"></span>
-                      <span id="submit-label">提交调查</span>
-                    </button>
-                    <span class="text-secondary small" id="form-status" role="status" aria-live="polite"></span>
-                  </div>
-                  <div class="alert alert-danger mt-3 mb-0 d-none" id="form-alert" role="alert"></div>
-                </div>
-              </form>
-
-              <div class="card mt-3">
-                <div class="card-header">
-                  <h2 class="card-title">最近运行</h2>
-                  <div class="card-actions">
-                    <span class="text-secondary small" id="runs-count">—</span>
-                  </div>
-                </div>
-                <div class="card-body pb-2">
-                  <label class="form-label" for="run-search">在已加载结果中筛选</label>
-                  <div class="row g-2">
-                    <div class="col-12 col-sm-7">
-                      <input type="search" class="form-control" id="run-search"
-                             placeholder="问题、运行 ID 或租约 ID" autocomplete="off" />
-                    </div>
-                    <div class="col-12 col-sm-5">
-                      <select class="form-select" id="run-filter" aria-label="按运行状态筛选">
-                        <option value="all">全部状态</option>
-                        <option value="completed">已完成</option>
-                        <option value="awaiting_approval">待审批</option>
-                        <option value="failed">失败</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="form-hint">筛选仅作用于已加载的运行（GET /api/runs?limit=50），不额外请求接口。</div>
-                </div>
-                <div class="list-group list-group-flush wb-run-list" id="runs-list" role="list"></div>
-                <div class="card-body d-none" id="runs-empty">
-                  <div class="empty">
-                    <div class="empty-title">没有匹配的运行</div>
-                    <div class="empty-subtitle text-secondary">调整筛选条件，或提交一次新的调查。</div>
-                  </div>
-                </div>
-                <div class="card-body d-none" id="runs-loading">
-                  <div class="d-flex align-items-center gap-2 text-secondary small">
-                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                    正在读取运行列表…
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-lg-8 col-xxl-9">
-              <div class="card" id="collab-card" tabindex="-1">
-                <div class="card-header">
-                  <h2 class="card-title">Agent 协作视图</h2>
-                  <div class="card-actions">
-                    <span class="text-secondary small">固定职责图 · 高亮表示本次实际参与</span>
-                  </div>
-                </div>
-                <div class="card-body pb-2">
-                  <div class="wb-stats" id="summary-strip" aria-live="polite">
-                    <div class="wb-stat">
-                      <div class="wb-stat-label">执行状态</div>
-                      <div class="wb-stat-value" id="stat-status">等待运行</div>
-                      <div class="wb-stat-note" id="stat-status-note">尚未选择运行</div>
-                    </div>
-                    <div class="wb-stat">
-                      <div class="wb-stat-label">证据结论</div>
-                      <div class="wb-stat-value" id="stat-verdict">—</div>
-                      <div class="wb-stat-note" id="stat-verdict-note">verdict / completeness</div>
-                    </div>
-                    <div class="wb-stat">
-                      <div class="wb-stat-label">冲突与缺口</div>
-                      <div class="wb-stat-value" id="stat-conflicts">—</div>
-                      <div class="wb-stat-note" id="stat-conflicts-note">待结果返回后统计</div>
-                    </div>
-                    <div class="wb-stat">
-                      <div class="wb-stat-label">审批</div>
-                      <div class="wb-stat-value" id="stat-approval">—</div>
-                      <div class="wb-stat-note" id="stat-approval-note">等待运行</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="card-body pt-2">
-                  <div class="wb-canvas" id="graph-canvas">
-                    <svg class="wb-links" id="graph-links" aria-hidden="true" focusable="false"></svg>
-
-                    <button type="button" class="wb-node wb-node-plan" data-node="plan" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">任务规划</span>
-                      </span>
-                      <span class="wb-node-duty">按问题涉及的领域拆分子任务</span>
-                      <span class="wb-node-meta">规则规划器 · 不调用模型</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-
-                    <button type="button" class="wb-node wb-node-agent" data-node="agent:lease" data-domain="lease" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">合同 Agent</span>
-                      </span>
-                      <span class="wb-node-duty">租约、条款、版本与来源</span>
-                      <span class="wb-node-meta">lease.query</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-
-                    <button type="button" class="wb-node wb-node-agent" data-node="agent:billing" data-domain="billing" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">账单 Agent</span>
-                      </span>
-                      <span class="wb-node-duty">账单、付款、欠费及差异</span>
-                      <span class="wb-node-meta">billing.statement</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-
-                    <button type="button" class="wb-node wb-node-agent" data-node="agent:property" data-domain="property" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">物业 Agent</span>
-                      </span>
-                      <span class="wb-node-duty">维修记录、未关闭工单</span>
-                      <span class="wb-node-meta">property.work_orders</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-
-                    <div class="wb-merge" id="merge-caption">
-                      <span class="wb-merge-arrow" aria-hidden="true"></span>
-                      各领域结果合并
-                    </div>
-
-                    <button type="button" class="wb-node wb-node-sink" data-node="verify" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">证据核验</span>
-                      </span>
-                      <span class="wb-node-duty">核对冲突、资料缺口与结论</span>
-                      <span class="wb-node-meta">verify_results · 结果回顾</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-
-                    <button type="button" class="wb-node wb-node-sink" data-node="report" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">调查报告</span>
-                      </span>
-                      <span class="wb-node-duty">汇总事实、冲突与缺失</span>
-                      <span class="wb-node-meta">不构成减免 / 调账决定</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-
-                    <button type="button" class="wb-node wb-node-sink" data-node="approval" aria-pressed="false">
-                      <span class="wb-node-head">
-                        <span class="wb-node-dot" aria-hidden="true"></span>
-                        <span class="wb-node-title">人工审批</span>
-                      </span>
-                      <span class="wb-node-duty">双角色串行批准草案</span>
-                      <span class="wb-node-meta">批准也不执行真实调账</span>
-                      <span class="badge wb-status" data-status="idle">状态待返回</span>
-                    </button>
-                  </div>
-                  <p class="text-secondary small mt-3 mb-0" id="graph-note">
-                    连线表示流程结构：接口一次性返回完整结果，本页不提供逐节点实时事件，
-                    因此规划 / 核验 / 报告节点按返回结果回顾，不显示耗时或进度百分比。
-                  </p>
-                </div>
-                <div class="card-body border-top d-none" id="node-detail">
-                  <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
-                    <div>
-                      <div class="text-secondary small" id="node-detail-kicker">节点详情</div>
-                      <h3 class="card-title mb-1" id="node-detail-title">—</h3>
-                      <div class="text-secondary small" id="node-detail-sub"></div>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-ghost-secondary" id="node-detail-close">关闭</button>
-                  </div>
-                  <div id="node-detail-body"></div>
-                </div>
-              </div>
-
-              <div class="card mt-3" id="report-card">
-                <div class="card-header">
-                  <h2 class="card-title">调查报告与证据</h2>
-                  <div class="card-actions text-secondary small" id="report-meta">尚未选择运行</div>
-                </div>
-                <div class="card-header">
-                  <ul class="nav nav-tabs card-header-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                      <a class="nav-link active" data-bs-toggle="tab" href="#pane-summary" role="tab"
-                         aria-controls="pane-summary" aria-selected="true">调查摘要</a>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                      <a class="nav-link" data-bs-toggle="tab" href="#pane-evidence" role="tab"
-                         aria-controls="pane-evidence" aria-selected="false">证据</a>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                      <a class="nav-link" data-bs-toggle="tab" href="#pane-calls" role="tab"
-                         aria-controls="pane-calls" aria-selected="false">调用记录</a>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                      <a class="nav-link" data-bs-toggle="tab" href="#pane-approval" role="tab"
-                         aria-controls="pane-approval" aria-selected="false">审批</a>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                      <a class="nav-link" data-bs-toggle="tab" href="#pane-raw" role="tab"
-                         aria-controls="pane-raw" aria-selected="false">原始数据</a>
-                    </li>
-                  </ul>
-                </div>
-                <div class="card-body">
-                  <div class="tab-content" id="report-panes">
-                    <div class="tab-pane show active" id="pane-summary" role="tabpanel" aria-label="调查摘要"></div>
-                    <div class="tab-pane" id="pane-evidence" role="tabpanel" aria-label="证据"></div>
-                    <div class="tab-pane" id="pane-calls" role="tabpanel" aria-label="调用记录"></div>
-                    <div class="tab-pane" id="pane-approval" role="tabpanel" aria-label="审批"></div>
-                    <div class="tab-pane" id="pane-raw" role="tabpanel" aria-label="原始数据"></div>
-                  </div>
-                </div>
-              </div>
-
-              <p class="text-secondary small mt-3 mb-4">
-                数据为合成演示数据；页面不发送自报身份或权限字段，审批人只会从服务端白名单中选择。
-                原始数据只放在「原始数据」标签页，不作为首屏内容。
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <p class="wb-muted wb-foot">
+        数据为合成演示数据。提交调查不发送身份或权限字段；演示模式下审批人由操作者从服务端白名单中自选（未接登录认证）；批准只产生草案，不执行任何调账或减免。
+      </p>
+    </main>
   </div>
 
+  <dialog class="wb-drawer" id="new-run-drawer" aria-labelledby="new-run-title">
+    <form class="wb-drawer-inner" id="run-form" novalidate>
+      <div class="wb-drawer-head">
+        <h2 class="wb-panel-title" id="new-run-title">新建调查</h2>
+        <button type="button" class="wb-btn wb-btn-ghost" id="drawer-close">关闭</button>
+      </div>
+      <div class="wb-drawer-body">
+        <label class="wb-label" for="question">调查问题</label>
+        <textarea class="wb-input" id="question" name="question" rows="5" maxlength="2000"
+                  required>商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，并要求减免费用。请核对合同、账单、付款和工单。</textarea>
+        <div class="wb-hint">问题原文会下发给每个调查领域，页面不做改写。</div>
+
+        <label class="wb-label" for="lease-id">租约编号</label>
+        <input type="text" class="wb-input" id="lease-id" name="lease_id"
+               value="lease_xh_a301_2025" maxlength="64" autocomplete="off" required />
+        <div class="wb-hint">合成数据中的租约：A-301（云端咖啡）、A-302（星汇文具）。</div>
+
+        <label class="wb-check">
+          <input type="checkbox" id="with-approval" checked />
+          <span>启用人工审批（发现差额时暂停，等待物业与财务审批）</span>
+        </label>
+
+        <div class="wb-label">示例问题（点击填入，不会创建案件）</div>
+        <div class="wb-examples">
+          <button type="button" class="wb-btn wb-btn-ghost wb-example"
+                  data-question="商铺 A-301 投诉最近三个月租金金额不一致，同时声称空调多次维修未解决，并要求减免费用。请核对合同、账单、付款和工单。">跨系统争议</button>
+          <button type="button" class="wb-btn wb-btn-ghost wb-example"
+                  data-question="A-301 现在还有多少钱没交？">单一账单查询</button>
+          <button type="button" class="wb-btn wb-btn-ghost wb-example"
+                  data-question="A-301 的租期是什么时候？">合同条款查询</button>
+        </div>
+        <div class="wb-alert wb-alert-danger d-none" id="form-alert" role="alert"></div>
+      </div>
+      <div class="wb-drawer-foot">
+        <button type="submit" class="wb-btn wb-btn-primary" id="submit-btn">
+          <span class="wb-spinner d-none" id="submit-spinner" aria-hidden="true"></span>
+          <span id="submit-label">提交调查</span>
+        </button>
+        <span class="wb-muted" id="form-status" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+  </dialog>
+
   <noscript>
-    <div class="container-xl py-3">
-      <div class="alert alert-warning">本页面需要 JavaScript 才能调用后端接口。</div>
-    </div>
+    <div class="wb-alert wb-alert-warning">本页面需要 JavaScript 才能调用后端接口。</div>
   </noscript>
 
   <script src="/static/vendor/tabler/js/tabler.min.js" defer></script>

@@ -673,17 +673,27 @@ class TestR1DomainCoverageHelpers(unittest.TestCase):
         # 权限跨多个领域时不猜
         self.assertIsNone(tool_domain("x.y", frozenset({"lease.read", "billing.read"})))
 
-    def test_missing_domain_outcome_requires_failed_calls(self) -> None:
+    def test_missing_domain_outcome_distinguishes_failed_and_unqueried(self) -> None:
+        """Task 034 / 2.6 改动：原用例断言“无失败调用 → (None, None)”，即复查 P3-2 的残余。
+
+        现在无失败调用也要告警，但措辞必须与“查询失败”区分开。
+        """
+
         from app.agents.base.evidence import domain_coverage, missing_domain_outcome
 
         coverage = domain_coverage(
             "A-301 租期和欠款？", {"lease.lookup": {"lease_period": "2025-01-01 至 2027-12-31"}}
         )
         self.assertEqual(coverage["missing"], ["billing"])
-        self.assertEqual(missing_domain_outcome(coverage, []), (None, None))
-        reason, warning = missing_domain_outcome(coverage, [{"tool": "billing.statement.read"}])
+        reason, unqueried = missing_domain_outcome(coverage, [])
         self.assertIsNone(reason)
-        self.assertIn("billing", warning or "")
+        self.assertIn("billing", unqueried or "")
+        self.assertIn("未查询", unqueried or "")
+        reason, failed = missing_domain_outcome(coverage, [{"tool": "billing.statement.read"}])
+        self.assertIsNone(reason)
+        self.assertIn("billing", failed or "")
+        self.assertIn("查询失败", failed or "")
+        self.assertNotIn("未查询", failed or "")
 
     def test_legal_zero_result_counts_as_covered(self) -> None:
         from app.agents.base.evidence import domain_coverage

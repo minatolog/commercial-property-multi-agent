@@ -41,7 +41,8 @@ verify → revise(有上限) → dispatch
 verify → report → approval → END
 ```
 
-- plan 由 RuleBasedPlanner 生成，每个子任务携带原问题及显式目标/筛选。
+- plan 由规划器生成（默认 RuleBasedPlanner；Task 034 起可为 LLMSupervisorPlanner / HybridPlanner，见 [ADR-006](../decisions/ADR-006-hybrid-planner.md)），每个子任务携带原问题及显式目标/筛选；规则与 LLM 共用 `build_domain_subtasks`，能力名与目标只来自代码与可信 payload。plan 节点为异步（`Planner.aplan_detailed`），补查不重新规划。
+- **规划来源 `planning`**（Task 034）：plan 节点写入 State，报告 / 回问报告 / CLI `investigate` / 评测 C 逐题 `result.planning` 原样输出。键：`planner_mode`（rule/llm/hybrid/custom）、`plan_source`（rule/llm/fallback_rule/fallback_clarification）、`fallback_reason`（model_unavailable/model_error/timeout/invalid_output/budget_exhausted，无回退为 null）、`fallback_detail`、`planner_model`（provider、配置 model_name、`served_models`、`served_model_mismatch`）、`supervisor_plan`（校验后的计划，不含 System Prompt）、`rule_domains`、`ambiguity_signals`、`escalated_to_model`、`escalation_reason`（hybrid）、`rule_domains_not_planned`、`warnings`、`model_calls`、`total_tokens`、`latency_ms`。LLM 来源的 `routing_reason` 条目带 `source="llm"` 与模型理由；模型回问时 `clarification.reason="supervisor_clarify"`。
 - results/failures/warnings 是追加通道；verify/report 按当前 run 过滤，并以 subtask 取当前结果。不是历史提案的 (subtask_id, attempt) map reducer 已经落地。
 - expected_subtasks 由计划定义；缺少预期结果必须明确失败，不能按“实际收到了几条”假装齐全。
 - conflicts/missing 每轮重新计算覆盖，防止补查后残留旧缺口。

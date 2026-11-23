@@ -79,9 +79,12 @@ class BaselineResult:
     #: 每个 Agent 实际使用的模型（Task 031 / 2.5）。离线时统一为 `{}`（表示无模型参与）。
     #: 条目形状与 `InvestigationBundle.agent_models` 一致。
     models_by_agent: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Task 034：C 基线的规划来源（planner_mode / plan_source / fallback_reason …）。
+    #: A/B 没有规划器，保持 None 且不写入行记录（A/B 报告形状不变）。
+    planning: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        row = {
             "baseline": self.baseline,
             "case_id": self.case_id,
             "status": self.status,
@@ -101,6 +104,9 @@ class BaselineResult:
                 name: dict(entry) for name, entry in self.models_by_agent.items()
             },
         }
+        if self.planning is not None:
+            row["planning"] = dict(self.planning)
+        return row
 
 
 # ---------------------------------------------------------------- 意图识别
@@ -258,6 +264,14 @@ class _Baseline:
         self.client_factory = client_factory
         self.config_dir = config_dir
         self._knowledge = None
+        #: Task 034：规划模式（只有 C 使用；None = 读 planner.yaml，默认 rule）
+        self.planner_mode: str | None = None
+        self.planner_provider: str | None = None
+        self.hybrid_multi_domain: str | None = None
+
+    @property
+    def uses_planner_model(self) -> bool:
+        return self.planner_mode not in (None, "rule")
 
     @property
     def uses_model(self) -> bool:
@@ -593,14 +607,22 @@ class MultiAgentBaseline(_Baseline):
             scripted_calls=self.scripted_calls,
             config_dir=self.config_dir,
             client_factory=self.client_factory,
+            # Task 034：规划模型与 Agent 共享模型调用预算
             max_model_calls=(
-                0 if not self.uses_model else max(4, self.max_tool_calls * 2)
+                0
+                if not (self.uses_model or self.uses_planner_model)
+                else max(4, self.max_tool_calls * 2)
             ),
             # 离线路径不需要 token 闸门（`None` = 未配置上限）；
             # 有模型客户端时必须给出真实上限（Task 024 / Q1）。
             max_total_tokens=(
-                None if not self.uses_model else self.max_total_tokens
+                None
+                if not (self.uses_model or self.uses_planner_model)
+                else self.max_total_tokens
             ),
+            planner_mode=self.planner_mode,
+            planner_provider=self.planner_provider,
+            hybrid_multi_domain=self.hybrid_multi_domain,
         )
         result = BaselineResult(
             baseline=self.name,
@@ -618,6 +640,7 @@ class MultiAgentBaseline(_Baseline):
             thread_id=f"thread_{case.case_id}_C",
         )
         result.route = investigation.route
+        result.planning = dict((investigation.report or {}).get("planning") or {})
         result.approval_status = investigation.approval_status or None
         draft = (investigation.report or {}).get("proposed_draft") or {}
         result.approval_draft_version = draft.get("draft_version")
@@ -806,6 +829,9 @@ def build_baseline(
     scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
     client_factory: Any = None,
     config_dir: str | Path | None = None,
+    planner_mode: str | None = None,
+    planner_provider: str | None = None,
+    hybrid_multi_domain: str | None = None,
 ) -> _Baseline:
     mapping = {
         "A_deterministic": DeterministicBaseline,
@@ -824,7 +850,10 @@ def build_baseline(
         raise ValueError(
             "A_deterministic 不接受模型输入（该基线不使用模型）"
         )
-    return mapping[name](
+    if planner_mode not in (None, "rule") and name != "C_multi_agent":
+        # 只有 C 有规划器：给 A/B 指定 LLM 规划会让报告误以为它们用了 Supervisor
+        raise ValueError(f"{name} 没有规划器；--planner {planner_mode} 只作用于 C_multi_agent")
+    runner = mapping[name](
         max_tool_calls=max_tool_calls,
         model_client=model_client,
         max_total_tokens=max_total_tokens,
@@ -833,3 +862,7 @@ def build_baseline(
         client_factory=client_factory,
         config_dir=config_dir,
     )
+    runner.planner_mode = planner_mode
+    runner.planner_provider = planner_provider
+    runner.hybrid_multi_domain = hybrid_multi_domain
+    return runner

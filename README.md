@@ -39,7 +39,7 @@ python -m app.cli tools
 python -m app.cli check
 python tests/smoke_agent_contracts.py
 
-# 4) 跑一遍完整回归（529 项）
+# 4) 跑一遍完整回归（610 项）
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -278,12 +278,12 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 
 ## 7. 质量证据
 
-下表包含既有任务证据；Task 031 在完成 Z1–Z3、CLI、逐 Agent 模型配置、配置真实性与路由兜底后，统一重跑 **529 项回归**（skipped=1）与 **70 项契约**，并通过 `check`、无效配置反例与脚本化 ask/investigate。以下结果仍不替代独立复查验收；本轮没有新增真实模型请求。
+下表包含既有任务证据；Task 031 在完成 Z1–Z3、CLI、逐 Agent 模型配置、配置真实性与路由兜底后，统一重跑 **529 项回归**（skipped=1）与 **70 项契约**；随后返修 R1–R4（Claude Code）后为 **551 项回归**（skipped=1）与 70 项契约，并通过 `check`、无效配置反例与脚本化 ask/investigate。Task 031 与返修已提交为 `3be785e`（“任务重构”，已在 `origin/main`），[DeepSeek 独立复查](docs/reviews/2026-11-21_task031_repair_independent_review.md)结论为有条件通过。没有新增真实模型请求。
 
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 70 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **529 项通过**（1 项因本机已配置密钥而 skip） |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **610 项通过**（1 项因本机已配置密钥而 skip；Task 032/034 复查返修后，2026-11-22；Task 032 后 606、Task 034 后 595、Task 031 返修后 551） |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | 模型预算按物理请求记账 | `tests/test_model_budget.py`（6 项） | `max_model_calls=1` 时只发出 1 次请求；重试/补查逐次记账 |
 | 模型不能换目标/丢筛选 | `tests/test_task_scope.py`（15 项） | 越界租约被拒、省略即注入、文档范围取交集、受控调用双省略默认拒绝 |
@@ -319,7 +319,7 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 | 真实模型评测（dev 8 题） | `evaluate --split dev --model-provider deepseek` | B 1/7、C 0/6；报告头部当时标注 `deepseek/deepseek-chat`（见 [real_model_dev](docs/evaluation/reports/real_model_dev/)）。该模型名已于 2026-07-24 下线，当前配置为 `deepseek-flash` |
 | 报告不得谎报模型 | `tests/test_evaluation.py::test_report_names_the_real_model_when_one_is_used` | 接入模型后报告必须写真实 provider |
 | 展示层可删除 | `tests/test_api.py::test_cli_and_evaluation_do_not_import_api` | 子进程断言通过 |
-| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | Task 016 当时为 238 项测试 + 57 项契约通过；Task 025 已有环境回归为 399 项；本轮 529 项仍不能替代当前最终版本的新环境复现 |
+| 独立环境复现 | 全新 `venv`（隔离已确认）→ `pip install -e .` → 全量测试 | Task 016 当时为 238 项测试 + 57 项契约通过；Task 025 已有环境回归为 399 项；Task 031 返修后 551 项仍不能替代当前最终版本的新环境复现 |
 | 演示页可用 | 本地 `uvicorn` + 浏览器实访 | 运行/线程 ID、结论、证据、冲突、审批阶段与 Trace 均正确渲染 |
 
 ---
@@ -345,15 +345,15 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 9. **一条 `thread_id` 只能承载一次运行**：重复用它做新调查会被明确拒绝（`invalid_context`）；
    恢复请用 `resume`/`approve`，新任务请换线索。这是有意的安全约束，不是缺陷。
 10. **网页仍未接模型**：WorkflowService 默认确定性、`model_client=None`、`max_model_calls=0`；
-   领域回答展示与最终综合分析尚未完成，属 Task 032；不能把命令行模型接入当作网页已使用 AI。
+   Task 032 只改了界面与只读展示元数据，没有接模型；领域回答展示与最终综合分析尚未完成；不能把命令行模型接入当作网页已使用 AI。
 11. **Z1–Z3、CLI、逐 Agent 模型配置、配置真实性与路由兜底已实施并自检（Task 031），但待独立复查**：
     默认 `ask` 现在必须携带可信目标（从 `--lease`/`--unit` 或问题里的商铺编号解析），失败调用不再算取证，
     默认摘要分栏展示可信资金结论；模型客户端按各 Agent 自己的 YAML 创建；路由未命中返回澄清。
-    不能以本轮 529 项测试与自检替代独立验收，见 [Task 031](docs/prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)。
+    Task 031 返修后 551 项测试，[DeepSeek 独立复查](docs/reviews/2026-11-21_task031_repair_independent_review.md)为有条件通过（文档同步 C1 已完成，R1 残余 C2 由 Task 034 §2.6 处理），见 [Task 031](docs/prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)。
 12. **模型名是配置事实**：历史真实评测报告中的 `deepseek-chat` 是当时实际使用的模型名，官方已于
     2026-07-24 下线；当前配置为 `deepseek-flash`（Task 031 核对官方文档后只改配置，未新增真实调用）。
 13. **API 状态语义未同步**：调查返回 `needs_clarification` 时，API 层仍把 run 记为 `completed`
-    （非 `insufficient` 分支），澄清状态的展示与交互属 Task 032。
+    （非 `insufficient` 分支）；Task 032 起界面显示“需要补充信息”，后端语义未改。
 
 ---
 
@@ -361,4 +361,4 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 
 - 分支 `main`，当前提交见 `git log -1`；里程碑记录见 [git_history](docs/checkpoints/git_history.md)。
 - **未打 Tag、未发布、未部署**——这些动作需要项目所有者确认。
-- 下一步：① 独立复查 Task 031（重点 Z1 目标边界、Z2 取证分界、逐 Agent 模型与报告一致性）；② 小范围补完 U3-A/U3-B；③ 按任务分开推进 Task 032（业务流程工作台前端）与 033（MCP 工具网关）；④ 完成 PostgreSQL 必要数据边界实机验收、正式真实 B/C 对照/重复测量与人工量表，最后复现交付。验收标准见 [当前路线图](docs/product/PROJECT_DEVELOPMENT_ROADMAP.md)。混合检索、部署为后续可选扩展。
+- 下一步：① 复查确认 Task 032 / 034 的返修（DeepSeek 独立复查均为有条件通过，P2/P3 已返修）；② 推进 Task 033（MCP 工具网关）；③ 完成 PostgreSQL 必要数据边界实机验收、正式真实 B/C 对照/重复测量与人工量表，最后复现交付。验收标准见 [当前路线图](docs/product/PROJECT_DEVELOPMENT_ROADMAP.md)。混合检索、部署为后续可选扩展。

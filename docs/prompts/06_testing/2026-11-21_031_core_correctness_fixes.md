@@ -371,6 +371,7 @@
 ## 8. 对应 Git Commit Hash
 
 - **Commit**：`Pending`。HEAD 仍为 `e3b3594`；本轮改动全部未提交、未推送、未打 Tag。
+- **回填（2026-11-21）**：Task 031 原实施与 R1–R4 返修已由用户提交为 `3be785e`（“任务重构”），并已在 `origin/main`；该提交同时包含用户侧 `tools/flowise/` 与 `.gitignore` 的 Flowise 三行。
 - **待提交前检查**：`git status` 只含本轮预期文件；确认无 `.env`、密钥、临时脚本；`docs/evaluation/cases/`、评分规则、历史报告未被修改（用例/ fixture 校验和一致）。
 - **建议 Commit Message**：`fix(core): close Z1-Z3, per-agent model config and CLI/route fallbacks (Task 031)`。
 
@@ -443,6 +444,7 @@
 - `ApprovalStore._copy_for_preview` 改为 `sqlite3.connect(源).backup(sqlite3.connect(副本))`，两个连接都在 `finally` 里关闭；不再复制 `-wal`/`-shm`；台账不存在时仍报错且不创建台账。
 - 源连接为什么不用 `mode=ro`：实测 WAL 库在没有 `-wal`/`-shm` 时，只读连接会**创建**这两个文件，关闭时又删不掉，原台账目录会多出文件（现有 CLI 用例“目录逐字节不变”会失败）。改为普通连接 + `PRAGMA query_only=ON`：拒绝写语句；作为最后一个连接关闭时，SQLite 会删除自己创建的空 `-wal`/`-shm`，主库字节不变。
 - 已知边界：如果进程崩溃留下了含未 checkpoint 帧的 `-wal`，而且此刻没有其他连接，关闭时 SQLite 会把这些已提交帧 checkpoint 进主库（内容等价，字节会变）。`ApprovalStore` 每次操作都关闭连接，正常运行不会出现。
+- 并发写入（复查 C3 补充）：`backup()` 使用默认 `pages=-1`，在一个读事务里一次拷完全部页面。WAL 模式下读不阻塞写，另一进程此时提交的内容不会进入本次快照（快照是备份开始时的一致状态），备份也不会因此重启；如果另一进程持有排他锁（例如正在做 checkpoint 截断），源连接最多等待 `timeout=10s`，之后抛 `database is locked`，dry-run 失败且原台账不变。没有专门的并发用例。
 - 测试（`test_task031_r3_r4.py`）：预演后主库 / `-wal` / `-shm` 的 SHA-256 不变，预演结果与随后真实 `decide()` 逐字段一致（时间戳除外）；另一个连接一直开着、第一阶段决定仍留在 WAL 时，第二阶段（财务）预演能看到它并通过；阶段顺序规则仍然生效；台账不存在时报错且不创建文件。原有 `test_task031_cli` 的 dry-run 用例（目录逐字节不变、真实审批随后可写）全部通过。
 
 ### 10.5 回归与命令
@@ -466,5 +468,6 @@
 - R2：服务端不返回 `model` 时无法区分（见 10.3）；历史真实报告的实际应答模型已无法追溯。
 - R4：崩溃遗留 WAL 的边界（见 10.4）。
 - R1：真实模型 B 基线没有重跑，结果可能变化（多领域题在工具失败时会由 success 变为 partial 或 failed）。
+- R1 残余（复查 P3-2 / C2）：**没有失败调用**、模型只查了一部分已问领域时，结果仍为 success（`domain_coverage.missing` 非空但无告警）。这是本次 R1 的范围外残余，不能视为 R1 已完全覆盖；由 Task 034 §2.6 处理。
 - R5：用户 2026-11-21 决定**保持现状**：有业务领域词但没有可信目标的问题（如“免租期一般怎么约定？”）继续按用法错误（exit 2）拒绝，不增加 `--explain` 或政策类判定。第 9 节对应待办关闭。
-- 改动仍未提交；`.gitignore` 的 Flowise 三行与 `tools/flowise/` 属于用户原有改动，原样保留。
+- 记录时改动未提交；之后由用户提交为 `3be785e`（见第 8 节回填）。`.gitignore` 的 Flowise 三行与 `tools/flowise/` 属于用户原有改动，原样保留。

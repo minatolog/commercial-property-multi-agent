@@ -45,6 +45,27 @@ def _git_commit() -> str:
     return "unknown"
 
 
+def _git_worktree_state() -> str:
+    """`clean` / `dirty`（含未提交或未跟踪文件）/ `unknown`。
+
+    报告里的 `code_commit` 只是 HEAD；工作区有改动时被测代码不等于该提交（Task 034 复查 P3-2）。
+    """
+
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if out.returncode == 0:
+            return "dirty" if out.stdout.strip() else "clean"
+    except OSError:  # pragma: no cover - git 不可用
+        pass
+    return "unknown"
+
+
 @dataclass
 class EvaluationReport:
     baseline: str
@@ -60,6 +81,7 @@ class EvaluationReport:
     duration_ms: int
     rows: list[dict[str, Any]] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
+    code_worktree: str = "unknown"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +90,7 @@ class EvaluationReport:
             "split": self.split,
             "bindings": {
                 "code_commit": self.code_commit,
+                "code_worktree": self.code_worktree,
                 "cases_path": self.cases_path,
                 "cases_sha256": self.cases_sha256,
                 "fixture_sha256": self.fixture_sha256,
@@ -151,6 +174,39 @@ def _models_by_agent_of(results: list[BaselineResult]) -> dict[str, dict[str, An
             None if not served else any(model != target.get("model_name") for model in served)
         )
     return merged
+
+
+def _planner_mode_label(baseline: str, planner_mode: str | None) -> str:
+    if baseline != "C_multi_agent":
+        return "n/a"
+    if planner_mode:
+        return planner_mode
+    from ..config.loader import load_planner_config
+
+    return load_planner_config().mode
+
+
+def _planning_summary(results: list[BaselineResult]) -> dict[str, Any]:
+    """C 基线逐题规划来源汇总（Task 034）；A/B 返回空 dict。"""
+
+    sources: dict[str, int] = {}
+    fallbacks: dict[str, int] = {}
+    planner_calls = 0
+    rows = [result.planning for result in results if result.planning is not None]
+    for planning in rows:
+        source = str(planning.get("plan_source"))
+        sources[source] = sources.get(source, 0) + 1
+        reason = planning.get("fallback_reason")
+        if reason:
+            fallbacks[str(reason)] = fallbacks.get(str(reason), 0) + 1
+        planner_calls += int(planning.get("model_calls") or 0)
+    if not rows:
+        return {}
+    return {
+        "plan_sources": sources,
+        "fallback_reasons": fallbacks,
+        "planner_model_calls": planner_calls,
+    }
 
 
 def _served_cell(entry: dict[str, Any]) -> str:
@@ -246,6 +302,8 @@ def _summarise(
         "by_case_count": len(cases),
         # Task 031 / 2.5：按 Agent 列出实际 provider/model/参数；离线为 {}
         "models_by_agent": _models_by_agent_of(results),
+        # Task 034：C 基线的规划来源统计（A/B 为空）
+        "planning": _planning_summary(results),
     }
 
 
@@ -261,6 +319,9 @@ async def evaluate(
     scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
     client_factory: Any = None,
     config_dir: str | Path | None = None,
+    planner_mode: str | None = None,
+    planner_provider: str | None = None,
+    hybrid_multi_domain: str | None = None,
 ) -> EvaluationReport:
     from ..paths import CASES_DIR
 
@@ -276,6 +337,9 @@ async def evaluate(
         scripted_calls=scripted_calls,
         client_factory=client_factory,
         config_dir=config_dir,
+        planner_mode=planner_mode,
+        planner_provider=planner_provider,
+        hybrid_multi_domain=hybrid_multi_domain,
     )
     started = datetime.now(timezone.utc)
     t0 = time.perf_counter()
@@ -297,6 +361,7 @@ async def evaluate(
         cases_sha256=cases_checksum(source),
         fixture_sha256=cases_checksum(DEFAULT_FIXTURE_PATH),
         code_commit=_git_commit(),
+        code_worktree=_git_worktree_state(),
         scoring_version=SCORING_VERSION,
         model=_model_binding(
             model_client,
@@ -309,6 +374,12 @@ async def evaluate(
             "baselines": list(BASELINES),
             "model_provider": runner.model_provider_label,
             "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具",
+            # Task 034：规划模式是 C 的报告属性（A/B 没有规划器）
+            "planner_mode": _planner_mode_label(baseline, planner_mode),
+            "planner_provider": planner_provider if planner_mode not in (None, "rule") else None,
+            "hybrid_multi_domain": (
+                hybrid_multi_domain if planner_mode == "hybrid" else None
+            ),
         },
         started_at=started.isoformat(),
         duration_ms=int((time.perf_counter() - t0) * 1000),
@@ -381,7 +452,7 @@ def render_markdown(reports: list[EvaluationReport]) -> str:
         lines.append(f"- 数据切分：`{first.split}`")
         lines.append(f"- 用例文件：`{first.cases_path}`（sha256 `{first.cases_sha256[:16]}…`）")
         lines.append(f"- fixture sha256：`{first.fixture_sha256[:16]}…`")
-        lines.append(f"- 代码提交：`{first.code_commit}`")
+        lines.append(f"- 代码提交：`{first.code_commit}`（工作区 {first.code_worktree}）")
         lines.append(f"- 评分规则：`{first.scoring_version}`")
         lines.append(f"- 模型：`{first.model['provider']}` / `{first.model['model_name']}`")
         lines.append(f"- 生成时间：`{first.started_at}`")
@@ -503,7 +574,14 @@ def render_markdown(reports: list[EvaluationReport]) -> str:
         lines.append("")
 
     for report in reports:
-        lines.append(f"## {report.baseline}")
+        planner_mode = (report.config or {}).get("planner_mode")
+        # Task 034：C 的标题写明规划模式（规则 / LLM / 混合），A/B 没有规划器
+        suffix = (
+            f"（规划模式：{planner_mode}）"
+            if planner_mode and planner_mode != "n/a"
+            else ""
+        )
+        lines.append(f"## {report.baseline}{suffix}")
         lines.append("")
         lines.append("| 用例 | 通过 | 自动断言 | 路由 | 延迟(ms) | 工具调用 | 失败原因 |")
         lines.append("|---|---|---|---|---|---|---|")

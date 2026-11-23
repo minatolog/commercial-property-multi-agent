@@ -12,7 +12,7 @@ import yaml
 from pydantic import ValidationError
 
 from ..agents.base.errors import AgentConfigError
-from .schema import AgentConfig
+from .schema import AgentConfig, PlannerConfig
 
 
 def load_agent_config(path: str | Path) -> AgentConfig:
@@ -60,3 +60,37 @@ def load_all_agent_configs(directory: str | Path) -> dict[str, AgentConfig]:
     if not configs:
         raise AgentConfigError(f"配置目录中没有找到任何 *.yaml: {dir_path}")
     return configs
+
+
+def load_planner_config(path: str | Path | None = None) -> PlannerConfig:
+    """加载并校验规划器配置（Task 034）。
+
+    结构校验之外，模型参数再经 `validate_model_config` 校验（与 Agent 同一实现），
+    非法配置在启动期 / `check` 时失败，不会等到运行时才静默回退。
+    """
+
+    from ..llm.factory import validate_model_config
+    from ..paths import BACKEND_ROOT, PLANNER_CONFIG_PATH
+
+    file_path = Path(path) if path is not None else PLANNER_CONFIG_PATH
+    if not file_path.is_file():
+        raise AgentConfigError(f"规划器配置文件不存在: {file_path}")
+    try:
+        raw = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise AgentConfigError(f"YAML 解析失败: {file_path}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise AgentConfigError(f"规划器配置顶层必须是 mapping: {file_path}")
+    try:
+        config = PlannerConfig.model_validate(raw)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(p) for p in err['loc']) or '<root>'}: {err['msg']}"
+            for err in exc.errors()
+        )
+        raise AgentConfigError(f"规划器配置校验失败: {file_path}: {details}") from exc
+    validate_model_config(config)
+    prompt = BACKEND_ROOT / config.prompt_path
+    if not prompt.is_file():
+        raise AgentConfigError(f"规划器 prompt_path 指向的文件不存在: {config.prompt_path}")
+    return config

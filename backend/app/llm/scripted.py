@@ -25,7 +25,7 @@ from .model_client import (
     ToolSpec,
 )
 
-__all__ = ["ScriptedToolModel", "scripted_client_for_tools"]
+__all__ = ["ScriptedSupervisorModel", "ScriptedToolModel", "scripted_client_for_tools"]
 
 
 class ScriptedToolModel(FakeChatModelClient):
@@ -96,3 +96,64 @@ def scripted_client_for_tools(
     model_name: str = "scripted-tool-model",
 ) -> ScriptedToolModel:
     return ScriptedToolModel(list(calls), summary=summary, model_name=model_name)
+
+
+class ScriptedSupervisorModel(FakeChatModelClient):
+    """脚本化规划模型（Task 034）：离线验证 Supervisor 的装配、预算与回退链路。
+
+    它**不做任何推理**：从用户消息里取出 `user_question`，按词表命中决定领域，
+    未命中就回问。因此它在改写问法上的表现与规则规划器相同——离线结果只能证明
+    代码路径正确，**不能**证明模型规划质量（报告必须写明）。
+    """
+
+    def __init__(self, *, model_name: str = "scripted-supervisor") -> None:
+        super().__init__([], provider="scripted", model_name=model_name)
+
+    async def complete(
+        self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
+    ) -> ModelTurn:
+        from ..orchestration.vocabulary import DOMAINS, matched_domains
+
+        self.calls.append((tuple(messages), tuple(tools)))
+        question = ""
+        for message in reversed(list(messages)):
+            if message.role != "user":
+                continue
+            try:
+                question = str(json.loads(message.content or "{}").get("user_question") or "")
+            except (TypeError, ValueError):
+                question = message.content or ""
+            break
+        hits = matched_domains(question)
+        domains = [domain for domain in DOMAINS if domain in hits]
+        if domains:
+            arguments: dict[str, Any] = {
+                "decision": "dispatch",
+                "domains": domains,
+                "reasons": {
+                    domain: "脚本化：问题命中词表词 " + "、".join(hits[domain])
+                    for domain in domains
+                },
+                "clarification_question": None,
+                "confidence": "low",
+            }
+        else:
+            arguments = {
+                "decision": "clarify",
+                "domains": [],
+                "reasons": {},
+                "clarification_question": "请说明要核实的是合同、账单还是物业工单？",
+                "confidence": "low",
+            }
+        name = tools[0].name if tools else "submit_plan"
+        return ModelTurn(
+            text="",
+            tool_calls=(
+                ModelToolCall(
+                    call_id=f"scripted_plan_{len(self.calls)}",
+                    name=name,
+                    arguments=arguments,
+                    arguments_json=json.dumps(arguments, ensure_ascii=False),
+                ),
+            ),
+        )

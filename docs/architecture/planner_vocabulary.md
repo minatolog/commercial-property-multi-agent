@@ -1,4 +1,6 @@
-# 规划器领域词表与路由兜底（Task 031 / 2.7）
+# 规划器领域词表与路由兜底（Task 031 / 2.7；Task 034 起为快速路径）
+
+> **Task 034 之后的定位**：词表是**快速路径**，不再是唯一路由依据。规划模式由 `backend/app/config/planner.yaml` 的 `mode` 决定（默认 `rule`，行为与本文 §1–§7 完全一致）；`hybrid` 下规则命中恰好 1 个领域且无歧义信号时仍直接用本词表，其余交给 LLM Supervisor（见 §9 与 [ADR-006](../decisions/ADR-006-hybrid-planner.md)）。
 
 - 更新：2026-11-21，Task 031 工作项 2.7。
 - 代码唯一来源：[`backend/app/orchestration/vocabulary.py`](../../backend/app/orchestration/vocabulary.py)。
@@ -213,4 +215,25 @@ Task 031 / 2.7 起改为**明确回问**：
 | 日期 | 任务 | 变更 |
 |---|---|---|
 | 2026-11-07 前后 | Task 009 | 建立 `RuleBasedPlanner._LEASE_HINTS / _BILLING_HINTS / _PROPERTY_HINTS`；未命中时静默 `billing` |
+| 2026-11-22 | Task 034 | 词表定位为快速路径；新增歧义信号（§9），决定 hybrid 何时交给 LLM Supervisor；词表本身未增删 |
 | 2026-11-21 | Task 031 / 2.7 | 词表迁到 `backend/app/orchestration/vocabulary.py`（唯一来源，`ask` 路径共用）；删除静默 billing 兜底，改为 `needs_clarification` + 回问；新增 `routing_reason` 报告字段；按 §3 增补 14 个来源可追溯的词（lease 1 / billing 10 / property 3） |
+
+## 9. 与 LLM Supervisor 的关系（Task 034）
+
+| 规划模式 | 本词表的作用 |
+|---|---|
+| `rule`（默认） | 唯一路由依据，行为与 §1–§7 相同 |
+| `hybrid` | 快速路径：规则命中恰好 1 个领域且无歧义信号 → 直接用规则（零模型调用）；规则命中多个领域且无歧义 → `hybrid_multi_domain=rule` 用规则、`=llm` 交给 Supervisor；0 命中或有歧义信号 → Supervisor |
+| `llm` | 不参与派发决策；只在 Supervisor 失败时作为回退（`fallback_rule`），并在报告里记录 `rule_domains` / `rule_domains_not_planned` 供审计 |
+
+**歧义信号**（确定性，代码在 `backend/app/orchestration/supervisor.py::ambiguity_signals`）：
+
+| 信号 | 规则 | 例 |
+|---|---|---|
+| `negation` | 否定词（不是/并非/不用/不要/除了/无关/别查/别管）出现在某个命中词之前 6 个字以内 | “不是租金的问题，是空调” |
+| `target_reference` | 出现指代别家商户的说法（隔壁/那家/另一家/另外一家/对面/别家/其他店） | “隔壁那家空调的事处理到哪了” |
+| `unit_code_mismatch` | 问题中的铺位号（如 `A-12`）与可信目标的铺位号不同 | “A-12 那家合同什么时候到期” |
+| `too_short` | 去掉铺位号、空白与标点后少于 4 个字 | “A-301 欠？” |
+| `weak_hint_only` | 命中的词全部是单字（目前只有“欠”） | “我欠你一顿饭” |
+
+歧义信号只决定“要不要交给模型”，不改变词表、不改变规则规划的结果；Supervisor 的 System Prompt 不包含词表（否则退化为让模型做关键词匹配）。

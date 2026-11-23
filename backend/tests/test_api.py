@@ -482,8 +482,10 @@ class TestPresentationIsOptional(_ApiCase):
     def test_index_page_renders(self) -> None:
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("商业地产 · Agent 协作工作台", response.text)
-        self.assertIn("/api/runs", response.text)
+        # Task 032：产品页由“Agent 协作工作台”改为面向业务人员的“争议案件处理台”
+        self.assertIn("商业地产 · 争议案件处理台", response.text)
+        # 主视图不再显示接口路径（属于技术细节）；改为确认页面加载了工作台脚本
+        self.assertIn("/static/js/app.js", response.text)
 
     def test_cli_and_evaluation_do_not_import_api(self) -> None:
         """删除展示层不应影响 CLI 与评测：它们不能依赖 `app.api`。"""
@@ -525,6 +527,11 @@ class TestWorkbenchStaticAssets(_ApiCase):
         "/static/js/view-model.js": "javascript",
         "/static/js/components/graph.js": "javascript",
         "/static/js/components/report.js": "javascript",
+        # Task 032 新增模块
+        "/static/js/i18n.js": "javascript",
+        "/static/js/format.js": "javascript",
+        "/static/js/case-status.js": "javascript",
+        "/static/js/components/case-head.js": "javascript",
         "/static/vendor/tabler/css/tabler.min.css": "text/css",
         "/static/vendor/tabler/js/tabler.min.js": "javascript",
     }
@@ -535,6 +542,16 @@ class TestWorkbenchStaticAssets(_ApiCase):
             self.assertEqual(response.status_code, 200, path)
             self.assertIn(mime, response.headers["content-type"], path)
             self.assertTrue(response.content, path)
+
+    def test_assets_and_index_require_revalidation(self) -> None:
+        """Task 032 遗留：静态资源与首页带 no-cache，且未改动时返回 304。"""
+        for path in ("/", *self.ASSETS):
+            response = self.client.get(path)
+            self.assertEqual(response.headers.get("cache-control"), "no-cache", path)
+        first = self.client.get("/static/js/app.js")
+        etag = first.headers["etag"]
+        again = self.client.get("/static/js/app.js", headers={"If-None-Match": etag})
+        self.assertEqual(again.status_code, 304)
 
     def test_index_uses_local_assets_only(self) -> None:
         html = self.client.get("/").text

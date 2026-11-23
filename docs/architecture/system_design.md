@@ -1,17 +1,19 @@
 # 系统架构设计（Agent-first 当前版）
 
-- 更新：2026-11-09，Task 026；核对代码 `d6577da`。
+- 更新：2026-11-09，Task 026；核对代码 `d6577da`。Task 034（2026-11-22）补充规划层：LLM Supervisor 与混合规划（[ADR-006](../decisions/ADR-006-hybrid-planner.md)）。
 - 范围与优先级：[当前基线](CURRENT_BASELINE.md)、[ADR-005](../decisions/ADR-005-agent-first-refocus.md)。
 - 整理前原文：[历史快照](system_design_legacy_2026-11-09.md)；历史 ADR-001～004 的原始理由仍在该快照中。
 
 ## 1. 目标和架构
 
-用商业地产收费争议调查，展示工具调用、多 Agent 协作、状态管理、可靠性和评测。采用**模块化单体**，按接口划分模块；不建设完整地产 ERP。简单查询走短路径，复杂问题按需要调用 Lease、Billing、Property 能力。Coordinator 当前为规则规划器，并非 LLM 自由规划器。
+用商业地产收费争议调查，展示工具调用、多 Agent 协作、状态管理、可靠性和评测。采用**模块化单体**，按接口划分模块；不建设完整地产 ERP。简单查询走短路径，复杂问题按需要调用 Lease、Billing、Property 能力。规划层默认是规则规划器（`planner.yaml` 的 `mode: rule`）；Task 034 起可切换为 LLM Supervisor（`llm`）或混合规划（`hybrid`：规则能确定就用规则，否则交给 Supervisor）。Supervisor 只能从三个领域里选，能力名、调查目标、子任务 payload 都由代码决定，失败时回退到规则结果或回问。
 
 ```mermaid
 flowchart TD
     U[CLI / FastAPI] --> O[装配与工作流服务]
     O --> G[LangGraph / Agent Runtime]
+    G --> P[规划层：规则 / LLM Supervisor / 混合]
+    P -.规划调用计入共享预算.-> M[规划模型 submit_plan]
     G --> R[Agent Registry 按能力解析]
     R --> A[独立 Agent 实现与 Prompt]
     A --> E[受控 ToolExecutor]
@@ -40,8 +42,9 @@ flowchart TD
 | `app/fixtures/`、`app/db/` | 可替换只读仓库、Decimal、SQLAlchemy 映射、种子数据；迁移在 migrations |
 | `app/rag/` | 合成 PDF 生成、解析分块、BM25、文档目录、两级引用核验 |
 | `app/orchestration/investigation.py` | 实际 LangGraph 与 InvestigationState；state.py 保留早期通用类型，不是调查图的实际状态定义 |
+| `app/orchestration/supervisor.py`、`prompts/supervisor_system.md`、`app/config/planner.yaml` | Task 034：`LLMSupervisorPlanner`（`submit_plan` 结构化计划、目标剥离、超时/预算/非法输出回退）、`HybridPlanner`（确定性歧义信号）；规则与 LLM 共用 `investigation.build_domain_subtasks`；默认 `mode: rule` |
 | `app/orchestration/{checkpointing,approval}.py` | SQLite 持久恢复、版本绑定与串行双角色审批 |
-| `app/evaluation/` | A/B/C 三基线、用例装载、scoring-v3.3、逐题与汇总报告 |
+| `app/evaluation/` | A/B/C 三基线、用例装载、scoring-v3.3、逐题与汇总报告；Task 034 新增规划层评测 `planner_suite.py`（planner_paraphrase_v1/v2，冻结） |
 | `app/api/`、`app/cli.py` | FastAPI/同源 HTML 演示和命令行；CLI/评测不依赖 API 包 |
 
 依赖声明在 [backend/pyproject.toml](../../backend/pyproject.toml)。Python 3.11、Pydantic、LangChain、LangGraph、SQLAlchemy、Alembic、PDF 工具、FastAPI 均已有源码使用；实际环境是否安装应以该环境检查为准。向量库、Embedding、rerank 不属于当前已实现检索链。

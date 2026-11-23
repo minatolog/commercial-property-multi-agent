@@ -4,7 +4,22 @@
 
 > 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
-## [2026-11-21] 任务 031 - 核心正确性收尾（Pending）
+## [2026-11-22] 任务 034 - LLM Supervisor 与混合规划（Pending）
+
+- **起点 / HEAD**：main / 3be785e（已在 origin/main）；本轮未提交、未推送。
+- **变更**：规划层（`supervisor.py`、`planner.yaml`、Supervisor Prompt、`build_domain_subtasks`、异步 `plan_node`）、装配与 CLI、C 基线规划属性、规划层评测套件、§2.6；新增 2 个测试文件（43 项）、冻结评测集 v1/v2、离线报告与证据；ADR-006 与相关文档。另含 Task 031 复查条件 C1/C3 的文档同步。
+- **验证**：595 tests OK（skipped=1）、70 项契约；mode=rule 离线 heldout 与 `20261121T093757_*` 逐题一致；规划层离线零越权。经用户授权运行真实模型规划对照（deepseek-flash，160 次 + 冒烟 2 次，263,244 token），报告 `20261122T041905_planner_v2_*` 等。
+- **建议 Summary**：`feat(planner): add LLM Supervisor and hybrid planner with frozen paraphrase eval (Task 034)`
+- **回滚参考**：未提交，按 `git status` 逐文件还原；冻结评测集 `docs/evaluation/cases/planner_paraphrase_v{1,2}.jsonl` 若保留，SHA-256 见 `docs/evaluation/planner_paraphrase_v1.md`。
+
+## [2026-11-21] 任务 031 返修与提交（3be785e）
+
+- **提交**：`3be785e`（“任务重构”，作者 minatolog，2026-11-21 20:48），`main` 与 `origin/main` 一致。由用户提交，包含 Task 031 原实施、R1–R4 返修、证据目录，以及用户侧 `tools/flowise/` 与 `.gitignore` 的 Flowise 三行。
+- **验证**：551 tests OK（skipped=1，返修前 529）、70 项契约；`check` / `ask` / `investigate --model-provider scripted` exit 0；离线 heldout `20261121T093757_*` 与 `085431_*` 逐题一致。
+- **复查**：[DeepSeek 独立复查](../reviews/2026-11-21_task031_repair_independent_review.md) 有条件通过：C1 当前状态文档同步（本条及 README/路线图/索引已同步）；C2 R1 残余（无失败调用但漏查已问领域仍 success）由 Task 034 §2.6 处理；C3 R4 并发写说明已补入 031 归档 10.4。
+- **回滚参考**：`git revert 3be785e` 会同时撤销用户侧 Flowise 文件；只撤销 Task 031 时应按路径选择性还原。
+
+## [2026-11-21] 任务 031 - 核心正确性收尾（记录时 Pending；已由 3be785e 提交）
 
 - **起点 / HEAD**：main / e3b3594；027–031 成果与本轮自检均未提交；不声明远端状态。
 - **变更**：Z1–Z3、CLI 清理、逐 Agent 模型配置、配置真实性、路由兜底实现；新增 6 个 Task 031 测试文件、词表模块与文档、031 归档与前后证据目录；同步当前基线、路线图、架构/开发指南、评测计划、根 README、backend README、开发日志与问题记录。评测用例、评分规则、历史报告未修改。

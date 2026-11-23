@@ -28,6 +28,7 @@
 | `docs/evaluation/` | **评测**：评测计划、共享 fixture、评测用例（JSON/JSONL） |
 | `docs/handoffs/` | **交接文档**：跨工具（Codex / DeepSeek）的方向基线与交接记录 |
 | `docs/architecture/system_design.md` | 系统架构设计：模块划分、Agent 编排、数据流、技术选型理由 |
+| `docs/architecture/PROJECT_STRUCTURE.md` | **结构总览（架构图）**：分层总览、一次调查的运行结构、仓库目录结构三张图（`diagrams/*.png`）与对应 Mermaid 源码；图由 `diagrams/build_diagrams.py` 生成 |
 | `docs/architecture/agent_architecture.md` | Agent 层概念设计：契约、Registry、配置、编排、错误与降级 |
 | `docs/architecture/agent_runtime_contracts.md` | **当前 Runtime 契约与 Graph 语义**：实际类型、目标差距、预算/状态/恢复边界 |
 | `docs/architecture/agent_development_guide.md` | 新增/禁用/替换 Agent 的标准流程与硬规则 |
@@ -104,7 +105,9 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 028 | 2026-11-10 | 06_testing | Task 027 独立复查：403 tests / 57 项契约通过；发现状态与节点发现映射 U1–U3，待修后验收 | [2026-11-10_028_task027_ui_acceptance_review.md](./prompts/06_testing/2026-11-10_028_task027_ui_acceptance_review.md) |
 | 029 | 2026-11-10 | 05_frontend | 协作工作台 U1–U3 修复：失败子任务索引、finding 归属、异常报告判定（409 测试 OK、17 项浏览器级 JS 回归、10 张新截图，未提交） | [2026-11-10_029_ui_mapping_fixes.md](./prompts/05_frontend/2026-11-10_029_ui_mapping_fixes.md) |
 | 030 | 2026-11-10 | 06_testing | Task 029 独立复查：U1/U2 原始反例通过，U3 部分修复；409 tests / 57 契约通过，补充异常边界仍误绿灯 | [2026-11-10_030_task029_fixes_acceptance_review.md](./prompts/06_testing/2026-11-10_030_task029_fixes_acceptance_review.md) |
-| 031 | 2026-11-21 | 06_testing | Task 031 核心正确性收尾：Z1–Z3、CLI 清理（dry-run/退出码/身份来源）、逐 Agent 模型配置、配置真实性与路由兜底；529 tests / 70 项契约通过，离线 heldout A 20/B 21/C 24，未提交，待独立复查 | [2026-11-21_031_core_correctness_fixes.md](./prompts/06_testing/2026-11-21_031_core_correctness_fixes.md) |
+| 031 | 2026-11-21 | 06_testing | Task 031 核心正确性收尾：Z1–Z3、CLI 清理（dry-run/退出码/身份来源）、逐 Agent 模型配置、配置真实性与路由兜底；返修 R1–R4 后 551 tests / 70 项契约通过，离线 heldout A 20/B 21/C 24；已提交 `3be785e`，DeepSeek 独立复查有条件通过 | [2026-11-21_031_core_correctness_fixes.md](./prompts/06_testing/2026-11-21_031_core_correctness_fixes.md) |
+| 032 | 2026-11-22 | 05_frontend | （DeepSeek 复查有条件通过，返修经确认复查条件已满足：610 tests、JS 48/190）业务流程工作台前端改版 + U3 收尾：案件列表 / 流程条 / 结论卡 / 页签，只读展示元数据 `display`，核验解释集中为 `interpretVerification`；606 tests / 70 项契约、JS 45 用例 / 163 断言通过，两轮真实截图；网页仍未接模型；未提交，待独立复查 | [2026-11-22_032_business_workbench_ui.md](./prompts/05_frontend/2026-11-22_032_business_workbench_ui.md) |
+| 034 | 2026-11-22 | 04_agents | （DeepSeek 复查有条件通过，返修经确认复查条件已满足；实际应答模型改记“未记录”）LLM Supervisor 与混合规划（默认 rule 不变）；改写问法评测集 v1/v2 冻结在代码之前（含 36 道实习场景题）；离线对照零越权；修复 Task 031 复查 P3-2；595 tests / 70 项契约通过；真实模型单次对照 rule 36 / llm 61 / hybrid 58（66 题，零越权）；未提交，待独立复查 | [2026-11-22_034_llm_supervisor_planner.md](./prompts/04_agents/2026-11-22_034_llm_supervisor_planner.md) |
 
 ---
 

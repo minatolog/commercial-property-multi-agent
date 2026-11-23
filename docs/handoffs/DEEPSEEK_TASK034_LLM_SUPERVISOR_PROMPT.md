@@ -100,6 +100,15 @@ LLM 规划 → 合法且 decision=dispatch → 使用
 - 评测：`evaluate` 新增 `--planner`；报告标题与逐题记录写明规划模式。`C_multi_agent` 的名字不变，规划模式作为报告属性（不要新增一堆基线名，除非你判断这样更清楚并说明理由）。
 - API / 网页：**本任务不改**。WorkflowService 保持规则规划，留给 Task 032 增补。
 
+### 2.6 已问领域漏查（承接 Task 031 复查 P3-2）
+
+来源：`docs/reviews/2026-11-21_task031_repair_independent_review.md` 的 P3-2。现状：`backend/app/agents/base/evidence.py` 的 `missing_domain_outcome` 在没有失败调用时直接返回 `(None, None)`，所以"A-301 租期和欠款？"只查了 lease、没有任何失败调用时，结果是 `status=success`、warnings 为空，但 `domain_coverage.missing=[billing]`。
+
+要做的：
+1. 没有失败调用、但 `domain_coverage.missing` 非空时，也要处理：只缺一部分 → warning（结果为 PARTIAL）；问到的领域一个都没取到 → 与现有口径一致按取证不足处理。warning 文案要和"存在失败调用"的情况区分开（例如"未查询"与"查询失败"）。
+2. 防止误报：词表误命中会造成假的 PARTIAL。请在 hybrid/LLM 规划下说明"问题涉及哪些领域"以什么为准（规则命中、Supervisor 计划还是两者结合），并在归档中写明理由。
+3. 评测：如果引起 heldout 或 paraphrase 评测结果变化，逐题记录；不修改评测题和评分规则。
+
 ## 3. 评测：改写问法评测集（本任务的核心证据）
 
 现有 heldout 的问题大多带有词表里的词，测不出规则规划器的弱点。新增 `docs/evaluation/cases/planner_paraphrase_v1.jsonl`，**在写 Supervisor 代码之前完成并冻结**（记录 sha256，写进归档），之后不得为了通过而修改。
@@ -139,6 +148,7 @@ LLM 规划 → 合法且 decision=dispatch → 使用
 8. `mode=rule` 时：离线 heldout 逐题结果与 `docs/evaluation/reports/20261121T093757_*` **完全一致**（回归保护）。
 9. 配置非法 → `check` 失败、退出码与 Task 031 约定一致。
 10. 报告字段 `planner_mode` / `plan_source` / `fallback_reason` 在 CLI 输出、评测报告中都存在且一致。
+11. 已问领域漏查（2.6）：双领域问题只查一个领域、无失败调用 → PARTIAL 且 warning 写明未查询的领域；两个领域都查到 → SUCCESS；无关的多余工具调用不影响状态。
 
 ## 5. 文档与归档
 

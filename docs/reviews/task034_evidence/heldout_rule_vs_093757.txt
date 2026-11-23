@@ -1,0 +1,6 @@
+A_deterministic cases 32 32 row diffs (ignoring latency/planning): [] | rows with planning: 0 {} | config planner_mode: n/a
+   summary equal (ignoring cost/planning): True
+B_single_agent cases 32 32 row diffs (ignoring latency/planning): [] | rows with planning: 0 {} | config planner_mode: n/a
+   summary equal (ignoring cost/planning): True
+C_multi_agent cases 32 32 row diffs (ignoring latency/planning): [] | rows with planning: 32 {'rule': 32} | config planner_mode: rule
+   summary equal (ignoring cost/planning): True

@@ -416,11 +416,42 @@ class WorkflowService:
             raise ApiError("run_not_found", f"运行不存在: {run_id}", status_code=404)
         return record
 
+    def get_run_view(self, run_id: str) -> dict[str, Any]:
+        """运行详情 + 只读展示元数据（Task 032）。展示元数据在读取时生成，不写入运行记录。"""
+
+        record = dict(self.get_run(run_id))
+        record["display"] = self._display().for_run(record)
+        return record
+
     def list_runs(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        display = self._display()
         return [
-            self._summary(item)
+            self._summary(item) | {"display": display.summary(str(item.get("lease_id") or ""))}
             for item in self.index.list(limit=limit, project_ids=self.project_ids)
         ]
+
+    def principal_labels(self) -> dict[str, dict[str, Any]]:
+        """可信主体与审批白名单的中文角色名（Task 032，只读）。"""
+
+        from .display import principal_display
+
+        return principal_display(
+            self._repository(), [self.principal_id, *self.approver_allowlist]
+        )
+
+    def _repository(self) -> Any:
+        from ..fixtures.repository import FixtureRepository
+
+        cached = getattr(self, "_display_repository", None)
+        if cached is None:
+            cached = FixtureRepository.load()
+            object.__setattr__(self, "_display_repository", cached)
+        return cached
+
+    def _display(self) -> Any:
+        from .display import DisplayBuilder
+
+        return DisplayBuilder(self._repository(), self.project_ids or ())
 
     def get_traces(self, run_id: str) -> dict[str, Any]:
         record = self.get_run(run_id)

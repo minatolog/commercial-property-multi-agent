@@ -19,6 +19,17 @@ Task 031 / 2.5（模型配置真正生效）：领域 Agent 不再共用一个�
 
 `bundle.agent_models` 记录每个已注册 LLM Agent 实际使用的模型与参数，
 供评测报告按 Agent 输出（不是只写一个全局模型）。
+
+Task 034（规划器）：`planner_mode` 省略时读 `app/config/planner.yaml`（默认 `rule`，
+行为与之前完全一致）。`llm` / `hybrid` 需要规划模型，来源与领域 Agent 的引擎**分开**：
+
+- `planner_provider="scripted"` → `ScriptedSupervisorModel`（离线，只证明链路）；
+- `planner_provider="deepseek"` → 按 `planner.yaml` 的模型参数构造（`planner_client_factory`
+  是离线测试缝）；
+- 省略时沿用 `model_provider`（offline 下没有可用的规划模型 → 构造期失败）。
+
+分开的原因：真实模型只做规划、领域 Agent 仍用确定性引擎时，成本只有每题 1 次规划调用。
+规划调用计入同一个 `Budget`，因此 `max_model_calls` 必须至少为 1。
 """
 
 from __future__ import annotations
@@ -41,6 +52,7 @@ from .llm.factory import (
     validate_model_config,
 )
 from .orchestration.investigation import InvestigationResult, Investigator, Planner
+from .orchestration.supervisor import PLANNER_MODES, build_planner
 from .paths import CONFIG_DIR
 from .rag.library import KnowledgeLibrary, build_knowledge_library, fixture_catalog
 from .runtime.budget import Budget
@@ -79,6 +91,54 @@ class InvestigationBundle:
     #: 条目形状：provider / model_name / temperature / max_tokens / timeout_seconds /
     #: api_key_env / api_key_env_present / client_is_shared / config_source。
     agent_models: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Task 034：规划模式与规划模型（`rule` 时 provider/model 为 None）
+    planner_mode: str = "rule"
+    planner_info: dict[str, Any] = field(default_factory=dict)
+
+
+def unit_code_resolver(repository: Any) -> Callable[[str], str | None]:
+    """可信租约 → 铺位号（供歧义信号判断“问题点名的铺位是否就是可信目标”）。"""
+
+    record = getattr(repository, "record", None)
+
+    def _resolve(lease_id: str) -> str | None:
+        if record is None:
+            return None
+        lease = record(lease_id) or {}
+        unit = record(str(lease.get("unit_id") or "")) or {}
+        code = unit.get("code")
+        return str(code) if code else None
+
+    return _resolve
+
+
+def _planner_client(
+    provider: str | None,
+    config: Any,
+    *,
+    planner_client: Any = None,
+    planner_client_factory: Callable[[Any], Any] | None = None,
+) -> Any:
+    if planner_client is not None:
+        return planner_client
+    if provider == "scripted":
+        from .llm.scripted import ScriptedSupervisorModel
+
+        return ScriptedSupervisorModel()
+    if provider == "deepseek":
+        validate_model_config(config)
+        client = (
+            planner_client_factory(config)
+            if planner_client_factory is not None
+            else build_model_client_for_config(config)
+        )
+        if client is None:
+            raise ValueError("planner.yaml 的 model_provider 为 offline，不能作为规划模型")
+        return client
+    raise ValueError(
+        "规划模式 llm/hybrid 需要规划模型：请指定 --planner-provider scripted|deepseek，"
+        "或使用 --model-provider scripted|deepseek"
+    )
 
 
 def _llm_agent_names(configs: dict[str, Any]) -> list[str]:
@@ -184,6 +244,12 @@ def build_investigation_bundle(
     scripted_calls: Iterable[tuple[str, dict[str, Any]]] | None = None,
     config_dir: str | Path | None = None,
     client_factory: Callable[[Any], Any] | None = None,
+    planner_mode: str | None = None,
+    planner_provider: str | None = None,
+    hybrid_multi_domain: str | None = None,
+    planner_client: Any = None,
+    planner_client_factory: Callable[[Any], Any] | None = None,
+    planner_config_path: str | Path | None = None,
 ) -> InvestigationBundle:
     """装配一次调查所需的全部依赖。
 
@@ -304,6 +370,49 @@ def build_investigation_bundle(
     )
     trace_log = TraceLog()
 
+    # Task 034：规划器。显式传入 Planner 实例时原样使用（既有调用方/测试）。
+    from .config.loader import load_planner_config
+
+    planner_config = load_planner_config(planner_config_path)
+    effective_mode = planner_mode or planner_config.mode
+    if effective_mode not in PLANNER_MODES:
+        raise ValueError(f"未知规划模式 {effective_mode!r}（可选 {list(PLANNER_MODES)}）")
+    planner_info: dict[str, Any] = {
+        "mode": effective_mode if planner is None else "custom",
+        "provider": None,
+        "model_name": None,
+        "hybrid_multi_domain": hybrid_multi_domain or planner_config.hybrid_multi_domain,
+        "max_domains": planner_config.max_domains,
+        "config_source": "planner.yaml",
+    }
+    if planner is not None and planner_mode is not None:
+        raise ValueError("planner 与 planner_mode 不能同时指定")
+    if planner is None and effective_mode != "rule":
+        resolved_provider = planner_provider or (
+            model_provider if model_provider != "offline" else None
+        )
+        client = _planner_client(
+            resolved_provider,
+            planner_config,
+            planner_client=planner_client,
+            planner_client_factory=planner_client_factory,
+        )
+        if (max_model_calls or 0) < 1:
+            raise ValueError(
+                f"规划模式 {effective_mode!r} 会调用规划模型，max_model_calls 至少为 1"
+                "（规划调用与 Agent 共享模型调用预算）"
+            )
+        planner = build_planner(
+            effective_mode,
+            config=planner_config,
+            model_client=client,
+            budget=budget,
+            unit_code_of=unit_code_resolver(repository),
+            hybrid_multi_domain=hybrid_multi_domain,
+        )
+        planner_info["provider"] = getattr(client, "provider", resolved_provider)
+        planner_info["model_name"] = getattr(client, "model_name", None)
+
     report = build_registry(
         directory,
         tool_registry=tool_registry,
@@ -343,6 +452,8 @@ def build_investigation_bundle(
         model_provider=bundle_provider,
         model_name=bundle_model_name,
         agent_models=agent_models,
+        planner_mode=planner_info["mode"],
+        planner_info=planner_info,
     )
 
 

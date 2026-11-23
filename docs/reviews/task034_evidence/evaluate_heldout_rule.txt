@@ -1,0 +1,12 @@
+agent 执行失败
+agent 执行失败
+agent 执行失败
+agent 执行失败
+agent 执行失败
+agent 执行失败
+agent 执行失败
+agent 执行失败
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041237_heldout_A_deterministic.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041237_heldout_B_single_agent.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041237_heldout_C_multi_agent.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041237_heldout_summary.md

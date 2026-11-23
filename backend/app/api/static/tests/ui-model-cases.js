@@ -11,6 +11,31 @@
  */
 
 import * as vm from '../js/view-model.js';
+import * as cs from '../js/case-status.js';
+import { formatMoney, formatVariance } from '../js/format.js';
+import { term, describeMissingItem, localizeErrorCodes, TERMS } from '../js/i18n.js';
+import { renderSummary } from '../js/components/report.js';
+
+/** 渲染真实的「案件摘要」组件，返回页面文本（Task 032 复查：断言真实渲染路径，不只测 helper） */
+function summaryText(run) {
+  const host = document.createElement('div');
+  renderSummary(host, run);
+  return host.textContent;
+}
+
+/** 后端 ErrorCode 枚举的全部取值（与 backend/app/agents/base/errors.py 同步，Python 测试守护） */
+const BACKEND_ERROR_CODES = [
+  'invalid_request', 'invalid_context', 'capability_not_declared', 'capability_unavailable',
+  'agent_not_enabled', 'agent_not_registered', 'tool_not_allowed', 'tool_not_found',
+  'invalid_tool_arguments', 'invalid_tool_result', 'insufficient_evidence', 'tool_timeout',
+  'budget_exhausted', 'permission_denied', 'project_scope_denied', 'record_not_found',
+  'deadline_exceeded', 'timeout', 'model_error', 'upstream_error', 'not_implemented', 'internal_error',
+];
+
+/** 主视图文本里残留的英文错误码 */
+function leakedErrorCodes(text) {
+  return BACKEND_ERROR_CODES.filter((code) => new RegExp(`(^|[^a-z_])${code}([^a-z_]|$)`).test(text));
+}
 
 /* ------------------------------------------------------------ 断言工具 */
 
@@ -268,10 +293,10 @@ export function buildCases() {
     const plan = vm.buildGraphModel(run).nodes.plan;
     return [
       equal(states(run), {
-        plan: 'success', verify: 'failed', report: 'partial', approval: 'not_called',
+        plan: 'success', verify: 'failed', report: 'failed', approval: 'not_called',
         'agent:lease': 'partial', 'agent:billing': 'failed', 'agent:property': 'failed',
-      }, '节点状态：失败不是未调用'),
-      equal(labels(run)['agent:billing'], '失败 · budget_exhausted', '账单节点标签带错误码'),
+      }, '节点状态：失败不是未调用；报告节点与核验节点一致（Task 032 / U3-B，原为 partial）'),
+      equal(labels(run)['agent:billing'], '失败 · 预算耗尽', '账单节点标签带错误原因（Task 032：经术语表转成中文）'),
       equal(billing.terminal, 'failed', '子任务终态'),
       equal(billing.failure.message.includes('预算不足'), true, '保留后端错误信息'),
       equal(billing.failure.error_code, 'budget_exhausted', '保留错误码'),
@@ -488,6 +513,325 @@ export function buildCases() {
     ];
   });
 
+
+  /* ---------------------------------------------- Task 032：U3 参数化反例 */
+
+  // 正常基线：supported、complete、冲突/缺口/失败/叙述差异均为空、requires_human_review=false
+  const baseline = () => withReport({
+    verdict: 'supported',
+    conflicts: [],
+    missing_information: [],
+    failures: [],
+    narrative_discrepancies: [],
+    completeness: 'complete',
+    requires_human_review: false,
+  });
+  const verdictOf = (run) => {
+    const nodes = vm.buildGraphModel(run).nodes;
+    return {
+      verify: nodes.verify.state,
+      report: nodes.report.state,
+      summary: vm.summaryModel(run).verification.state,
+      card: cs.conclusionCards(run)[0].tone,
+    };
+  };
+  const cardTone = { success: 'success', partial: 'warning', failed: 'failed', unknown: 'unknown' };
+
+  addCase('U3 基线：完整 supported 报告显示成功，四处一致', 'fixture', () => {
+    const run = baseline();
+    return [
+      equal(verdictOf(run), { verify: 'success', report: 'success', summary: 'success', card: 'success' }, '核验 / 报告 / 摘要 / 结论卡均为成功'),
+      equal(vm.buildGraphModel(run).nodes.report.label, '报告已生成 · 证据一致', '报告文案'),
+    ];
+  });
+
+  const u3Rows = [
+    // U3-A：布尔字段必须真的是 boolean；缺失 / 类型异常不能当 false
+    ['U3-A requires_human_review=null', { requires_human_review: null }, 'unknown'],
+    ['U3-A requires_human_review="true"', { requires_human_review: 'true' }, 'unknown'],
+    ['U3-A requires_human_review=1', { requires_human_review: 1 }, 'unknown'],
+    ['U3-A 删除 requires_human_review', { requires_human_review: undefined }, 'unknown'],
+    ['U3-A 删除 failures', { failures: undefined }, 'unknown'],
+    ['U3-A failures="invalid"', { failures: 'invalid' }, 'unknown'],
+    ['U3-A 删除 narrative_discrepancies', { narrative_discrepancies: undefined }, 'unknown'],
+    ['U3-A narrative_discrepancies 为对象', { narrative_discrepancies: { a: 1 } }, 'unknown'],
+    // U3-B：任何一类负面事实都不能显示“证据一致”，且核验 / 报告 / 摘要一致
+    ['U3-B failures 含 timeout', { failures: [{ subtask_id: 'st_2_billing', capability: 'billing.statement', error_code: 'timeout' }] }, 'failed'],
+    ['U3-B narrative_discrepancies 含 mismatch', { narrative_discrepancies: [{ subtask_id: 'st_2_billing', kind: 'fund', status: 'mismatch' }] }, 'partial'],
+    ['U3-B missing_information 非空', { missing_information: ['合同引用但未电子化的文档: doc_xh_a301_annex_b'] }, 'partial'],
+    ['U3-B completeness=partial', { completeness: 'partial' }, 'partial'],
+    ['U3-B conflicts 非空（verdict 仍为 supported）', { conflicts: [{ type: 'rent_variance', amount: '756.00' }] }, 'partial'],
+    ['U3-B conflicts 缺失', { conflicts: undefined }, 'unknown'],
+    ['U3-B conflicts 类型异常', { conflicts: 'oops' }, 'unknown'],
+  ];
+  for (const [name, patch, expected] of u3Rows) {
+    addCase(name, 'fixture', () => {
+      const run = withReport(patch, baseline());
+      const got = verdictOf(run);
+      return [
+        equal(got, { verify: expected, report: expected, summary: expected, card: cardTone[expected] }, '核验 / 报告 / 摘要 / 结论卡一致，且不是成功'),
+        equal(vm.buildGraphModel(run).nodes.report.label.includes('证据一致'), false, '报告节点不显示“证据一致”'),
+      ];
+    });
+  }
+
+  /* ------------------------- Task 032 复查：真实 renderSummary 渲染路径 */
+
+  addCase('复查 P2-2：摘要“缺失与失败”在 failures 缺失 / 类型异常时显示待核实，不显示 0', 'fixture', () => {
+    const out = [];
+    for (const [label, patch] of [
+      ['删除 failures', { failures: undefined }],
+      ['failures="invalid"', { failures: 'invalid' }],
+      ['删除 missing_information', { missing_information: undefined }],
+      ['missing_information 为对象', { missing_information: { a: 1 } }],
+    ]) {
+      const text = summaryText(withReport(patch, baseline()));
+      out.push(equal(text.includes('报告没有列出资料缺口或失败'), false, `${label}：不显示“没有缺口”`));
+      out.push(equal(text.includes('缺失与失败待核实'), true, `${label}：计数显示“待核实”而不是 0`));
+    }
+    const ok = summaryText(baseline());
+    out.push(equal(ok.includes('报告没有列出资料缺口或失败'), true, '基线：两个字段都是空数组时才显示“没有缺口”'));
+    out.push(equal(ok.includes('缺失与失败0'), true, '基线：计数为 0'));
+    return out;
+  });
+
+  addCase('复查 P2-1：摘要“系统提醒”里的错误码转成中文', 'fixture', () => {
+    const run = budgetFailureRun();
+    run.report.warnings = [
+      '条款检索不可用（budget_exhausted），本次结论不含合同条款证据',
+      '条款检索不可用(tool_timeout)',
+      '账单查询失败: upstream_error',
+    ];
+    const text = summaryText(run);
+    return [
+      equal(leakedErrorCodes(text), [], '摘要页签不出现英文错误码'),
+      equal(text.includes('条款检索不可用（预算耗尽），本次结论不含合同条款证据'), true, '告警措辞保留，只替换错误码'),
+      equal(text.includes('账单查询失败: 上游服务错误'), true, '冒号后的错误码也转换'),
+    ];
+  });
+
+  addCase('复查 P3-1：后端全部 ErrorCode 均有中文映射，未映射码不带英文进主视图', 'fixture', () => [
+    equal(BACKEND_ERROR_CODES.filter((code) => !Object.prototype.hasOwnProperty.call(TERMS.errorCode, code)), [], '全部错误码有映射'),
+    equal(term('errorCode', 'some_future_code'), '其他错误（原始代码见技术视图）', '未映射错误码不显示原值'),
+    equal(localizeErrorCodes('查询失败：some_future_code'), '查询失败：其他错误（原始代码见技术视图）', '文本中的未映射错误码'),
+    // 返修复查 P3-1：括号里的普通英文词不是错误码，不能被改写
+    equal(localizeErrorCodes('本次检查（pending）'), '本次检查（pending）', '括号内未知词原样保留（全角）'),
+    equal(localizeErrorCodes('合同状态(draft)待确认'), '合同状态(draft)待确认', '括号内未知词原样保留（半角）'),
+    equal(localizeErrorCodes('条款检索不可用(tool_timeout)'), '条款检索不可用（查询超时）', '括号内已知错误码仍转换'),
+  ]);
+
+  /* -------------------------------------------- Task 032：格式化与术语 */
+
+  addCase('金额格式化：只做字符串处理', 'fixture', () => [
+    equal(formatMoney('18036.00'), '¥18,036.00', '18036.00'),
+    equal(formatMoney('0.00'), '¥0.00', '0.00'),
+    equal(formatMoney('-756.00'), '-¥756.00', '-756.00'),
+    equal(formatMoney('1234567.5'), '¥1,234,567.50', '1234567.5'),
+    equal(formatMoney(''), '未提供', '空字符串'),
+    equal(formatMoney(null), '未提供', 'null'),
+    equal(formatMoney('12abc'), '金额格式异常（12abc）', '非法字符串'),
+    equal(formatMoney('0.1000000000000000055511151231257827'), '¥0.1000000000000000055511151231257827', '超长小数不经浮点、不四舍五入'),
+    equal(formatMoney('99999999999999999.99'), '¥99,999,999,999,999,999.99', '超出浮点精度的整数部分原样保留'),
+    equal(formatVariance('756.00'), { text: '+¥756.00', direction: 'over', label: '多计' }, '正差额 = 多计'),
+    equal(formatVariance('-756.00'), { text: '−¥756.00', direction: 'under', label: '少计' }, '负差额 = 少计'),
+    equal(formatVariance('0.00').direction, 'none', '零差额'),
+  ]);
+
+  addCase('术语映射：缺失映射显示原值，不留空', 'fixture', () => [
+    equal(term('verdict', 'conflicting'), '存在冲突', '已知枚举'),
+    equal(term('verdict', 'weird_value'), '未知状态（weird_value）', '未知枚举'),
+    equal(term('verdict', null), '未提供', '缺失'),
+    equal(term('capability', 'lease.query'), '合同查询', '能力名不出现在主视图'),
+    equal(describeMissingItem('子任务 st_2_billing 失败: budget_exhausted'), '账单查询失败：预算耗尽', '失败说明'),
+    equal(describeMissingItem('条款检索不可用（budget_exhausted），本次结论不含合同条款证据'), '条款检索不可用（预算耗尽），本次结论不含合同条款证据', '说明中夹带的错误码'),
+    equal(
+      describeMissingItem('合同引用但未电子化的文档: doc_xh_a301_annex_b', { documents: { doc_xh_a301_annex_b: { note: '合同附件B 尚未电子化' } } }),
+      '合同附件B 尚未电子化',
+      '缺失文档用业务描述',
+    ),
+  ]);
+
+  /* ------------------------------------------- Task 032：流程步骤与结论卡 */
+
+  const stepStates = (run) => cs.progressModel(run).map((item) => `${item.key}:${item.state}`);
+
+  addCase('步骤条：复杂调查待物业审批', 'fixture', () => {
+    const run = complexRun({
+      report: {
+        ...complexRun().report,
+        approval_status: 'pending_approval',
+        approval_request: {
+          request_id: 'apr_x', status: 'pending', draft_version: 2, amount: '700.00', currency: 'CNY',
+          stages: [
+            { role: 'property_manager', seq: 1, status: 'pending' },
+            { role: 'finance', seq: 2, status: 'pending' },
+          ],
+        },
+      },
+    });
+    return [
+      equal(stepStates(run), [
+        'intake:done', 'dispatch:done', 'verify:warning', 'report:done',
+        'stage:property_manager:current', 'stage:finance:waiting', 'archive:waiting',
+      ], '只有物业审批是当前步骤'),
+      equal(cs.nextActionModel(run).text, '等待物业管理部门审批', '下一步'),
+    ];
+  });
+
+  addCase('步骤条：两级批准后归档', 'fixture', () => {
+    const run = complexRun({
+      status: 'completed',
+      report: {
+        ...complexRun().report,
+        approval_status: 'approved',
+        approved_draft: { status: 'approved_draft_only', executed_side_effects: [] },
+        approval_request: {
+          request_id: 'apr_x', status: 'approved', draft_version: 2,
+          stages: [
+            { role: 'property_manager', seq: 1, status: 'approved', decided_by: 'principal_property_manager_xinghui' },
+            { role: 'finance', seq: 2, status: 'approved', decided_by: 'principal_finance_xinghui' },
+          ],
+        },
+      },
+    });
+    const steps = cs.progressModel(run, { meta: { principals: { principal_finance_xinghui: { label: '星汇广场财务部门审批人（合成）' } } } });
+    return [
+      equal(steps.slice(4).map((item) => item.state), ['done', 'done', 'done'], '两级批准 + 归档'),
+      equal(steps[5].detail, '已批准 · 星汇广场财务部门审批人（合成）', '审批人显示中文角色名'),
+      equal(cs.nextActionModel(run).text, '已归档（草案，未执行调账）', '归档不等于已调账'),
+    ];
+  });
+
+  addCase('步骤条：物业驳回后财务与归档未进行', 'fixture', () => {
+    const run = complexRun({
+      status: 'completed',
+      report: {
+        ...complexRun().report,
+        approval_status: 'rejected',
+        approval_request: {
+          request_id: 'apr_x', status: 'rejected', draft_version: 2,
+          stages: [
+            { role: 'property_manager', seq: 1, status: 'rejected', decided_by: 'principal_property_manager_xinghui' },
+            { role: 'finance', seq: 2, status: 'pending' },
+          ],
+        },
+      },
+    });
+    return [
+      equal(stepStates(run).slice(4), ['stage:property_manager:failed', 'stage:finance:skipped', 'archive:skipped'], '驳回位置明确'),
+      equal(cs.nextActionModel(run).tone, 'failed', '下一步为驳回提示'),
+    ];
+  });
+
+  addCase('步骤条：简单查询无审批显示本次不涉及', 'fixture', () => {
+    const run = {
+      run_id: 'run_simple', status: 'completed',
+      report: {
+        verdict: 'supported', route: 'deterministic', completeness: 'complete',
+        findings: [BILLING_FINDING], conflicts: [], missing_information: [], failures: [],
+        narrative_discrepancies: [], requires_human_review: false, approval_status: 'not_required',
+        agent_results: [{ subtask_id: 'st_1_billing', capability: 'billing.statement', agent: 'billing', status: 'success' }],
+      },
+    };
+    return [
+      equal(stepStates(run), [
+        'intake:done', 'dispatch:done', 'verify:done', 'report:done',
+        'stage:property_manager:not_involved', 'stage:finance:not_involved', 'archive:not_involved',
+      ], '审批相关步骤为本次不涉及'),
+    ];
+  });
+
+  addCase('步骤条：report.error 与预算耗尽不显示已完成', 'fixture', () => {
+    const error = stepStates(reportErrorRun());
+    const budget = stepStates(budgetFailureRun());
+    return [
+      equal(error, ['intake:done', 'dispatch:failed', 'verify:skipped', 'report:failed', 'stage:property_manager:skipped', 'stage:finance:skipped', 'archive:skipped'], '报告未生成'),
+      equal(budget.slice(1, 3), ['dispatch:warning', 'verify:failed'], '预算耗尽：分派部分失败、核验失败'),
+    ];
+  });
+
+  addCase('回问运行：API 记为 completed，界面显示需要补充信息', 'fixture', () => {
+    const run = {
+      run_id: 'run_clarify', status: 'completed', verdict: 'needs_clarification',
+      report: {
+        verdict: 'needs_clarification', route: 'clarification', completeness: 'not_executed',
+        findings: [], conflicts: [], missing_information: [], failures: [], narrative_discrepancies: [],
+        agent_results: [], requires_human_review: true, approval_status: 'not_required',
+        clarification: { reason: 'no_domain_matched', question: '请说明要核实的是哪一类' },
+      },
+    };
+    const meta = vm.runStatusMeta(run.status, { verdict: run.report.verdict });
+    return [
+      equal([meta.state, meta.label], ['warning', '需要补充信息'], '不是“已完成”'),
+      equal(stepStates(run).slice(1, 3), ['dispatch:warning', 'verify:not_involved'], '步骤条停在分派'),
+      equal(vm.buildGraphModel(run).nodes.plan.label, '需要补充信息', '规划节点不显示英文路由'),
+      equal(states(run).verify, 'not_called', '核验节点未执行'),
+    ];
+  });
+
+  addCase('运行状态：审批结束不显示笼统的“已完成”', 'fixture', () => [
+    equal(vm.runStatusMeta('completed', { approvalStatus: 'rejected' }).label, '已驳回', '驳回'),
+    equal(vm.runStatusMeta('completed', { approvalStatus: 'approved' }).label, '已批准（草案）', '批准仅为草案'),
+    equal(vm.runStatusMeta('completed', { verdict: 'supported', approvalStatus: 'not_required' }).label, '已完成', '无审批且结论 supported 时为已完成'),
+    equal(vm.runStatusMeta('completed', { approvalStatus: 'not_required' }).label, '已完成 · 需复核', '返修复查 P3-3：结论缺失不显示绿色'),
+    equal(vm.runStatusMeta('completed', { verdict: '  ' }).state, 'warning', '返修复查 P3-3：结论为空串不显示绿色'),
+    equal(vm.runStatusMeta('completed', { verdict: 'supported' }).state, 'success', 'supported 才是绿色已完成'),
+    equal(
+      [vm.runStatusMeta('completed', { verdict: 'conflicting' }).state, vm.runStatusMeta('completed', { verdict: 'conflicting' }).label],
+      ['warning', '已完成 · 存在冲突'],
+      '复查 P3-2：completed + conflicting 不是绿色',
+    ),
+    equal(vm.runStatusMeta('completed', { verdict: 'insufficient' }).label, '已完成 · 证据不足', 'completed + insufficient'),
+    equal(vm.runStatusMeta('completed', { verdict: 'weird' }).state, 'warning', '未知结论不显示绿色'),
+    equal(vm.runStatusMeta('completed', { verdict: 'conflicting', approvalStatus: 'approved' }).label, '已批准（草案）', '审批结论优先'),
+  ]);
+
+  addCase('结论卡：有领域失败时不宣称“未发现金额差异”', 'fixture', () => {
+    const cards = cs.conclusionCards(budgetFailureRun());
+    return [
+      equal([cards[1].tone, cards[1].value], ['unknown', '待核实'], '账单查询失败 → 金额待核实'),
+      equal(cards[0].tone, 'failed', '争议结论为失败'),
+    ];
+  });
+
+  addCase('结论卡：回问运行不显示绿色“无差额 / 无缺口”', 'fixture', () => {
+    const run = {
+      run_id: 'run_clarify', status: 'completed',
+      report: {
+        verdict: 'needs_clarification', route: 'clarification', completeness: 'not_executed',
+        findings: [], conflicts: [], missing_information: [], failures: [], narrative_discrepancies: [],
+        agent_results: [], requires_human_review: true, approval_status: 'not_required',
+      },
+    };
+    const cards = cs.conclusionCards(run);
+    return [
+      equal(cards.map((card) => card.tone), ['warning', 'idle', 'idle', 'warning'], '没有任何绿色结论'),
+      equal([cards[1].value, cards[2].value], ['未执行调查', '未执行调查'], '金额与缺口都写“未执行调查”'),
+      equal(cards[0].note.includes('人工复核'), false, '回问不提示人工复核'),
+    ];
+  });
+
+  addCase('结论卡：差额与草案金额分开，不暗示因果', 'fixture', () => {
+    const run = complexRun({
+      display: { records: { inv_2026_08: { kind: 'invoice', period_start: '2026-08-01' } } },
+      report: {
+        ...complexRun().report,
+        proposed_draft: { amount: '700.00', currency: 'CNY', computed_variance: '756.00' },
+      },
+    });
+    const cards = cs.conclusionCards(run);
+    const amount = cards[1];
+    return [
+      equal(cards.map((card) => card.key), ['verdict', 'amount', 'gaps', 'next'], '四张卡'),
+      equal(amount.value, '+¥756.00', '差额取自冲突结构化字段'),
+      equal(amount.label, '账单多计', '方向文字'),
+      equal(amount.note.includes('涉及账期 2026-08'), true, '账期来自展示元数据'),
+      equal(amount.draft, '预设草案金额 ¥700.00，非计算结论', '草案金额单独标注'),
+      equal(amount.value.includes('700'), false, '差额卡主数字不含草案金额'),
+      equal(cards[2].value, '1 项', '资料缺口数量'),
+    ];
+  });
+
   return cases;
 }
 
@@ -542,10 +886,10 @@ export function buildRealCases(realRuns) {
         return [
           equal(failures.length > 0, true, '真实返回包含失败子任务'),
           equal(failingNodes.every((state) => state === 'failed'), true, '每个失败子任务的领域节点是失败'),
-          equal(Object.values(states(budget)).includes('not_called') === false || failures.length > 0, true, '失败的领域不画成未调用'),
           equal(index.counts.failures, failures.length, '失败计数与报告一致'),
           equal(index.records.filter((record) => record.failure).every((record) => Boolean(record.failure.error_code)), true, '保留错误码'),
           equal(vm.traceRows(budget, index).filter((row) => !row.attributed).length, 0, 'Trace 全部可归属'),
+          equal(leakedErrorCodes(summaryText(budget)), [], '真实预算耗尽运行：摘要页签不出现英文错误码（复查 P2-1）'),
         ];
       },
     });

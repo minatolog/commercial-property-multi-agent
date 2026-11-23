@@ -1,0 +1,10 @@
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v1_rule.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v1_llm.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v1_hybrid.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v1_hybrid_multi_rule.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v1_summary.md
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v2_rule.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041249_planner_v2_llm.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041249_planner_v2_hybrid.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041249_planner_v2_hybrid_multi_rule.json
+[report] D:\commercial-property-multi-agent\docs\evaluation\reports\20261122T041248_planner_v2_summary.md

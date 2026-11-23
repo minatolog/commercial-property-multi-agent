@@ -13,6 +13,10 @@
  * - 规划 / 核验 / 报告节点没有独立实时事件，按返回结果回顾，不推断耗时或并发时刻。
  */
 
+import { interpretVerification, displayOf } from './case-status.js';
+import { term } from './i18n.js';
+import { formatMoney, formatVariance } from './format.js';
+
 export const AGENT_DEFS = [
   {
     key: 'lease',
@@ -73,6 +77,7 @@ const VERDICT = {
   supported: { label: '证据一致', note: '证据之间未发现冲突' },
   conflicting: { label: '存在冲突', note: '证据相互矛盾，需人工复核' },
   insufficient: { label: '证据不足', note: '证据不足，不能给出结论' },
+  needs_clarification: { label: '需要补充信息', note: '问题无法确定要查哪一类事项，本次未执行调查' },
 };
 
 const APPROVAL_STATUS = {
@@ -89,6 +94,11 @@ const APPROVAL_STATUS = {
   blocked_budget: { label: '预算耗尽，无法发起审批', state: 'failed' },
 };
 
+const COMPLETED_WITH_ISSUE = {
+  conflicting: { label: '已完成 · 存在冲突', note: '调查已结束，发现冲突，需人工复核' },
+  insufficient: { label: '已完成 · 证据不足', note: '调查已结束，但证据不足以形成结论' },
+};
+
 const STAGE_STATUS = {
   pending: { label: '待处理', state: 'pending' },
   approved: { label: '已批准', state: 'success' },
@@ -101,9 +111,31 @@ const STAGE_STATUS = {
  * `reportError` 为真时（后端把 AgentError 持久化成 `report.error`），
  * 即使 `status` 字段缺失或写成 completed，也不能显示为正常完成。
  */
-export function runStatusMeta(status, { reportError = false } = {}) {
+export function runStatusMeta(status, { reportError = false, verdict = '', approvalStatus = '' } = {}) {
   if (reportError) {
     return { raw: status || '', state: 'failed', label: '失败', note: '运行异常，未生成报告' };
+  }
+  if (verdict === 'needs_clarification') {
+    // API 把回问运行记为 completed；它并没有执行调查，不能显示“已完成”
+    return { raw: status || '', state: 'warning', label: '需要补充信息', note: '未执行调查，请补充要核实的事项' };
+  }
+  // 审批结束后 API 把运行记为 completed；“已完成”会被读成争议已解决，按审批结论如实标注
+  if (status === 'completed' && approvalStatus === 'rejected') {
+    return { raw: status, state: 'failed', label: '已驳回', note: '草案被驳回，未归档' };
+  }
+  if (status === 'completed' && approvalStatus === 'approved') {
+    return { raw: status, state: 'success', label: '已批准（草案）', note: '草案已归档，未执行调账或减免' };
+  }
+  // 运行结束但结论有冲突 / 证据不足：不能用绿色“已完成”，否则会被读成没有问题（Task 032 复查 P3-2）
+  if (status === 'completed' && COMPLETED_WITH_ISSUE[verdict]) {
+    return { raw: status, state: 'warning', ...COMPLETED_WITH_ISSUE[verdict] };
+  }
+  if (status === 'completed' && verdict && verdict !== 'supported') {
+    return { raw: status, state: 'warning', label: '已完成 · 需复核', note: '结论状态无法识别，请人工复核' };
+  }
+  // 只有明确 supported 才是绿色；结论缺失 / 空串同样要人工复核（Task 032 返修复查 P3-3）
+  if (status === 'completed' && !String(verdict || '').trim()) {
+    return { raw: status, state: 'warning', label: '已完成 · 需复核', note: '报告未给出结论，请人工复核' };
   }
   if (!status) return { raw: '', ...RUN_STATUS.unknown };
   return { raw: status, ...(RUN_STATUS[status] || RUN_STATUS.unknown) };
@@ -396,7 +428,8 @@ export function agentParticipation(run, definition, index) {
   let label = STATE_LABELS[state] || state;
   if (state === 'failed' && failures.length === 1) {
     const code = textOr(failures[0].failure && failures[0].failure.error_code, '');
-    if (code) label = `失败 · ${code}`;
+    // Task 032：主视图不显示英文错误码，经术语表转换（原码保留在技术视图）
+    if (code) label = `失败 · ${term('errorCode', code)}`;
   }
   const primary = records.find((record) => record.failure) || records[0];
   return {
@@ -647,10 +680,16 @@ function planNode(run, index) {
       ...counts,
     };
   }
+  const planning = report.planning && typeof report.planning === 'object' ? report.planning : null;
+  const source = planning ? term('planSource', planning.plan_source, { missing: '规划来源未提供' }) : '规划来源未提供';
+  if (route.value === 'clarification') {
+    return { state: 'warning', label: '需要补充信息', route: route.value, source, ...counts };
+  }
   const label = route.value === 'deterministic' ? '单领域'
     : route.value === 'fanout' ? '多领域分流'
-      : `路由 ${route.value}`;
-  return { state: 'success', label, route: route.value, ...counts };
+      : term('route', route.value);
+  const fallback = planning && planning.fallback_reason;
+  return { state: fallback ? 'partial' : 'success', label, route: route.value, source, ...counts };
 }
 
 function sinkBasics(run, index) {
@@ -667,63 +706,27 @@ function sinkBasics(run, index) {
 
 function verifyNode(run, index) {
   if (!run || !run.report) return { state: 'idle', label: '等待运行' };
-  const report = run.report;
-  if (report.error) {
-    return { state: 'unknown', label: '核验信息未提供', note: '报告未生成（运行异常），无法核验' };
+  const interp = interpretVerification(run);
+  if (run.report.error) {
+    return { state: 'unknown', label: interp.label, note: '报告未生成（运行异常），无法核验' };
   }
-
-  const verdict = textField(report.verdict);
-  const conflicts = fieldInfo(report.conflicts);
-  const missing = fieldInfo(report.missing_information);
-  const failures = fieldInfo(report.failures);
-  const discrepancies = fieldInfo(report.narrative_discrepancies);
-
-  const incomplete = [];
-  if (verdict.status !== 'ok' || !VERDICT[verdict.value]) incomplete.push('verdict');
-  if (conflicts.status !== 'array') incomplete.push('conflicts');
-  if (missing.status !== 'array') incomplete.push('missing_information');
-  if (incomplete.length) {
-    return {
-      state: 'unknown',
-      label: '核验字段不完整',
-      note: `缺少或类型异常：${incomplete.join('、')}；不能据此宣称未发现冲突`,
-      incomplete,
-    };
+  if (interp.clarification) {
+    return { state: 'not_called', label: interp.label, note: interp.note };
   }
-
   const basics = sinkBasics(run, index);
-  if (failures.status === 'array' && failures.length > 0) {
-    return { state: 'failed', label: `存在失败子任务 · ${failures.length} 个`, ...basics };
-  }
-  if (discrepancies.status === 'array' && discrepancies.length > 0) {
-    return { state: 'partial', label: '叙述与字段不一致', ...basics };
-  }
-  if (basics.verdict === 'conflicting') {
-    return { state: 'partial', label: '发现冲突 · 需复核', ...basics };
-  }
-  if (basics.verdict === 'insufficient') {
-    return { state: 'partial', label: '证据不足 · 需复核', ...basics };
-  }
-  if (basics.missing > 0) {
-    return { state: 'partial', label: '存在资料缺口', ...basics };
-  }
-
-  const completeness = textField(report.completeness);
-  if (completeness.status !== 'ok') {
-    return { state: 'unknown', label: '完整度未提供', note: '报告未提供 completeness，无法确认调查是否完整', ...basics };
-  }
-  if (completeness.value !== 'complete') {
-    return { state: 'partial', label: '调查未完整但未发现冲突', ...basics };
-  }
-  if (report.requires_human_review === true) {
-    return { state: 'partial', label: '未发现冲突 · 需人工复核', ...basics };
-  }
-  if (report.requires_human_review === undefined) {
-    return { state: 'unknown', label: '复核标记未提供', note: '报告未提供 requires_human_review', ...basics };
-  }
-  return { state: 'success', label: '证据核验通过', ...basics };
+  return {
+    state: interp.state,
+    label: interp.label,
+    note: interp.note,
+    incomplete: interp.incomplete,
+    ...basics,
+  };
 }
 
+/**
+ * 报告节点与核验节点共用 `interpretVerification`（U3-B）：报告文档生成了，
+ * 不代表结论成立——有失败、冲突、叙述差异、资料缺口或字段无效时不能显示“证据一致”。
+ */
 function reportNode(run) {
   if (!run || !run.report) return { state: 'idle', label: '等待运行' };
   const report = run.report;
@@ -739,38 +742,16 @@ function reportNode(run) {
       disclaimer: '',
     };
   }
-  const findings = fieldInfo(report.findings);
-  const verdict = textField(report.verdict);
+  const interp = interpretVerification(run);
   const base = {
-    findings: findings.status === 'array' ? findings.length : 0,
+    findings: Array.isArray(report.findings) ? report.findings.length : 0,
     warnings: asArray(report.warnings).length,
     disclaimer: textOr(report.disclaimer, ''),
   };
-  if (verdict.status !== 'ok' || !VERDICT[verdict.value]) {
-    return { state: 'unknown', label: '报告字段不完整', note: '报告未提供可用的 verdict', ...base };
+  if (interp.clarification) {
+    return { state: 'not_called', label: interp.reportLabel, note: interp.note, ...base };
   }
-  if (findings.status !== 'array') {
-    return {
-      state: 'unknown',
-      label: '报告字段不完整',
-      note: `findings ${findings.status === 'missing' ? '未提供' : '类型异常'}`,
-      ...base,
-    };
-  }
-  if (verdict.value === 'insufficient') {
-    // 报告文档生成成功，但结论未被证据支持：不能给绿灯
-    return { state: 'partial', label: '报告已生成 · 证据不足', note: '结论未获证据支持，需人工复核', ...base };
-  }
-  if (verdict.value === 'conflicting') {
-    return { state: 'partial', label: '报告已生成 · 存在冲突', note: '冲突并列呈现，需人工复核', ...base };
-  }
-  if (report.requires_human_review === true) {
-    return { state: 'partial', label: '报告已生成 · 需人工复核', ...base };
-  }
-  if (report.requires_human_review === undefined) {
-    return { state: 'unknown', label: '报告已生成 · 复核标记未提供', note: '报告未提供 requires_human_review', ...base };
-  }
-  return { state: 'success', label: '报告已生成 · 证据一致', ...base };
+  return { state: interp.state, label: interp.reportLabel, note: interp.note, ...base };
 }
 
 function approvalNode(run) {
@@ -941,7 +922,8 @@ export function filterRuns(runs, { query = '', status = 'all' } = {}) {
   return asArray(runs).filter((run) => {
     if (status !== 'all' && String(run.status) !== status) return false;
     if (!needle) return true;
-    const haystack = [run.question, run.run_id, run.lease_id]
+    const display = (run && run.display) || {};
+    const haystack = [run.question, run.run_id, run.lease_id, display.tenant_name, display.unit_code, display.project_name]
       .map((value) => String(value || '').toLowerCase())
       .join(' ');
     return haystack.includes(needle);
@@ -960,13 +942,17 @@ export function summaryModel(run) {
     };
   }
   const report = run.report || {};
-  const statusMeta = runStatusMeta(run.status, { reportError: Boolean(report.error) });
+  const statusMeta = runStatusMeta(run.status, {
+    reportError: Boolean(report.error),
+    verdict: textOr(report.verdict || run.verdict, ''),
+  });
   if (report.error) {
     return {
       status: { state: statusMeta.state, label: statusMeta.label, note: statusMeta.note },
       verdict: { value: '未产出结论', note: 'report.error', tone: 'is-danger' },
       conflicts: { value: '—', note: '报告未生成', tone: 'is-danger' },
       approval: { value: '—', note: '报告未生成，无审批记录', tone: '' },
+      verification: { state: 'failed', label: '报告未生成', headline: '调查失败' },
     };
   }
   const verdict = verdictMeta(report.verdict);
@@ -1012,5 +998,98 @@ export function summaryModel(run) {
       note: approvalNote,
       tone: ''
     },
+    verification: (() => {
+      const interp = interpretVerification(run);
+      return { state: interp.state, label: interp.label, headline: interp.headline };
+    })(),
   };
+}
+
+
+/* ------------------------------------------------------- 节点关键发现 */
+
+/** 文本里的两位小数金额加千分位与货币符号（只用于账单类发现，纯字符串处理） */
+export function formatAmountsInText(text) {
+  return String(text || '').replace(/(^|[^\d.])(\d+\.\d{2})(?![\d])/g, (match, prefix, amount) => `${prefix}${formatMoney(amount)}`);
+}
+
+const LEASE_STATUS = { active: '生效中', terminated: '已终止', expired: '已到期', draft: '草拟中' };
+
+/**
+ * 每个协作节点下方的一行业务语言说明（Task 032 / 3.4）。
+ * 只取真实字段：参与情况、findings、conflicts、展示元数据；没有就写“本次未调用 / 未发现异常”。
+ */
+export function nodeHighlights(run) {
+  const out = {};
+  if (!run || !run.report) return out;
+  const report = run.report;
+  const index = buildSubtaskIndex(run);
+  const interp = interpretVerification(run);
+  const { lease } = displayOf(run);
+  const attribution = findingsAttribution(run);
+
+  if (report.error) {
+    out.plan = '报告未生成，无法回顾规划';
+  } else if (report.route === 'clarification') {
+    out.plan = '未分派：问题需要补充信息';
+  } else {
+    const planning = report.planning && typeof report.planning === 'object' ? report.planning : null;
+    const source = planning ? term('planSource', planning.plan_source) : '规划来源未提供';
+    out.plan = `${source} · 分派 ${index.counts.subtasks} 个领域`;
+  }
+
+  for (const definition of AGENT_DEFS) {
+    const participation = agentParticipation(run, definition, index);
+    let text;
+    if (!participation.participated) {
+      text = '本次未调用';
+    } else if (participation.state === 'failed') {
+      const code = participation.failure && participation.failure.error_code;
+      text = `查询失败：${term('errorCode', code, { missing: '原因未提供' })}`;
+    } else if (definition.key === 'lease') {
+      const clauses = (attribution.byAgent.lease || []).filter((entry) => entry.finding && entry.finding.source).length;
+      const period = lease && lease.start_date && lease.end_date ? `租期 ${lease.start_date} 至 ${lease.end_date}` : '租期未提供';
+      const status = lease && lease.status ? ` · ${LEASE_STATUS[lease.status] || term('documentStatus', lease.status)}` : '';
+      text = `${period}${status} · 引用条款 ${clauses} 条`;
+    } else if (definition.key === 'billing') {
+      const conflicts = conflictsForAgent(run, definition, index).filter((item) => item && item.amount !== undefined);
+      const finding = (attribution.byAgent.billing || [])[0];
+      if (conflicts.length) {
+        const variance = formatVariance(conflicts[0].amount, conflicts[0].currency || 'CNY');
+        text = `${term('conflictShort', conflicts[0].type, { missing: '差异' })}：账单${variance.label} ${variance.text}`;
+      } else if (finding) {
+        text = formatAmountsInText(finding.finding.statement);
+      } else {
+        text = '未发现异常';
+      }
+    } else {
+      const finding = (attribution.byAgent[definition.key] || [])[0];
+      text = finding ? textOr(finding.finding.statement, '未发现异常') : '未发现异常';
+    }
+    out[definition.nodeId] = text;
+  }
+
+  if (report.error) {
+    out.verify = '无法核验';
+    out.report = '报告未生成';
+  } else if (interp.clarification) {
+    out.verify = '本次未执行';
+    out.report = '本次未生成';
+  } else {
+    out.verify = interp.headline;
+    const counts = interp.counts || {};
+    out.report = `${counts.findings ?? 0} 条事实 · ${counts.conflicts ?? 0} 项冲突 · ${counts.missing ?? 0} 项缺口`;
+  }
+
+  const approval = approvalModel(run);
+  if (!approval.hasRequest) {
+    out.approval = approval.approvalStatus === 'not_required' || !approval.approvalStatus
+      ? '本次无需审批'
+      : term('approvalStatus', approval.approvalStatus);
+  } else if (approval.nextStage && approval.requestStatus === 'pending') {
+    out.approval = `等待${approval.nextStage.roleLabel}审批`;
+  } else {
+    out.approval = term('approvalStatus', approval.requestStatus || approval.approvalStatus);
+  }
+  return out;
 }

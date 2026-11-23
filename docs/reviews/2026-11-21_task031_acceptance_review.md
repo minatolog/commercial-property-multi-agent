@@ -71,4 +71,4 @@
 | R4 | `_copy_for_preview` 改用 `sqlite3` 备份接口，源连接 `query_only`（`mode=ro` 会在台账目录遗留 `-wal`/`-shm`，实测后放弃），两个连接显式关闭，不再复制 `-shm` | 预演前后主库/`-wal`/`-shm` SHA-256 不变；WAL 中未 checkpoint 的提交可见；预演结果与真实 `decide()` 一致；台账不存在时不创建；原 CLI dry-run 用例通过 | 进程崩溃残留 WAL 且没有其他连接时，关闭会触发 checkpoint，主库字节会变（内容等价） |
 | R5 | **没改**；用户 2026-11-21 决定**保持现状**：有业务词无目标继续按用法错误拒绝 | 用户在会话中的明确答复 | 不放宽；如以后需要政策类问答，另立任务 |
 
-整体回归：551 tests OK（skipped=1，新增 22 个）、70 项契约；`check`、`ask "A-301 现在还有多少钱没交？"`、`investigate --model-provider scripted` 都是 exit 0；离线 heldout 重跑（`20261121T093757_*`）与 `20261121T085431_*` 逐题一致。改动未提交。
+整体回归：551 tests OK（skipped=1，新增 22 个）、70 项契约；`check`、`ask "A-301 现在还有多少钱没交？"`、`investigate --model-provider scripted` 都是 exit 0；离线 heldout 重跑（`20261121T093757_*`）与 `20261121T085431_*` 逐题一致。（记录时未提交；之后由用户提交为 `3be785e`，独立复查见 [2026-11-21_task031_repair_independent_review.md](2026-11-21_task031_repair_independent_review.md)，有条件通过。）

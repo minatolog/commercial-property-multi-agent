@@ -4,6 +4,42 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-23] Task 032 / 034 返修确认复查与 P3 再修（Claude Code）
+
+- **依据**：DeepSeek [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)：上一轮 032 的 2 项 P2 与 6 项 P3、034 的 1 项 P2 与 4 项 P3 关闭，034 P3-1 部分关闭（ADR 残留）；无新 P1/P2，新提 3 项 P3。
+- **再修**：`i18n.js` 的 `localizeErrorCodes` 括号内只替换已知错误码（新 P3-1）；`view-model.js` 的 `runStatusMeta` 对 completed 且结论缺失 / 空串显示“已完成 · 需复核”（新 P3-3）；ADR-006 状态与丢分归因、`CURRENT_BASELINE` 首行、路线图首行与进度判断、`docs/README` 任务表、问题日志状态统一为“有条件通过，返修经确认复查条件已满足”（新 P3-2，同时关闭 034 P3-1 残留）。
+- **验证**：610 tests OK（skipped=1）、70 项契约、`check` exit 0；JS 48 用例 / **190** 断言（+5），0 失败。证据 `docs/reviews/task032_evidence/repair_p3_unittest.txt`、`js_harness.json`。只改两处前端判断与文档，未重截截图（真实运行数据中没有受影响的状态：仅有的括号错误码 `budget_exhausted` 已映射，真实 completed 运行都有结论）。
+- **结论边界**：两任务“有条件通过”的条件已满足，**不等于最终验收**；正式真实 heldout 对照与重复测量、人工量表、PostgreSQL 实机仍开放；034 实际应答模型证据需另行授权付费重跑。本次再修为自检，未提交/推送。
+
+## [2026-11-22] Task 032 / 034 独立复查返修（Claude Code）
+
+- **依据**：[Task 032 复查](../reviews/2026-11-22_task032_independent_review.md)、[Task 034 复查](../reviews/2026-11-22_task034_independent_review.md)（DeepSeek，均为**有条件通过**，无 P1）。用户指示：返修 P2 与 P3，**不新增付费调用**。
+- **032**：系统提醒里的英文错误码转中文（P2-1）；摘要“缺失与失败”字段无效时显示“待核实”而非 0（P2-2）；错误码映射补齐后端全部 22 个 `ErrorCode` 并加前后端同步测试（P3-1）；`completed + conflicting/insufficient` 不再显示绿色“已完成”（P3-2）；演示审批身份边界写明（P3-5）；CRLF 转 LF（P3-6）；归档补 5 秒测试逐条答案与六项自查清单（P3-4），撤回“英文残留已修”的不实说法。新增 JS 用例直接渲染真实 `renderSummary`。
+- **034**：规划层评测逐题记录 `planner_model`（含 `served_models / served_model_mismatch`），汇总列出实际应答模型与不一致题（P2-1）；归档 §7.5 “实际应答均为 deepseek-flash”改为“未记录，不可复核”，丢分归因改为“主要来自规则直通”（P3-1）；评测报告新增 `code_worktree`（P3-2）；规则直达记录补 `escalation_reason`（P3-4）；ADR-006 写明 `--planner-provider` 优先级（P3-5）。未重跑真实模型，已有报告不回写。
+- **验证**：610 tests OK（skipped=1，复查时 607）、70 项契约、`check` exit 0；JS 48 用例 / 185 断言；浏览器扫描 7 案件 × 4 业务页签无英文枚举 / 内部 ID，390 宽 35 个视图无横向溢出，控制台无错误；17 张截图重截。
+- **归档**：[032 归档 §10](../prompts/05_frontend/2026-11-22_032_business_workbench_ui.md)、[034 归档 §13](../prompts/04_agents/2026-11-22_034_llm_supervisor_planner.md)。未提交/推送；返修为自检，**待复查确认**。
+
+## [2026-11-22] 任务 032 - 业务流程工作台前端改版 + U3 收尾（Claude Code）
+
+- **起点**：main / 3be785e + Task 034 未提交改动；Prompt 为 `docs/handoffs/DEEPSEEK_TASK032_BUSINESS_WORKBENCH_UI_PROMPT.md`（写给 DeepSeek，由 Claude Code 执行）。前置条件“Task 031 通过独立复查”按有条件通过处理。
+- **后端（只读展示元数据）**：新增 `app/api/display.py`；`GET /api/runs/{id}` 附 `display`（租户 / 铺位 / 楼栋 / 项目、报告引用记录的原样字段），列表项附 `display` 摘要，`/api/meta.principals` 给出中文角色名；按可信项目范围过滤、不落库、无新增写接口。
+- **前端**：`index.html` 改为顶栏 + 可折叠案件列表 + 新建调查抽屉 + 案件头 + 7 步流程条 + 4 张结论卡 + 页签；新增 `i18n.js`、`format.js`（金额只做字符串格式化，不做计算）、`case-status.js`、`components/case-head.js`；`report.js` / `graph.js` / `app.js` / `workbench.css` 重写或大改。
+- **U3 收尾**：`interpretVerification` 成为核验节点、报告节点、结论卡、步骤条、摘要共用的唯一判断；必需布尔字段缺失或类型异常（`null` / 字符串 / 数字）不再当作 false；有失败、冲突、叙述差异、资料缺口或字段无效时不显示“证据一致”。15 行反例逐条参数化 + 正常基线。
+- **状态语义**：回问运行 API 仍记 `completed`，界面显示“需要补充信息”；审批结束后按审批结论显示“已驳回 / 已批准（草案）”。
+- **验证**：606 tests OK（skipped=1，此前 595，+11 为 `test_task032_display.py`）、70 项契约；JS 回归 45 用例 / 163 断言（此前 16 用例）；真实浏览器两轮视觉自查，截图 `docs/reviews/task032_screenshots/`（第一轮在 `round1/`），390 宽所有页签无横向溢出，控制台无错误。
+- **既有测试的有意改动**：预算耗尽案例报告节点 partial → failed（与核验一致，U3-B）；账单节点标签改中文；首页标题断言更新；删除恒真断言；静态资源 MIME 测试补 4 个新模块。
+- **归档**：[Task 032 归档](../prompts/05_frontend/2026-11-22_032_business_workbench_ui.md)、证据 `docs/reviews/task032_evidence/`。会话额度中断后由下一会话补完文档同步。网页仍未接模型；未提交/推送；**待独立复查**。
+
+## [2026-11-22] 任务 034 - LLM Supervisor 与混合规划（Claude Code）
+
+- **起点**：main / 3be785e（已在 origin/main）。先完成 Task 031 复查条件 C1（状态文档同步）与 C3（并发写说明）；C2 即本任务 §2.6。
+- **评测集先于代码冻结**：`planner_paraphrase_v1`（30 题）与 `v2`（66 题，含项目所有者 36 道实习场景题）经用户审阅确认后冻结，SHA-256 写入 `docs/evaluation/planner_paraphrase_v1.md` 与归档。
+- **实现**：`supervisor.py`（`submit_plan` 结构化计划、目标标识剥离、超时/模型错误/非法输出/预算耗尽回退）、`HybridPlanner`（确定性歧义信号）、`planner.yaml`（默认 rule）、`--planner / --planner-provider / --hybrid-multi-domain`、规划层评测套件、C 基线规划属性；规则与 LLM 共用 `build_domain_subtasks`；规划调用计入共享预算。
+- **§2.6**：单 Agent 路径没有失败调用但漏查已问领域时也降级（PARTIAL / insufficient_evidence），告警区分“未查询 / 查询失败”；多 Agent 图以实际执行的计划为准。
+- **验证**：595 tests OK（skipped=1，+44）、70 项契约；`check` 与三种规划模式的 `investigate` exit 0；mode=rule 离线 heldout 与 `20261121T093757_*` 逐题 0 差异；规划层离线四配置零越权（scripted 只证明链路）。
+- **真实模型对照（用户授权）**：deepseek-flash 规划 v2 66 题，rule 36 / llm 61 / hybrid 58 / hybrid（multi=rule）56，四组零越权；160 次调用、263,244 token（超预估上限约 10%）；单次运行，存在同题不同答。冒烟时发现并修复 langchain-openai 缓存 HTTP 客户端跨事件循环的问题。
+- **归档**：[Task 034 归档](../prompts/04_agents/2026-11-22_034_llm_supervisor_planner.md)、[ADR-006](../decisions/ADR-006-hybrid-planner.md)、证据 `docs/reviews/task034_evidence/`。未提交/推送；**待独立复查**。
+
 ## [2026-11-21] 任务 031 返修 - R1–R4（Claude Code）
 
 - **起点**：main / e3b3594 + Task 031 未提交改动；依据 [Task 031 复查](../reviews/2026-11-21_task031_acceptance_review.md) 与 `docs/handoffs/CLAUDE_CODE_HANDOFF_2026-11-21.md`。返修前复跑 529 tests OK（skipped=1）、70 项契约，与 Task 031 自报一致。

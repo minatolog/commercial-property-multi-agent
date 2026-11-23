@@ -1,0 +1,26 @@
+# 规划器配置（Task 034）。不放在 agents/ 下：那里的每个 *.yaml 都会被当成 Agent 配置。
+#
+# mode:
+#   rule   规则规划（默认）：零模型调用、可复现；行为与 Task 034 之前完全一致
+#   llm    LLM Supervisor 规划；失败/超时/非法输出/超预算时回退到规则结果或回问
+#   hybrid 规则命中恰好 1 个领域且无歧义信号 → 用规则；否则交给 Supervisor（失败同样回退）
+mode: rule
+
+# hybrid 下规则命中多个领域且无歧义信号时：llm=交给模型复核（默认），rule=直接用规则
+hybrid_multi_domain: llm
+
+# 模型一次最多选几个领域
+max_domains: 3
+
+# 模型参数与 Agent YAML 同名同语义，复用同一套校验（validate_model_config）
+model_provider: deepseek
+model_name: deepseek-flash
+temperature: 0.0
+max_tokens: 512
+api_key_env: DEEPSEEK_API_KEY
+timeout_seconds: 20
+
+prompt_path: app/orchestration/prompts/supervisor_system.md
+
+# 模型给出的回问超过该长度即改用默认回问并记录告警
+max_clarification_chars: 120

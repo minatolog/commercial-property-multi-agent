@@ -253,13 +253,19 @@ def minimum_evidence_reason(scope: Any, facts: Mapping[str, Any] | None) -> str 
 # - "某领域取得了事实"：该领域有 accepted 工具产出了非空事实（`facts_of_executions`
 #   的 per_tool；合法零结果 `"0"` / `"未检索到匹配条款"` 同样算事实）。
 #
-# 判定（只在**存在失败调用**时生效，没有失败时行为不变）：
+# 判定（R1 只覆盖“存在失败调用”；Task 034 / 2.6 补上“没有失败、只是没查”）：
 #
-# | 情形 | 结果 |
-# |---|---|
-# | 问题涉及的领域都取得了事实 | 不变（SUCCESS） |
-# | 部分领域取得事实、部分没有 | PARTIAL，warnings 写明缺了哪个领域 |
-# | 问题涉及的领域一个都没取得事实（只有无关领域的事实） | INSUFFICIENT_EVIDENCE |
+# | 情形 | 结果 | 告警措辞 |
+# |---|---|---|
+# | 问题涉及的领域都取得了事实 | 不变（SUCCESS） | — |
+# | 部分领域没有事实，且存在失败调用 | PARTIAL | “查询失败” |
+# | 部分领域没有事实，且没有失败调用（模型漏查） | PARTIAL | “未查询” |
+# | 问题涉及的领域一个都没取得事实（只有无关领域的事实） | INSUFFICIENT_EVIDENCE | 同上区分 |
+#
+# “问题涉及哪些领域”在单 Agent 路径上只能以词表命中为准（这条路径没有规划器）。
+# 词表误命中会造成假的 PARTIAL（例如问题里出现“物业费”就算问了账单），这是已知代价：
+# 误报的后果是多一条“未查询”告警，漏报的后果是“问的没答却判成功”，后者更糟。
+# 多 Agent 图以**实际执行的计划**为准，不走本函数（见 Task 034 归档 §2.6）。
 #
 # 最后一行为什么是失败而不是 PARTIAL：PARTIAL 的含义是"回答了一部分"。用户只问了欠款、
 # 账单调用失败、模型顺手查了合同——合同事实回答不了问题的任何一部分，与
@@ -312,26 +318,33 @@ def domain_coverage(
 def missing_domain_outcome(
     coverage: Mapping[str, Any], failed_tool_calls: Any
 ) -> tuple[str | None, str | None]:
-    """按 R1 口径给出 `(失败原因, 告警)`，二者至多一个非空。
+    """按 R1 + Task 034 / 2.6 口径给出 `(失败原因, 告警)`，二者至多一个非空。
 
-    - 没有失败调用、或问题没有命中任何领域 → `(None, None)`（行为不变）；
+    - 问题没有命中任何领域、或问到的领域都有事实 → `(None, None)`；
     - 问题涉及的领域一个都没取到事实 → 失败原因（调用方抛 INSUFFICIENT_EVIDENCE）；
     - 只缺一部分 → 告警（`warnings` 非空 → PARTIAL）。
+
+    措辞区分两种成因：存在失败调用时写“查询失败”，没有失败调用时写“未查询”
+    （模型没有调用该领域的工具），便于排查是工具问题还是规划/模型问题。
     """
 
     from ...orchestration.vocabulary import DOMAIN_LABELS
 
-    if not failed_tool_calls:
-        return None, None
     asked = list(coverage.get("asked") or ())
     missing = list(coverage.get("missing") or ())
     if not asked or not missing:
         return None, None
     labels = "、".join(f"{domain}（{DOMAIN_LABELS.get(domain, domain)}）" for domain in missing)
+    if failed_tool_calls:
+        cause = "查询失败：相关工具调用失败"
+        partial_cause = "查询失败：存在失败的工具调用"
+    else:
+        cause = "未查询：没有调用该领域的工具"
+        partial_cause = "未查询：没有调用该领域的工具"
     if len(missing) == len(asked):
         return (
-            f"问题涉及的领域 {labels} 没有取得任何事实（相关工具调用失败）；"
+            f"问题涉及的领域 {labels} 没有取得任何事实（{cause}）；"
             "其他领域的事实回答不了这个问题，不能算取证",
             None,
         )
-    return None, f"部分取证：问题涉及的领域 {labels} 没有取得任何事实（存在失败的工具调用），结果只回答了一部分"
+    return None, f"部分取证：问题涉及的领域 {labels} 没有取得任何事实（{partial_cause}），结果只回答了一部分"

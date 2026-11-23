@@ -34,7 +34,7 @@ function reached(stateKey) {
 
 let currentModel = null;
 
-export function renderGraph(canvas, svg, model) {
+export function renderGraph(canvas, svg, model, highlights = {}) {
   currentModel = model;
   for (const node of canvas.querySelectorAll('.wb-node')) {
     const id = node.dataset.node;
@@ -44,6 +44,12 @@ export function renderGraph(canvas, svg, model) {
     if (badge) {
       badge.dataset.status = info.state;
       badge.textContent = info.label;
+    }
+    // Task 032：节点下方一行业务语言的关键发现；没有运行结果时恢复职责说明
+    const finding = node.querySelector('[data-role="finding"]');
+    if (finding) {
+      if (!finding.dataset.duty) finding.dataset.duty = finding.textContent;
+      finding.textContent = (highlights && highlights[id]) || finding.dataset.duty;
     }
   }
   window.requestAnimationFrame(() => drawLinks(canvas, svg, model));

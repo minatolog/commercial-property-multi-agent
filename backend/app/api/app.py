@@ -47,6 +47,20 @@ load_project_env()
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+# 静态资源每次都向服务端确认（ETag / Last-Modified，未改动返回 304），
+# 避免浏览器沿用旧版 ES 模块（Task 032 自查时遇到）。模块间相对 import 无法逐个加版本号，
+# 所以用响应头而不是 `?v=` 参数。
+NO_CACHE = "no-cache"
+
+
+class RevalidatingStaticFiles(StaticFiles):
+    """StaticFiles 的唯一差别：响应带 `Cache-Control: no-cache`。"""
+
+    def file_response(self, *args: Any, **kwargs: Any):  # type: ignore[override]
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = NO_CACHE
+        return response
+
 #: 客户端**不允许**自报的身份相关字段
 FORBIDDEN_FIELDS = frozenset({"principal_id", "permissions", "roles", "approval_roles"})
 
@@ -145,12 +159,14 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index() -> HTMLResponse:
         page = STATIC_DIR / "index.html"
-        return HTMLResponse(page.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            page.read_text(encoding="utf-8"), headers={"Cache-Control": NO_CACHE}
+        )
 
     # Task 027：样式/脚本/模板资源改为同源静态目录。
     # 只挂载 `static/`，不把仓库根、`docs/`、`data/`、`.env` 暴露成静态站点；
     # Starlette 的 StaticFiles 自带路径穿越防护与 404，不做目录列表。
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", RevalidatingStaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/api/meta")
     async def meta(request: Request) -> dict[str, Any]:
@@ -159,6 +175,8 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
             "service": "commercial-property-multi-agent",
             "trusted_principal": svc.principal_id,
             "approver_allowlist": list(svc.approver_allowlist),
+            # Task 032：只读展示元数据（中文角色名），只含可信主体与审批白名单
+            "principals": svc.principal_labels(),
             "note": "身份由服务端注入；请求不能自报 principal 或权限",
         }
 
@@ -219,7 +237,8 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
 
     @app.get("/api/runs/{run_id}")
     async def get_run(request: Request, run_id: str) -> dict[str, Any]:
-        return _service(request).get_run(run_id)
+        # Task 032：附带只读展示元数据（租户/铺位/项目名、引用记录的业务字段），读时生成
+        return _service(request).get_run_view(run_id)
 
     @app.get("/api/runs/{run_id}/traces")
     async def get_traces(request: Request, run_id: str) -> dict[str, Any]:

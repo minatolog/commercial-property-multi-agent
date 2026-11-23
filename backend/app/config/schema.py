@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -103,6 +103,62 @@ class AgentConfig(BaseModel):
         if normalized not in LOG_LEVELS:
             raise ValueError(f"log_level 必须是 {sorted(LOG_LEVELS)} 之一")
         return normalized
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_secret_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            hits = sorted(k for k in data if str(k).lower() in _FORBIDDEN_SECRET_KEYS)
+            if hits:
+                raise ValueError(
+                    f"配置中不允许出现敏感字段 {hits}；请使用环境变量并通过 api_key_env 声明变量名"
+                )
+        return data
+
+
+class PlannerConfig(BaseModel):
+    """规划器配置（Task 034，`app/config/planner.yaml`）。
+
+    模型参数字段与 `AgentConfig` **同名**（`model_provider` / `model_name` / `temperature` /
+    `max_tokens` / `timeout_seconds` / `api_key_env`），因此直接复用
+    `validate_model_config` 与 `build_model_client_for_config`，不另造一套校验。
+
+    `mode` 默认 `rule`：不加参数时 CLI / API / 评测的行为与 Task 034 之前完全一致。
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mode: Literal["rule", "llm", "hybrid"] = "rule"
+    #: hybrid 下规则命中**多个**领域且无歧义信号时：`llm`=交给模型复核，`rule`=直接用规则
+    hybrid_multi_domain: Literal["rule", "llm"] = "llm"
+    #: 模型一次最多选几个领域（领域只有 3 个，超过即视为非法输出）
+    max_domains: int = Field(default=3, ge=1, le=3)
+
+    model_provider: str = Field(min_length=1)
+    model_name: str = Field(min_length=1)
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, ge=1)
+    api_key_env: str | None = None
+    timeout_seconds: float = Field(default=20.0, gt=0.0, le=600.0)
+    prompt_path: str = Field(min_length=1)
+    #: 回问文本的最大长度（模型给出的回问超过即改用默认回问并记录告警）
+    max_clarification_chars: int = Field(default=120, ge=10, le=500)
+
+    @field_validator("api_key_env")
+    @classmethod
+    def _validate_api_key_env(cls, value: str | None) -> str | None:
+        if value is not None and not _ENV_NAME.match(value):
+            raise ValueError(f"api_key_env 必须是环境变量名（大写下划线），收到: {value!r}")
+        return value
+
+    @field_validator("prompt_path")
+    @classmethod
+    def _validate_prompt_path(cls, value: str) -> str:
+        if Path(value).is_absolute():
+            raise ValueError("prompt_path 必须是相对 backend/ 的路径")
+        if ".." in Path(value).parts:
+            raise ValueError("prompt_path 不允许包含 '..'")
+        return value
 
     @model_validator(mode="before")
     @classmethod

@@ -11,6 +11,8 @@ from pathlib import Path
 BACKEND_ROOT: Path = Path(__file__).resolve().parents[1]
 REPO_ROOT: Path = BACKEND_ROOT.parent
 CONFIG_DIR: Path = BACKEND_ROOT / "app" / "config" / "agents"
+#: 规划器配置（Task 034）。不放在 `agents/` 下：那里的每个 `*.yaml` 都会被当成 Agent 配置加载。
+PLANNER_CONFIG_PATH: Path = BACKEND_ROOT / "app" / "config" / "planner.yaml"
 DEFAULT_FIXTURE_PATH: Path = (
     REPO_ROOT / "docs" / "evaluation" / "fixtures" / "agent_first_v1.json"
 )
