@@ -90,6 +90,28 @@
 
 注意：编码方 JSON 里的 `total_cost_usd` 是按 Claude 价格估算的，对 DeepSeek 不准，实际费用以 DeepSeek 后台为准。
 
+## dev_review：DeepSeek 独立复查（反方向）
+
+`dev_loop.ps1` 是“DeepSeek 编码 → Claude 审查”。Claude（或人）改完代码后的**独立复查**由 `dev_review.ps1` 完成：DeepSeek 按一份复查 Prompt 做一次只读复查，报告由脚本保存。复查 Prompt 写好后，Claude Code 会话可以直接调用它，不需要用户在两个模型之间转交。
+
+```powershell
+.\scripts\dev_loop\dev_review.ps1 -PromptFile docs\handoffs\REVIEW_TASK035_PROMPT.md -ReportFile docseviews6-11-24_task035_independent_review.md
+```
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `-Model` | `deepseek-flash` | 复查方模型 |
+| `-MaxTurns` | 150 | 工具调用上限 |
+| `-AddDirs` | 空 | 仓库外需要读取的目录，逗号分隔 |
+| `-Overwrite` | 关 | 报告已存在时覆盖（默认拒绝） |
+
+- **只读**：禁用 Edit / Write / `git add` / `pip`；复查方的最终回复就是报告正文，脚本只保留从第一个 `# ` 标题开始的部分，统一为 LF。
+- **实验目录**：脚本在 `%TEMP%\dev_review\<时间戳>` 建一个仓库外目录并用 `--add-dir` 放行，变异测试、临时脚本、评测输出都写在那里。
+- **核对**：运行前后各拍一次工作区快照，并核对 HEAD / 分支 / stash；仓库有任何改动 → 退出码 2 并列出文件（报告仍保存，供排查）。与 dev_loop 一样，放行了 python 就只是“事后发现”，不是沙箱。
+- **认证隔离**与 dev_loop 编码方相同（清空宿主 `CLAUDE*` / `ANTHROPIC*`，独立配置目录，只给 DeepSeek key）。
+- 退出码：0 完成且仓库未改；1 参数或前置检查失败；2 出错 / 用完轮数 / 无报告 / 仓库被改动。日志在 `tmp/dev_loop/review-<时间戳>/`。
+- 复查方模板：[`independent_review_prompt.md`](independent_review_prompt.md)。
+
 ## 调整提示词
 
 - 编码方：[`coder_prompt.md`](coder_prompt.md)
