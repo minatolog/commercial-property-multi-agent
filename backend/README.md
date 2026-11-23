@@ -189,7 +189,7 @@ Streamable HTTP + OAuth：令牌校验后把主体映射到 fixture 主体记录
 
 ## 6. PostgreSQL（Task 035）
 
-数据层已在 PostgreSQL 16.16 上完成第一版实机验证（迁移、seed、只读会话闸门、项目隔离、金额精度、39 条 CHECK、1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql`）。**已实施并自检，待独立复查；不是最终验收。** RLS、多实例并发与生产部署仍未做。证据见 [Task 035 归档](../docs/prompts/02_database/2026-11-23_035_postgresql_verification.md) 与 [schema_pg.txt](../docs/reviews/task035_evidence/schema_pg.txt)。
+数据层已在 PostgreSQL 16.16 上完成第一版实机验证（迁移、seed、只读会话闸门、项目隔离、金额精度、39 条 CHECK、1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql`）。**独立复查 → 返修 → 确认复查有条件通过，条件已再修；不是最终验收。** RLS、多实例并发与生产部署仍未做。证据见 [Task 035 归档](../docs/prompts/02_database/2026-11-23_035_postgresql_verification.md) 与 [schema_pg.txt](../docs/reviews/task035_evidence/schema_pg.txt)。
 
 ### 6.1 启动本地测试库（Docker）
 
@@ -300,7 +300,7 @@ python -m app.cli investigate --backend postgresql --lease lease_xh_a301_2025
 |---|---|
 | 正式真实模型实验 | 已实测 `ask` / `investigate` / `evaluate --split dev` 与有界单题；heldout 真实对照与重复测量**未做**，成本未换算。历史真实的模型名是 `deepseek-chat`（官方 2026-07-24 下线），当前配置为 `deepseek-flash` |
 | SQLite 方言限制 | 只影响离线 / 演示用的 SQLite 后端：时间列不保存 UTC 偏移（读回不带 `+08:00`）；金额以 TEXT 存储，约束里 `CAST(... AS REAL)` 会把非数字文本当作 0；币种约束不能拒绝非 ASCII 字母；不保证租期不重叠。PG 无这些问题 |
-| PostgreSQL | 已在 PostgreSQL 16.16 上完成第一版实机验证（迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 CHECK + 1 EXCLUDE / 只读角色 / CLI）；[独立复查](../docs/reviews/2026-11-23_task035_independent_review.md)不通过（单价读路径），已返修，**待复查确认**；RLS、多实例并发与生产部署未做。见 §6 |
+| PostgreSQL | 已在 PostgreSQL 16.16 上完成第一版实机验证（迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 CHECK + 1 EXCLUDE / 只读角色 / CLI）；[独立复查](../docs/reviews/2026-11-23_task035_independent_review.md)不通过（单价读路径），已返修，确认复查有条件通过、条件已再修；RLS、多实例并发与生产部署未做。见 §6 |
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20）。`retrieval_settings` 只接受 `enabled`/`top_k`，声明未实现字段即加载失败；`top_k` 为声明值 |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |
 | 演示鉴权 | `DEMO_PRINCIPAL_ID` + 白名单仅为演示，非真实认证；CLI `--principal` 是开发模式自报身份并会提示、记录 `identity_source=cli_flag` |
