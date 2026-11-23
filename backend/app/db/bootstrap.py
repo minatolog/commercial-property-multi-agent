@@ -24,9 +24,32 @@ from sqlalchemy.pool import StaticPool
 from ..paths import DEFAULT_FIXTURE_PATH, SQLITE_DB_PATH
 from .repository import DatabaseRepository
 from .seed import create_schema, seed_from_fixture
-from .session import enforce_read_only
+from .session import create_engine_for, enforce_read_only
 
-__all__ = ["build_repository_for_engine", "build_sqlite_repository"]
+__all__ = [
+    "build_postgres_repository",
+    "build_readonly_repository_for_engine",
+    "build_repository_for_engine",
+    "build_sqlite_repository",
+]
+
+
+def _readonly_repository(engine: Engine, fixture_path: str | Path | None) -> DatabaseRepository:
+    """装配只读仓库（不建表、不 seed）。"""
+
+    path = Path(fixture_path or DEFAULT_FIXTURE_PATH)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    repository_session = Session(engine)
+    # 只读闸门必须在**装配期**启用：工具仓库拿到的就是这个 Session
+    enforce_read_only(repository_session)
+    repository = DatabaseRepository(
+        repository_session,
+        dataset_version=data["dataset_version"],
+        as_of_date=date.fromisoformat(data["as_of_date"]),
+    )
+    for principal in data.get("principals", {}).values():
+        repository.register_principal(principal)
+    return repository
 
 
 def build_repository_for_engine(
@@ -42,7 +65,6 @@ def build_repository_for_engine(
     """
 
     path = Path(fixture_path or DEFAULT_FIXTURE_PATH)
-    data = json.loads(path.read_text(encoding="utf-8"))
     if create_tables:
         create_schema(engine)
     setup = Session(engine)
@@ -51,18 +73,40 @@ def build_repository_for_engine(
         setup.commit()
     finally:
         setup.close()
+    return _readonly_repository(engine, path)
 
-    repository_session = Session(engine)
-    # 只读闸门必须在**装配期**启用：工具仓库拿到的就是这个 Session
-    enforce_read_only(repository_session)
-    repository = DatabaseRepository(
-        repository_session,
-        dataset_version=data["dataset_version"],
-        as_of_date=date.fromisoformat(data["as_of_date"]),
-    )
-    for principal in data.get("principals", {}).values():
-        repository.register_principal(principal)
-    return repository
+
+def build_readonly_repository_for_engine(
+    engine: Engine, fixture_path: str | Path | None = None
+) -> DatabaseRepository:
+    """连接**已迁移、已有数据**的库并装配只读仓库（不建表、不 seed）。
+
+    数据集元数据（`dataset_version` / `as_of_date` / 可信主体）来自 fixture 文件，
+    与数据库内容的一致性由迁移 / seed 步骤保证；业务工具本身只读数据库。
+    """
+
+    return _readonly_repository(engine, fixture_path)
+
+
+def build_postgres_repository(
+    url: str, fixture_path: str | Path | None = None
+) -> tuple[Engine, DatabaseRepository]:
+    """按 URL 构建只读 PostgreSQL 仓库（供 CLI 的 `--backend postgresql` 使用）。
+
+    - engine 必须由 `create_engine_for` 创建：数据集时区写在连接启动参数里
+      （Task 035A），直接 `create_engine` 读出的时间仍是 UTC；
+    - 不建表、不 seed：CLI 只连接已经迁移并导入数据的库。
+    """
+
+    if not url.startswith("postgresql"):
+        raise ValueError("PostgreSQL 只读仓库需要 postgresql:// 连接串")
+    engine = create_engine_for(url)
+    try:
+        repository = build_readonly_repository_for_engine(engine, fixture_path)
+    except Exception:
+        engine.dispose()
+        raise
+    return engine, repository
 
 
 def build_sqlite_repository(

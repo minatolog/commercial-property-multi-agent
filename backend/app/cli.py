@@ -28,6 +28,7 @@ import asyncio
 import json
 import os
 import sys
+from contextlib import contextmanager
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -102,7 +103,10 @@ def _print_json(payload: Any) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
-        description="commercial-property-multi-agent 的离线 Runtime CLI（无模型、无数据库、无网络）",
+        description=(
+            "commercial-property-multi-agent 的 Runtime CLI（默认离线、无模型、无网络；"
+            "investigate --backend postgresql 读取本地 PostgreSQL）"
+        ),
         epilog=_EXIT_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -240,8 +244,11 @@ def build_parser() -> argparse.ArgumentParser:
     investigate.add_argument(
         "--backend",
         default="fixture",
-        choices=("fixture", "sqlite"),
-        help="数据来源：fixture=JSON（默认）；sqlite=SQLAlchemy 只读数据库（本机无 PostgreSQL）",
+        choices=("fixture", "sqlite", "postgresql"),
+        help=(
+            "数据来源：fixture=JSON（默认）；sqlite=SQLAlchemy 只读数据库；"
+            "postgresql=环境变量 COMMERCIAL_DB_URL 指向的已迁移库（只读，连接串不进命令行）"
+        ),
     )
     investigate.add_argument("--full", action="store_true", help="输出完整图状态报告")
     investigate.add_argument(
@@ -829,7 +836,9 @@ def _scripted_calls_for(args: argparse.Namespace) -> list[tuple[str, dict]]:
     ]
 
 
-def _build_investigation_bundle(args: argparse.Namespace, *, control_plane: Any = None):
+def _build_investigation_bundle(
+    args: argparse.Namespace, *, control_plane: Any = None, backend: str | None = None
+):
     """按 `--model-provider` 装配调查：offline 确定性，scripted/deepseek 走模型引擎。
 
     Task 031 / 2.5：deepseek 下每个领域 Agent 用**自己 YAML** 的模型参数构造客户端
@@ -854,7 +863,7 @@ def _build_investigation_bundle(args: argparse.Namespace, *, control_plane: Any 
         max_model_calls=(args.budget_model_calls if uses_model else 0),
         max_total_tokens=(args.budget_tokens if uses_model else None),
         max_revisions=args.max_revisions,
-        backend=args.backend,
+        backend=backend or args.backend,
         control_plane=control_plane,
         model_provider=provider,
         scripted_calls=(_scripted_calls_for(args) if provider == "scripted" else None),
@@ -862,6 +871,85 @@ def _build_investigation_bundle(args: argparse.Namespace, *, control_plane: Any 
         planner_provider=args.planner_provider,
         hybrid_multi_domain=args.hybrid_multi_domain,
     )
+
+
+#: CLI 的 PostgreSQL 连接串只从这个环境变量读取（不接受命令行明文）。
+_DB_URL_ENV = "COMMERCIAL_DB_URL"
+
+
+def _postgres_url_from_env() -> str:
+    url = os.environ.get(_DB_URL_ENV, "").strip()
+    if not url:
+        raise UsageError(
+            f"--backend postgresql 需要设置环境变量 {_DB_URL_ENV}；"
+            "连接串只从环境变量读取，不接受命令行明文"
+        )
+    if not url.startswith("postgresql"):
+        raise UsageError(f"{_DB_URL_ENV} 必须是 postgresql:// 连接串")
+    return url
+
+
+@contextmanager
+def _postgres_repository_seam(engine: Any, repository: Any):
+    """让 `build_investigation_bundle` 在给定的 PG 只读仓库上完成装配。
+
+    `investigation_demo` 目前只接受 fixture / sqlite（该模块不在 Task 035B
+    允许修改的文件内），其 sqlite 分支通过**延迟导入**的
+    `bootstrap.build_sqlite_repository` 取得仓库。这里只替换这一次装配使用的
+    工厂，使工具、知识库、规划器与调查器拿到同一个 PG 只读仓库，装配结束后立即恢复。
+    """
+
+    from .db import bootstrap
+
+    original = bootstrap.build_sqlite_repository
+
+    def _factory(*_args: Any, **_kwargs: Any):
+        return engine, repository
+
+    bootstrap.build_sqlite_repository = _factory
+    try:
+        yield
+    finally:
+        bootstrap.build_sqlite_repository = original
+
+
+@contextmanager
+def _investigation_assembly(args: argparse.Namespace, *, control_plane: Any = None):
+    """装配调查所需的 bundle；PG 后端负责建立并最终释放只读连接。"""
+
+    if getattr(args, "backend", "fixture") != "postgresql":
+        yield _build_investigation_bundle(args, control_plane=control_plane)
+        return
+
+    if getattr(args, "variant", None):
+        # 变体只在读 JSON fixture 时应用；不要让内部装配报出“sqlite 后端”的提示。
+        raise UsageError(
+            "postgresql 后端不支持 fixture 数据变体（--variant 只作用于 --backend fixture）"
+        )
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from .db.bootstrap import build_postgres_repository
+
+    url = _postgres_url_from_env()
+    try:
+        engine, repository = build_postgres_repository(url)
+    except (SQLAlchemyError, OSError) as exc:
+        # 只报告异常类型：连接串/密码不能进入错误消息或报告。
+        raise UsageError(
+            f"无法连接 {_DB_URL_ENV} 指向的 PostgreSQL"
+            f"（请确认库已迁移并已导入数据）: {type(exc).__name__}"
+        ) from None
+    try:
+        with _postgres_repository_seam(engine, repository):
+            # 仓库已由 seam 注入；backend 在此只用于通过装配函数的取值校验。
+            bundle = _build_investigation_bundle(
+                args, control_plane=control_plane, backend="sqlite"
+            )
+        yield bundle
+    finally:
+        repository._session.close()  # noqa: SLF001 - 装配资源，仅 CLI 持有
+        engine.dispose()
 
 
 def _effective_planner_mode(args: argparse.Namespace) -> str:
@@ -877,15 +965,15 @@ def _cmd_investigate(args: argparse.Namespace) -> int:
     if args.with_approval:
         return asyncio.run(_investigate_with_control_plane(args))
 
-    bundle = _build_investigation_bundle(args)
-    result = asyncio.run(
-        run_investigation(
-            bundle,
-            question=args.question,
-            lease_id=args.lease,
-            thread_id=args.thread_id,
+    with _investigation_assembly(args) as bundle:
+        result = asyncio.run(
+            run_investigation(
+                bundle,
+                question=args.question,
+                lease_id=args.lease,
+                thread_id=args.thread_id,
+            )
         )
-    )
     _print_json(_investigation_output(result, bundle, args))
     return _investigation_exit_code(result)
 
@@ -900,14 +988,14 @@ async def _investigate_with_control_plane(args: argparse.Namespace) -> int:
         checkpoint_path=(base / "checkpoints" / "graph.sqlite") if base else CHECKPOINT_DB,
         approval_path=(base / "control" / "approval.sqlite") if base else CONTROL_DB,
     ) as plane:
-        bundle = _build_investigation_bundle(args, control_plane=plane)
-        thread_id = args.thread_id or f"thread_{bundle.context.run_id}"
-        result = await run_investigation(
-            bundle,
-            question=args.question,
-            lease_id=args.lease,
-            thread_id=thread_id,
-        )
+        with _investigation_assembly(args, control_plane=plane) as bundle:
+            thread_id = args.thread_id or f"thread_{bundle.context.run_id}"
+            result = await run_investigation(
+                bundle,
+                question=args.question,
+                lease_id=args.lease,
+                thread_id=thread_id,
+            )
     _print_json(_investigation_output(result, bundle, args))
     return _investigation_exit_code(result)
 
@@ -929,6 +1017,8 @@ def _investigation_exit_code(result: Any) -> int:
 def _investigation_output(result: Any, bundle: Any, args: argparse.Namespace) -> dict[str, Any]:
     if args.full:
         payload = dict(result.report or {})
+        # 元数据如实记录数据来源；连接串/密码永远不写入报告。
+        payload["backend"] = args.backend
         payload["agent_models"] = getattr(bundle, "agent_models", {})
         payload["planner"] = getattr(bundle, "planner_info", {})
         payload["identity"] = _identity_payload(bundle, args)
@@ -1014,6 +1104,8 @@ def _investigation_payload(
         "route": result.route,
         "revision": result.revision,
         "lease_id": args.lease,
+        # 元数据如实记录数据来源；连接串/密码永远不写入报告。
+        "backend": args.backend,
         "thread_id": result.thread_id,
         "identity": _identity_payload(bundle, args),
         # Task 031 / 2.7：路由理由（命中了哪些词）与"无法判断领域"的澄清结果

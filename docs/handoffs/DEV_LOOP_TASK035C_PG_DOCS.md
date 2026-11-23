@@ -22,6 +22,12 @@
 
 不要改其它文件，也不要改这些文件里与 Task 035 无关的历史条目。
 
+## 1.1 Claude Code 复核 035A / 035B 时发现、需要写进清点与归档的事项
+
+1. **数据库后端没有“待审批减免草案”**：fixture 里有待处理草案（例如 A-301 的 `rent_reduction_draft`，金额 `700.00`、`expires_at` 带 `+08:00`），12 张表里没有存草案的表。所以同一个问题，`--backend fixture` 的报告有 `proposed_draft`，`sqlite` / `postgresql` 都没有（两者彼此一致）。这是 12 表精简设计的差异，不是 PG 问题；清点表里要单列。
+2. **CLI 注入 PG 仓库的方式是临时替换 `bootstrap.build_sqlite_repository`**（`cli.py` 的 `_postgres_repository_seam`），因为 035B 不允许改 `investigation_demo.py`。可用，但依赖延迟导入这一实现细节、且不是线程安全的；登记为遗留问题，建议以后让 `build_investigation_bundle` 直接接受仓库参数。
+3. **迁移 `0001` 用 `Base.metadata.create_all` 建表**，而 035A 已把模型的单价改成 `NUMERIC(14,4)`，所以新库在 `0001` 之后就已经是 4 位，`0002` 实际是空操作；`downgrade` 到 `0001` 时又会改回 2 位。行为正确，但要在归档里说明，避免以后误以为 `0002` 是唯一改列的地方。
+
 ## 2. 内容要求
 
 - **数字一律来自实际运行**：测试数、PG 测试数（实际执行，不是 skip）、契约数写证据文件里的数字。

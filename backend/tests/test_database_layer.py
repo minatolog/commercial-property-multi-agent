@@ -445,5 +445,178 @@ class TestTask035ADataLayerFixesOnSqlite(unittest.TestCase):
         self.assertEqual(str(item.amount), "15876.00")
 
 
+class TestTask035BConstraintsOnSqlite(unittest.TestCase):
+    """Task 035B：迁移 0003 的 P0 约束在 SQLite 上的对应断言（只追加）。
+
+    约束由迁移建立（不是 `create_all`），所以这里在临时文件库上跑完整
+    `upgrade head`，再逐类构造违规写入。金额/面积/数量在 SQLite 上是 TEXT，
+    迁移使用 `CAST(... AS REAL)`，因此零值与负数都能被正确拒绝。
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from sqlalchemy import create_engine
+
+        cls._tmp = tempfile.TemporaryDirectory()
+        db_path = Path(cls._tmp.name) / "constraints.sqlite"
+        config = Config(str(BACKEND_ROOT / "alembic.ini"))
+        config.set_main_option("script_location", str(BACKEND_ROOT / "migrations"))
+        config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{db_path.as_posix()}")
+        command.upgrade(config, "head")
+        cls.engine = create_engine(
+            f"sqlite+pysqlite:///{db_path.as_posix()}", future=True
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.engine.dispose()
+        cls._tmp.cleanup()
+
+    def _assert_rejected(self, sql: str, constraint: str) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        with self.engine.connect() as connection:
+            transaction = connection.begin()
+            with self.assertRaises(IntegrityError) as ctx:
+                connection.execute(text(sql))
+            self.assertIn(constraint, str(ctx.exception))
+            transaction.rollback()
+
+    def _assert_accepted(self, sql: str) -> None:
+        with self.engine.connect() as connection:
+            transaction = connection.begin()
+            connection.execute(text(sql))
+            transaction.rollback()
+
+    def test_migrated_schema_contains_all_p0_constraints(self) -> None:
+        expected = {
+            "ck_projects_status_p0",
+            "ck_units_area_positive_p0",
+            "ck_units_chargeable_area_positive_p0",
+            "ck_units_physical_status_p0",
+            "ck_tenants_status_p0",
+            "ck_leases_status_p0",
+            "ck_leases_billing_cycle_p0",
+            "ck_leases_date_range_p0",
+            "ck_leases_payment_terms_days_p0",
+            "ck_leases_deposit_non_negative_p0",
+            "ck_leases_currency_format_p0",
+            "ck_charge_rules_charge_type_p0",
+            "ck_charge_rules_calculation_method_p0",
+            "ck_charge_rules_period_unit_p0",
+            "ck_charge_rules_amount_non_negative_p0",
+            "ck_charge_rules_unit_price_non_negative_p0",
+            "ck_charge_rules_effective_range_p0",
+            "ck_charge_rules_calc_consistency_p0",
+            "ck_invoices_period_range_p0",
+            "ck_invoices_due_after_issue_p0",
+            "ck_invoices_status_p0",
+            "ck_invoices_currency_format_p0",
+            "ck_invoice_items_charge_type_p0",
+            "ck_invoice_items_amount_adjustment_p0",
+            "ck_invoice_items_quantity_nonzero_p0",
+            "ck_invoice_items_unit_price_non_negative_p0",
+            "ck_payments_amount_positive_p0",
+            "ck_payments_status_p0",
+            "ck_payments_method_p0",
+            "ck_payments_currency_format_p0",
+            "ck_payment_allocations_amount_positive_p0",
+            "ck_work_orders_category_p0",
+            "ck_work_orders_priority_p0",
+            "ck_work_orders_status_p0",
+            "ck_work_orders_resolved_after_reported_p0",
+            "ck_work_orders_resolved_status_time_p0",
+            "ck_documents_doc_type_p0",
+            "ck_documents_version_positive_p0",
+            "ck_documents_status_p0",
+        }
+        with self.engine.connect() as connection:
+            ddl = "\n".join(
+                row[0] or ""
+                for row in connection.execute(
+                    text("SELECT sql FROM sqlite_master WHERE type = 'table'")
+                )
+            )
+        missing = {name for name in expected if name not in ddl}
+        self.assertEqual(missing, set(), f"迁移未创建这些约束: {sorted(missing)}")
+        # 排他约束是 PostgreSQL 专属（SQLite 上按设计跳过）。
+        self.assertNotIn("ex_leases_unit_active_period_p0", ddl)
+
+    def test_numeric_lower_bounds(self) -> None:
+        self._assert_rejected(
+            "INSERT INTO payments (id, project_id, receipt_no, payment_method, amount, "
+            "currency, paid_at, status) VALUES ('probe_sqlite_pay_neg', 'prj_xinghui', "
+            "'PROBE-NEG', 'bank_transfer', '0.00', 'CNY', "
+            "'2026-01-01 00:00:00', 'confirmed')",
+            "ck_payments_amount_positive_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO units (id, project_id, building_id, code, area_sqm, "
+            "chargeable_area_sqm, physical_status) VALUES ('probe_sqlite_unit', "
+            "'prj_xinghui', 'bld_xh_a', 'PROBE-UNIT', '0.00', '10.00', 'normal')",
+            "ck_units_area_positive_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+            "quantity, unit_price, amount) VALUES ('probe_sqlite_item', 'inv_2026_08', "
+            "'rent', 'probe', '1.0000', '1.0000', '-1.00')",
+            "ck_invoice_items_amount_adjustment_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+            "quantity, unit_price, amount) VALUES ('probe_sqlite_qty', 'inv_2026_08', "
+            "'rent', 'probe', '0.0000', '1.0000', '1.00')",
+            "ck_invoice_items_quantity_nonzero_p0",
+        )
+        # 调整类明细（other_fee）允许负数：fixture 没有这种行，但设计允许减免/冲抵。
+        self._assert_accepted(
+            "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+            "quantity, unit_price, amount) VALUES ('probe_sqlite_adjust', 'inv_2026_08', "
+            "'other_fee', 'probe', '1.0000', NULL, '-1.00')"
+        )
+
+    def test_date_ranges_and_enums(self) -> None:
+        self._assert_rejected(
+            "INSERT INTO leases (id, project_id, lease_no, tenant_id, unit_id, "
+            "start_date, end_date, status, billing_cycle, payment_terms_days, "
+            "deposit_amount, currency) VALUES ('probe_sqlite_lease', 'prj_xinghui', "
+            "'PROBE-DATE', 'ten_xh_yunduan', 'unit_xh_a301', '2026-12-31', "
+            "'2026-01-01', 'draft', 'monthly', 30, '0.00', 'CNY')",
+            "ck_leases_date_range_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO leases (id, project_id, lease_no, tenant_id, unit_id, "
+            "start_date, end_date, status, billing_cycle, payment_terms_days, "
+            "deposit_amount, currency) VALUES ('probe_sqlite_terms', 'prj_xinghui', "
+            "'PROBE-TERMS', 'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', "
+            "'2026-12-31', 'draft', 'monthly', 181, '0.00', 'CNY')",
+            "ck_leases_payment_terms_days_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO leases (id, project_id, lease_no, tenant_id, unit_id, "
+            "start_date, end_date, status, billing_cycle, payment_terms_days, "
+            "deposit_amount, currency) VALUES ('probe_sqlite_ccy', 'prj_xinghui', "
+            "'PROBE-CCY', 'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', "
+            "'2026-12-31', 'draft', 'monthly', 30, '0.00', 'cny')",
+            "ck_leases_currency_format_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+            "calculation_method, unit_price, period_unit, effective_from, "
+            "effective_to, is_rent_free) VALUES ('probe_sqlite_rule', "
+            "'lease_xh_a301_2025', 'deposit', 'per_sqm', '1.0000', 'month', "
+            "'2026-01-01', '2026-12-31', 0)",
+            "ck_charge_rules_charge_type_p0",
+        )
+        self._assert_rejected(
+            "INSERT INTO work_orders (id, project_id, work_order_no, category, "
+            "priority, status, title, reported_at, resolved_at) VALUES "
+            "('probe_sqlite_wo', 'prj_xinghui', 'PROBE-WO', 'hvac', 'normal', "
+            "'in_progress', 'probe', '2026-02-02 10:00:00', "
+            "'2026-02-01 10:00:00')",
+            "ck_work_orders_resolved_after_reported_p0",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

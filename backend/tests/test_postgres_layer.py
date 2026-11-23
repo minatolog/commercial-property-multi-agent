@@ -494,5 +494,868 @@ class TestToolsBoundToPostgres(_SeededPostgresCase):
         self.assertGreaterEqual(len(trace_log.snapshot()), 3)
 
 
+# ---------------------------------------------------------------- Task 035B
+
+
+P0_CONSTRAINT_NAMES = (
+    "ck_projects_status_p0",
+    "ck_units_area_positive_p0",
+    "ck_units_chargeable_area_positive_p0",
+    "ck_units_physical_status_p0",
+    "ck_tenants_status_p0",
+    "ck_leases_status_p0",
+    "ck_leases_billing_cycle_p0",
+    "ck_leases_date_range_p0",
+    "ck_leases_payment_terms_days_p0",
+    "ck_leases_deposit_non_negative_p0",
+    "ck_leases_currency_format_p0",
+    "ck_charge_rules_charge_type_p0",
+    "ck_charge_rules_calculation_method_p0",
+    "ck_charge_rules_period_unit_p0",
+    "ck_charge_rules_amount_non_negative_p0",
+    "ck_charge_rules_unit_price_non_negative_p0",
+    "ck_charge_rules_effective_range_p0",
+    "ck_charge_rules_calc_consistency_p0",
+    "ck_invoices_period_range_p0",
+    "ck_invoices_due_after_issue_p0",
+    "ck_invoices_status_p0",
+    "ck_invoices_currency_format_p0",
+    "ck_invoice_items_charge_type_p0",
+    "ck_invoice_items_amount_adjustment_p0",
+    "ck_invoice_items_quantity_nonzero_p0",
+    "ck_invoice_items_unit_price_non_negative_p0",
+    "ck_payments_amount_positive_p0",
+    "ck_payments_status_p0",
+    "ck_payments_method_p0",
+    "ck_payments_currency_format_p0",
+    "ck_payment_allocations_amount_positive_p0",
+    "ck_work_orders_category_p0",
+    "ck_work_orders_priority_p0",
+    "ck_work_orders_status_p0",
+    "ck_work_orders_resolved_after_reported_p0",
+    "ck_work_orders_resolved_status_time_p0",
+    "ck_documents_doc_type_p0",
+    "ck_documents_version_positive_p0",
+    "ck_documents_status_p0",
+)
+EXCLUSION_CONSTRAINT_NAME = "ex_leases_unit_active_period_p0"
+
+
+@requires_pg
+class TestP0ConstraintsPostgres(_SeededPostgresCase):
+    """每类 P0 约束都构造一条违规写入，由数据库拒绝；fixture seed 本身仍成功。"""
+
+    def _assert_rejected(self, sql: str, constraint: str | tuple[str, ...]) -> None:
+        names = (constraint,) if isinstance(constraint, str) else constraint
+        with Session(self.engine) as session:
+            with self.assertRaises(DBAPIError) as ctx:
+                session.execute(text(sql))
+            message = str(ctx.exception.orig)
+            self.assertTrue(
+                any(name in message for name in names),
+                f"期望违反 {names}，实际错误: {message}",
+            )
+            session.rollback()
+
+    def _assert_accepted(self, sql: str) -> None:
+        with Session(self.engine) as session:
+            session.execute(text(sql))
+            session.rollback()
+
+    def test_fixture_seed_satisfies_all_constraints(self) -> None:
+        """类级 seed 已带约束执行；这里再核对行数与 fixture 一致。"""
+
+        snapshot = _fixture().snapshot()
+        with self.engine.connect() as connection:
+            counts = {
+                table: connection.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one()
+                for table in BUSINESS_TABLES
+            }
+        for table in BUSINESS_TABLES:
+            with self.subTest(table=table):
+                self.assertEqual(counts[table], len(snapshot[table]))
+
+    def test_constraint_names_are_installed(self) -> None:
+        with self.engine.connect() as connection:
+            names = set(
+                connection.execute(
+                    text(
+                        "SELECT conname FROM pg_constraint "
+                        "WHERE conname ~ '^(ck|ex)_' AND connamespace = 'public'::regnamespace"
+                    )
+                ).scalars()
+            )
+        self.assertEqual(set(P0_CONSTRAINT_NAMES) - names, set())
+        self.assertIn(EXCLUSION_CONSTRAINT_NAME, names)
+
+    def test_invalid_rows_are_rejected(self) -> None:
+        lease_columns = (
+            "INSERT INTO leases (id, project_id, lease_no, tenant_id, unit_id, "
+            "start_date, end_date, status, billing_cycle, payment_terms_days, "
+            "deposit_amount, currency) VALUES "
+        )
+        cases = [
+            (
+                "projects.status",
+                "INSERT INTO projects (id, code, name, timezone, status) VALUES "
+                "('probe_prj_status', 'PROBE-PRJ', 'probe', 'Asia/Shanghai', 'archivedx')",
+                "ck_projects_status_p0",
+            ),
+            (
+                "units.area_sqm",
+                "INSERT INTO units (id, project_id, building_id, code, area_sqm, "
+                "chargeable_area_sqm, physical_status) VALUES ('probe_unit_area', "
+                "'prj_xinghui', 'bld_xh_a', 'PROBE-AREA', '0.00', '10.00', 'normal')",
+                "ck_units_area_positive_p0",
+            ),
+            (
+                "units.chargeable_area_sqm",
+                "INSERT INTO units (id, project_id, building_id, code, area_sqm, "
+                "chargeable_area_sqm, physical_status) VALUES ('probe_unit_chg', "
+                "'prj_xinghui', 'bld_xh_a', 'PROBE-CHG', '10.00', '0.00', 'normal')",
+                "ck_units_chargeable_area_positive_p0",
+            ),
+            (
+                "units.physical_status",
+                "INSERT INTO units (id, project_id, building_id, code, area_sqm, "
+                "chargeable_area_sqm, physical_status) VALUES ('probe_unit_status', "
+                "'prj_xinghui', 'bld_xh_a', 'PROBE-UST', '10.00', '10.00', 'broken')",
+                "ck_units_physical_status_p0",
+            ),
+            (
+                "tenants.status",
+                "INSERT INTO tenants (id, code, name, status) VALUES "
+                "('probe_tenant_status', 'PROBE-TEN', 'probe', 'unknown')",
+                "ck_tenants_status_p0",
+            ),
+            (
+                "leases.status",
+                lease_columns
+                + "('probe_lease_status', 'prj_xinghui', 'PROBE-LST', "
+                "'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', '2026-12-31', "
+                "'unknown', 'monthly', 30, '0.00', 'CNY')",
+                "ck_leases_status_p0",
+            ),
+            (
+                "leases.billing_cycle",
+                lease_columns
+                + "('probe_lease_cycle', 'prj_xinghui', 'PROBE-LCY', "
+                "'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', '2026-12-31', "
+                "'draft', 'weekly', 30, '0.00', 'CNY')",
+                "ck_leases_billing_cycle_p0",
+            ),
+            (
+                "leases.end_date < start_date",
+                lease_columns
+                + "('probe_lease_date', 'prj_xinghui', 'PROBE-LDT', "
+                "'ten_xh_yunduan', 'unit_xh_a301', '2026-12-31', '2026-01-01', "
+                "'draft', 'monthly', 30, '0.00', 'CNY')",
+                "ck_leases_date_range_p0",
+            ),
+            (
+                "leases.payment_terms_days",
+                lease_columns
+                + "('probe_lease_terms', 'prj_xinghui', 'PROBE-LTM', "
+                "'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', '2026-12-31', "
+                "'draft', 'monthly', 181, '0.00', 'CNY')",
+                "ck_leases_payment_terms_days_p0",
+            ),
+            (
+                "leases.deposit_amount",
+                lease_columns
+                + "('probe_lease_dep', 'prj_xinghui', 'PROBE-LDP', "
+                "'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', '2026-12-31', "
+                "'draft', 'monthly', 30, '-1.00', 'CNY')",
+                "ck_leases_deposit_non_negative_p0",
+            ),
+            (
+                "leases.currency",
+                lease_columns
+                + "('probe_lease_ccy', 'prj_xinghui', 'PROBE-LCC', "
+                "'ten_xh_yunduan', 'unit_xh_a301', '2026-01-01', '2026-12-31', "
+                "'draft', 'monthly', 30, '0.00', 'cny')",
+                "ck_leases_currency_format_p0",
+            ),
+            (
+                "lease_charge_rules.charge_type",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_type', "
+                "'lease_xh_a301_2025', 'deposit', 'per_sqm', NULL, '1.0000', "
+                "'month', '2026-01-01', '2026-12-31', false)",
+                "ck_charge_rules_charge_type_p0",
+            ),
+            (
+                "lease_charge_rules.calculation_method",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_calc', "
+                "'lease_xh_a301_2025', 'rent', 'per_day', NULL, '1.0000', 'month', "
+                "'2026-01-01', '2026-12-31', false)",
+                ("ck_charge_rules_calculation_method_p0",
+                 "ck_charge_rules_calc_consistency_p0"),
+            ),
+            (
+                "lease_charge_rules.period_unit",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_unit', "
+                "'lease_xh_a301_2025', 'rent', 'per_sqm', NULL, '1.0000', 'week', "
+                "'2026-01-01', '2026-12-31', false)",
+                "ck_charge_rules_period_unit_p0",
+            ),
+            (
+                "lease_charge_rules.amount",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_amt', "
+                "'lease_xh_a301_2025', 'rent', 'fixed_amount', '-1.00', NULL, "
+                "'month', '2026-01-01', '2026-12-31', false)",
+                "ck_charge_rules_amount_non_negative_p0",
+            ),
+            (
+                "lease_charge_rules.unit_price",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_price', "
+                "'lease_xh_a301_2025', 'rent', 'per_sqm', NULL, '-1.0000', 'month', "
+                "'2026-01-01', '2026-12-31', false)",
+                "ck_charge_rules_unit_price_non_negative_p0",
+            ),
+            (
+                "lease_charge_rules.effective_range",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_range', "
+                "'lease_xh_a301_2025', 'rent', 'per_sqm', NULL, '1.0000', 'month', "
+                "'2026-12-31', '2026-01-01', false)",
+                "ck_charge_rules_effective_range_p0",
+            ),
+            (
+                "lease_charge_rules.calc_consistency",
+                "INSERT INTO lease_charge_rules (id, lease_id, charge_type, "
+                "calculation_method, amount, unit_price, period_unit, effective_from, "
+                "effective_to, is_rent_free) VALUES ('probe_rule_cons', "
+                "'lease_xh_a301_2025', 'rent', 'fixed_amount', NULL, '1.0000', "
+                "'month', '2026-01-01', '2026-12-31', false)",
+                "ck_charge_rules_calc_consistency_p0",
+            ),
+            (
+                "invoices.period_range",
+                "INSERT INTO invoices (id, project_id, lease_id, invoice_no, "
+                "period_start, period_end, issue_date, due_date, currency, status) "
+                "VALUES ('probe_inv_period', 'prj_xinghui', 'lease_xh_a301_2025', "
+                "'PROBE-INV-P', '2026-12-31', '2026-01-01', '2026-01-01', "
+                "'2026-01-02', 'CNY', 'draft')",
+                "ck_invoices_period_range_p0",
+            ),
+            (
+                "invoices.due_date",
+                "INSERT INTO invoices (id, project_id, lease_id, invoice_no, "
+                "period_start, period_end, issue_date, due_date, currency, status) "
+                "VALUES ('probe_inv_due', 'prj_xinghui', 'lease_xh_a301_2025', "
+                "'PROBE-INV-D', '2026-01-01', '2026-01-31', '2026-01-31', "
+                "'2026-01-01', 'CNY', 'draft')",
+                "ck_invoices_due_after_issue_p0",
+            ),
+            (
+                "invoices.status",
+                "INSERT INTO invoices (id, project_id, lease_id, invoice_no, "
+                "period_start, period_end, issue_date, due_date, currency, status) "
+                "VALUES ('probe_inv_status', 'prj_xinghui', 'lease_xh_a301_2025', "
+                "'PROBE-INV-S', '2026-01-01', '2026-01-31', '2026-01-31', "
+                "'2026-01-31', 'CNY', 'paid')",
+                "ck_invoices_status_p0",
+            ),
+            (
+                "invoices.currency",
+                "INSERT INTO invoices (id, project_id, lease_id, invoice_no, "
+                "period_start, period_end, issue_date, due_date, currency, status) "
+                "VALUES ('probe_inv_ccy', 'prj_xinghui', 'lease_xh_a301_2025', "
+                "'PROBE-INV-C', '2026-01-01', '2026-01-31', '2026-01-31', "
+                "'2026-01-31', 'cny', 'draft')",
+                "ck_invoices_currency_format_p0",
+            ),
+            (
+                "invoice_items.charge_type",
+                "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+                "quantity, unit_price, amount) VALUES ('probe_item_type', "
+                "'inv_2026_08', 'tax', 'probe', '1.0000', '1.0000', '1.00')",
+                "ck_invoice_items_charge_type_p0",
+            ),
+            (
+                "invoice_items.amount",
+                "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+                "quantity, unit_price, amount) VALUES ('probe_item_amt', "
+                "'inv_2026_08', 'rent', 'probe', '1.0000', '1.0000', '-1.00')",
+                "ck_invoice_items_amount_adjustment_p0",
+            ),
+            (
+                "invoice_items.quantity",
+                "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+                "quantity, unit_price, amount) VALUES ('probe_item_qty', "
+                "'inv_2026_08', 'rent', 'probe', '0.0000', '1.0000', '1.00')",
+                "ck_invoice_items_quantity_nonzero_p0",
+            ),
+            (
+                "invoice_items.unit_price",
+                "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+                "quantity, unit_price, amount) VALUES ('probe_item_price', "
+                "'inv_2026_08', 'rent', 'probe', '1.0000', '-1.0000', '1.00')",
+                "ck_invoice_items_unit_price_non_negative_p0",
+            ),
+            (
+                "payments.amount",
+                "INSERT INTO payments (id, project_id, receipt_no, payment_method, "
+                "amount, currency, paid_at, status) VALUES ('probe_pay_amt', "
+                "'prj_xinghui', 'PROBE-PAY-A', 'bank_transfer', '0.00', 'CNY', "
+                "'2026-01-01T00:00:00+08:00', 'confirmed')",
+                "ck_payments_amount_positive_p0",
+            ),
+            (
+                "payments.status",
+                "INSERT INTO payments (id, project_id, receipt_no, payment_method, "
+                "amount, currency, paid_at, status) VALUES ('probe_pay_status', "
+                "'prj_xinghui', 'PROBE-PAY-S', 'bank_transfer', '1.00', 'CNY', "
+                "'2026-01-01T00:00:00+08:00', 'paid')",
+                "ck_payments_status_p0",
+            ),
+            (
+                "payments.payment_method",
+                "INSERT INTO payments (id, project_id, receipt_no, payment_method, "
+                "amount, currency, paid_at, status) VALUES ('probe_pay_method', "
+                "'prj_xinghui', 'PROBE-PAY-M', 'wire', '1.00', 'CNY', "
+                "'2026-01-01T00:00:00+08:00', 'confirmed')",
+                "ck_payments_method_p0",
+            ),
+            (
+                "payments.currency",
+                "INSERT INTO payments (id, project_id, receipt_no, payment_method, "
+                "amount, currency, paid_at, status) VALUES ('probe_pay_ccy', "
+                "'prj_xinghui', 'PROBE-PAY-C', 'bank_transfer', '1.00', 'CN', "
+                "'2026-01-01T00:00:00+08:00', 'confirmed')",
+                "ck_payments_currency_format_p0",
+            ),
+            (
+                "payment_allocations.amount",
+                "INSERT INTO payment_allocations (id, payment_id, invoice_id, amount, "
+                "allocated_at) VALUES ('probe_alloc_amt', 'pay_2026_09_28', "
+                "'inv_2026_10', '0.00', '2026-01-01T00:00:00+08:00')",
+                "ck_payment_allocations_amount_positive_p0",
+            ),
+            (
+                "work_orders.category",
+                "INSERT INTO work_orders (id, project_id, work_order_no, category, "
+                "priority, status, title, reported_at) VALUES ('probe_wo_cat', "
+                "'prj_xinghui', 'PROBE-WO-C', 'roof', 'normal', 'open', 'probe', "
+                "'2026-01-01T00:00:00+08:00')",
+                "ck_work_orders_category_p0",
+            ),
+            (
+                "work_orders.priority",
+                "INSERT INTO work_orders (id, project_id, work_order_no, category, "
+                "priority, status, title, reported_at) VALUES ('probe_wo_pri', "
+                "'prj_xinghui', 'PROBE-WO-P', 'hvac', 'critical', 'open', 'probe', "
+                "'2026-01-01T00:00:00+08:00')",
+                "ck_work_orders_priority_p0",
+            ),
+            (
+                "work_orders.status",
+                "INSERT INTO work_orders (id, project_id, work_order_no, category, "
+                "priority, status, title, reported_at) VALUES ('probe_wo_status', "
+                "'prj_xinghui', 'PROBE-WO-S', 'hvac', 'normal', 'done', 'probe', "
+                "'2026-01-01T00:00:00+08:00')",
+                "ck_work_orders_status_p0",
+            ),
+            (
+                "work_orders.resolved_at < reported_at",
+                "INSERT INTO work_orders (id, project_id, work_order_no, category, "
+                "priority, status, title, reported_at, resolved_at) VALUES "
+                "('probe_wo_time', 'prj_xinghui', 'PROBE-WO-T', 'hvac', 'normal', "
+                "'in_progress', 'probe', '2026-02-02T10:00:00+08:00', "
+                "'2026-02-01T10:00:00+08:00')",
+                "ck_work_orders_resolved_after_reported_p0",
+            ),
+            (
+                "work_orders.status/resolved_at",
+                "INSERT INTO work_orders (id, project_id, work_order_no, category, "
+                "priority, status, title, reported_at) VALUES ('probe_wo_closed', "
+                "'prj_xinghui', 'PROBE-WO-X', 'hvac', 'normal', 'closed', 'probe', "
+                "'2026-01-01T00:00:00+08:00')",
+                "ck_work_orders_resolved_status_time_p0",
+            ),
+            (
+                "documents.doc_type",
+                "INSERT INTO documents (id, project_id, doc_type, title, version, "
+                "document_status, checksum_sha256) VALUES ('probe_doc_type', "
+                "'prj_xinghui', 'memo', 'probe', 1, 'signed', "
+                f"'{'0' * 64}')",
+                "ck_documents_doc_type_p0",
+            ),
+            (
+                "documents.version",
+                "INSERT INTO documents (id, project_id, doc_type, title, version, "
+                "document_status, checksum_sha256) VALUES ('probe_doc_ver', "
+                "'prj_xinghui', 'attachment', 'probe', 0, 'signed', "
+                f"'{'0' * 64}')",
+                "ck_documents_version_positive_p0",
+            ),
+            (
+                "documents.document_status",
+                "INSERT INTO documents (id, project_id, doc_type, title, version, "
+                "document_status, checksum_sha256) VALUES ('probe_doc_status', "
+                "'prj_xinghui', 'attachment', 'probe', 1, 'unsigned', "
+                f"'{'0' * 64}')",
+                "ck_documents_status_p0",
+            ),
+        ]
+        for label, sql, constraint in cases:
+            with self.subTest(case=label):
+                self._assert_rejected(sql, constraint)
+
+    def test_other_fee_negative_amount_is_allowed(self) -> None:
+        """设计允许调整类明细为负数（减免/冲抵）；fixture 暂无此类行。"""
+
+        self._assert_accepted(
+            "INSERT INTO invoice_items (id, invoice_id, charge_type, description, "
+            "quantity, unit_price, amount) VALUES ('probe_item_adjust', "
+            "'inv_2026_08', 'other_fee', 'probe adjustment', '1.0000', NULL, '-1.00')"
+        )
+
+
+@requires_pg
+class TestLeaseExclusionPostgres(_SeededPostgresCase):
+    """同一商铺的生效租约期间不得重叠（PG EXCLUDE）。"""
+
+    _LEASE_COLUMNS = (
+        "INSERT INTO leases (id, project_id, lease_no, tenant_id, unit_id, "
+        "start_date, end_date, status, billing_cycle, payment_terms_days, "
+        "deposit_amount, currency) VALUES "
+    )
+
+    def _insert(self, *, row_id: str, lease_no: str, start: str, end: str, status: str) -> None:
+        with Session(self.engine) as session:
+            session.execute(
+                text(
+                    self._LEASE_COLUMNS
+                    + "(:id, 'prj_xinghui', :no, 'ten_xh_yunduan', 'unit_xh_a301', "
+                    ":start, :end, :status, 'monthly', 30, '0.00', 'CNY')"
+                ),
+                {
+                    "id": row_id,
+                    "no": lease_no,
+                    "start": start,
+                    "end": end,
+                    "status": status,
+                },
+            )
+            session.rollback()
+
+    def test_active_overlap_is_rejected(self) -> None:
+        with Session(self.engine) as session:
+            with self.assertRaises(DBAPIError) as ctx:
+                session.execute(
+                    text(
+                        self._LEASE_COLUMNS
+                        + "('probe_overlap', 'prj_xinghui', 'PROBE-OVL', "
+                        "'ten_xh_yunduan', 'unit_xh_a301', '2026-06-01', "
+                        "'2026-12-31', 'active', 'monthly', 30, '0.00', 'CNY')"
+                    )
+                )
+            self.assertIn(EXCLUSION_CONSTRAINT_NAME, str(ctx.exception.orig))
+            session.rollback()
+
+    def test_non_overlapping_active_lease_is_allowed(self) -> None:
+        self._insert(
+            row_id="probe_no_overlap",
+            lease_no="PROBE-NOV",
+            start="2028-01-01",
+            end="2028-12-31",
+            status="active",
+        )
+
+    def test_overlap_with_non_active_status_is_allowed(self) -> None:
+        self._insert(
+            row_id="probe_draft_overlap",
+            lease_no="PROBE-DRF",
+            start="2026-06-01",
+            end="2026-12-31",
+            status="draft",
+        )
+
+
+@requires_pg
+class TestReadonlyRolePostgres(_SeededPostgresCase):
+    """只有 SELECT 权限的数据库角色：读得到业务数据，任何写入都被拒绝。"""
+
+    def test_readonly_role_can_read_but_never_write(self) -> None:
+        import secrets
+
+        from sqlalchemy.engine import make_url
+
+        from app.db.roles import create_readonly_role, drop_readonly_role
+
+        role_name = f"ro_probe_{secrets.token_hex(4)}"
+        password = secrets.token_hex(16)
+        create_readonly_role(self.engine, role_name, password)
+        role_engine = None
+        try:
+            role_url = (
+                make_url(PG_URL)
+                .set(username=role_name, password=password)
+                .render_as_string(hide_password=False)
+            )
+            role_engine = create_engine_for(role_url)
+            with role_engine.connect() as connection:
+                self.assertEqual(
+                    connection.execute(text("SELECT COUNT(*) FROM invoices")).scalar_one(),
+                    len(_fixture().snapshot()["invoices"]),
+                )
+                self.assertEqual(
+                    connection.execute(text("SHOW TIME ZONE")).scalar_one(),
+                    DATASET_TIMEZONE,
+                )
+
+            writes = (
+                "INSERT INTO projects (id, code, name, timezone, status) "
+                "VALUES ('ro_probe', 'ROPROBE', 'probe', 'UTC', 'active')",
+                "UPDATE invoices SET currency = currency WHERE 1 = 0",
+                "DELETE FROM payments WHERE 1 = 0",
+                "CREATE TABLE ro_probe_table (id integer)",
+            )
+            for statement in writes:
+                with self.subTest(statement=statement):
+                    with self.assertRaises(DBAPIError):
+                        with role_engine.begin() as connection:
+                            connection.execute(text(statement))
+
+            # 显式把事务改成可写也没用：权限边界不是会话级只读设置。
+            with self.assertRaises(DBAPIError):
+                with role_engine.begin() as connection:
+                    connection.execute(text("SET TRANSACTION READ WRITE"))
+                    connection.execute(
+                        text(
+                            "INSERT INTO projects (id, code, name, timezone, status) "
+                            "VALUES ('ro_probe_rw', 'ROPROBERW', 'probe', 'UTC', 'active')"
+                        )
+                    )
+
+            # 被拒后仍可继续读。
+            with role_engine.connect() as connection:
+                self.assertGreater(
+                    connection.execute(text("SELECT COUNT(*) FROM units")).scalar_one(), 0
+                )
+        finally:
+            if role_engine is not None:
+                role_engine.dispose()
+            drop_readonly_role(self.engine, role_name)
+
+    def test_role_name_is_validated(self) -> None:
+        from app.db.roles import create_readonly_role, drop_readonly_role
+
+        for bad_name in ("Upper", "1starts_with_digit", "has-dash", "x; DROP ROLE y", ""):
+            with self.subTest(name=bad_name):
+                with self.assertRaises(ValueError):
+                    create_readonly_role(self.engine, bad_name, "secret")
+                with self.assertRaises(ValueError):
+                    drop_readonly_role(self.engine, bad_name)
+
+    def test_password_with_special_characters_can_login(self) -> None:
+        """密码含 `:x`、`%`、`'`、`\\` 时仍能建角色并登录。
+
+        这些字符分别会触发 SQLAlchemy `text()` 的 `:name` 解析、psycopg 的
+        `%` 占位符解析和 SQL 字面量转义问题，必须一次性覆盖。
+        """
+
+        import secrets
+
+        from sqlalchemy.engine import make_url
+
+        from app.db.roles import create_readonly_role, drop_readonly_role
+
+        role_name = f"ro_special_{secrets.token_hex(4)}"
+        password = "p@ss#:word%quote'back\\slash:tail"
+        create_readonly_role(self.engine, role_name, password)
+        role_engine = None
+        try:
+            role_url = (
+                make_url(PG_URL)
+                .set(username=role_name, password=password)
+                .render_as_string(hide_password=False)
+            )
+            role_engine = create_engine_for(role_url)
+            with role_engine.connect() as connection:
+                self.assertGreater(
+                    connection.execute(text("SELECT COUNT(*) FROM invoices")).scalar_one(), 0
+                )
+        finally:
+            if role_engine is not None:
+                role_engine.dispose()
+            drop_readonly_role(self.engine, role_name)
+
+    def test_role_creation_failure_never_leaks_password(self) -> None:
+        """CREATE ROLE 被数据库拒绝时，异常消息/链不出现密码或 SQL 文本。"""
+
+        import secrets
+
+        from sqlalchemy.engine import make_url
+
+        from app.db.roles import RoleCreationError, create_readonly_role, drop_readonly_role
+
+        creator_name = f"ro_creator_{secrets.token_hex(4)}"
+        creator_password = secrets.token_hex(8)
+        create_readonly_role(self.engine, creator_name, creator_password)
+        limited_engine = None
+        try:
+            limited_url = (
+                make_url(PG_URL)
+                .set(username=creator_name, password=creator_password)
+                .render_as_string(hide_password=False)
+            )
+            limited_engine = create_engine_for(limited_url)
+            password = "p@ss:word%quote'back\\slash"
+            with self.assertRaises(RoleCreationError) as ctx:
+                create_readonly_role(
+                    limited_engine, f"ro_denied_{secrets.token_hex(4)}", password
+                )
+            message = str(ctx.exception)
+            self.assertNotIn(password, message)
+            self.assertNotIn("PASSWORD", message)
+            self.assertNotIn("CREATE ROLE", message)
+            # `raise ... from None`：traceback 不会打印带 SQL/密码的原始异常。
+            self.assertTrue(ctx.exception.__suppress_context__)
+            # `raise ... from <原异常>` 同样会把 __suppress_context__ 设为真，但原异常
+            # （含 [SQL: CREATE ROLE ... PASSWORD ...]）会进 __cause__ 并被 traceback 打印。
+            # 所以还要断言没有 __cause__，并检查完整 traceback 文本（Claude Code 复核补充）。
+            import traceback
+
+            self.assertIsNone(ctx.exception.__cause__)
+            rendered = "".join(traceback.format_exception(ctx.exception))
+            self.assertNotIn(password, rendered)
+            self.assertNotIn("CREATE ROLE", rendered)
+        finally:
+            if limited_engine is not None:
+                limited_engine.dispose()
+            drop_readonly_role(self.engine, creator_name)
+
+    def test_readonly_role_has_no_elevated_attributes(self) -> None:
+        """角色属性也是权限边界：不能是超级用户，也不能建库 / 建角色 / 绕过 RLS（复核补充）。"""
+
+        import secrets
+
+        from app.db.roles import create_readonly_role, drop_readonly_role
+
+        role_name = f"ro_attrs_{secrets.token_hex(4)}"
+        create_readonly_role(self.engine, role_name, secrets.token_hex(16))
+        try:
+            with self.engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT rolsuper, rolcreatedb, rolcreaterole, rolbypassrls, "
+                        "rolinherit, rolcanlogin, rolreplication FROM pg_roles WHERE rolname = :n"
+                    ),
+                    {"n": role_name},
+                ).one()
+            self.assertEqual(
+                tuple(row),
+                (False, False, False, False, False, True, False),
+                "只读角色只能登录，不能有任何提权属性",
+            )
+        finally:
+            drop_readonly_role(self.engine, role_name)
+
+
+@requires_pg
+class TestCliPostgres(_SeededPostgresCase):
+    """CLI `--backend postgresql`：只读角色连接、报告元数据、关键数字与 fixture 一致。"""
+
+    role_name: str = ""
+    password: str = ""
+    role_url: str = ""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import secrets
+
+        from sqlalchemy.engine import make_url
+
+        from app.db.roles import create_readonly_role
+
+        super().setUpClass()
+        cls.role_name = f"ro_cli_{secrets.token_hex(4)}"
+        cls.password = secrets.token_hex(16)
+        create_readonly_role(cls.engine, cls.role_name, cls.password)
+        cls.role_url = (
+            make_url(PG_URL)
+            .set(username=cls.role_name, password=cls.password)
+            .render_as_string(hide_password=False)
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        from app.db.roles import drop_readonly_role
+
+        try:
+            if cls.role_name:
+                drop_readonly_role(cls.engine, cls.role_name)
+        finally:
+            super().tearDownClass()
+
+    def _run_cli(self, argv: list[str], env: dict[str, str]) -> tuple[int, str, str]:
+        import contextlib
+        import io
+        from unittest import mock
+
+        from app import cli
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, env, clear=False):
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = cli.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def _env(self) -> dict[str, str]:
+        return {
+            "COMMERCIAL_DB_URL": self.role_url,
+            "DEMO_PRINCIPAL_ID": "principal_ops_xinghui",
+        }
+
+    def test_investigate_matches_fixture_and_reports_backend(self) -> None:
+        import json
+
+        fixture_code, fixture_out, fixture_err = self._run_cli(
+            ["investigate", "--backend", "fixture", "--lease", LEASE], self._env()
+        )
+        self.assertEqual(fixture_code, 0, fixture_err)
+        fixture_payload = json.loads(fixture_out)
+
+        code, out, err = self._run_cli(
+            ["investigate", "--backend", "postgresql", "--lease", LEASE], self._env()
+        )
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out)
+
+        self.assertEqual(payload["verdict"], fixture_payload["verdict"])
+        self.assertEqual(payload["backend"], "postgresql")
+
+        def projection(items: list[dict]) -> list[dict]:
+            return [
+                {
+                    "capability": item["capability"],
+                    "fund_conclusion": item["fund_conclusion"],
+                    "rendered": item["rendered"],
+                }
+                for item in items
+            ]
+
+        self.assertTrue(payload["authoritative_amounts"])
+        self.assertEqual(
+            projection(payload["authoritative_amounts"]),
+            projection(fixture_payload["authoritative_amounts"]),
+        )
+        self.assertIn("18036.00", out)
+
+        combined = out + err
+        self.assertNotIn(self.role_url, combined)
+        self.assertNotIn(self.password, combined)
+        self.assertNotIn(PG_URL, combined)
+
+    def test_cli_postgres_repository_keeps_dataset_offset(self) -> None:
+        """CLI 的 PG engine 必须由 create_engine_for 创建（工单时间带 +08:00）。
+
+        CLI 报告只展示金额/结论，不暴露原始时间字段，因此这里用 CLI 自己的
+        装配路径（同一个 `_investigation_assembly`）取出仓库，断言时间偏移；
+        若改回 `create_engine`，读出的时间会是 UTC。
+        """
+
+        from unittest import mock
+
+        from app import cli
+
+        argv = cli.build_parser().parse_args(
+            ["investigate", "--backend", "postgresql", "--lease", LEASE]
+        )
+        with mock.patch.dict(os.environ, self._env(), clear=False):
+            cli._resolve_identity(argv, fallback=cli.DEFAULT_PRINCIPAL_FALLBACK)
+            with cli._investigation_assembly(argv) as bundle:
+                orders = bundle.repository.work_orders(
+                    project_ids=SCOPE, lease_id=LEASE, category="hvac"
+                )
+        self.assertTrue(orders)
+        for order in orders:
+            with self.subTest(order=order["id"]):
+                self.assertTrue(order["reported_at"].endswith("+08:00"), order["reported_at"])
+                if order["resolved_at"] is not None:
+                    self.assertTrue(
+                        order["resolved_at"].endswith("+08:00"), order["resolved_at"]
+                    )
+
+    def test_missing_db_url_exits_usage_error(self) -> None:
+        code, out, err = self._run_cli(
+            ["investigate", "--backend", "postgresql", "--lease", LEASE],
+            {"COMMERCIAL_DB_URL": ""},
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("COMMERCIAL_DB_URL", err)
+
+    def test_variant_with_postgres_is_rejected_clearly(self) -> None:
+        code, out, err = self._run_cli(
+            ["investigate", "--backend", "postgresql", "--variant", "v_oct_rent_corrected"],
+            self._env(),
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("postgresql 后端不支持 fixture 数据变体", err)
+
+
+@requires_pg
+class TestConstraintsMigrationDowngradePostgres(unittest.TestCase):
+    """0003 的 downgrade 删除全部约束，0002 / 0001 仍能继续降级。"""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.engine = create_engine_for(PG_URL)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.engine.dispose()
+        _migrate("downgrade", "base")
+
+    def setUp(self) -> None:
+        _reset_database()
+
+    def tearDown(self) -> None:
+        _migrate("downgrade", "base")
+
+    def _constraint_names(self) -> set[str]:
+        with self.engine.connect() as connection:
+            return set(
+                connection.execute(
+                    text(
+                        "SELECT conname FROM pg_constraint "
+                        "WHERE conname ~ '^(ck|ex)_' AND connamespace = 'public'::regnamespace"
+                    )
+                ).scalars()
+            )
+
+    def test_downgrade_drops_constraints_then_older_revisions(self) -> None:
+        expected = set(P0_CONSTRAINT_NAMES) | {EXCLUSION_CONSTRAINT_NAME}
+        self.assertEqual(expected - self._constraint_names(), set())
+
+        _migrate("downgrade", "0002")
+        self.assertEqual(self._constraint_names(), set())
+        # 0002 之后业务表仍在；再降到 0001、base 必须继续成功。
+        self.assertIn("leases", _public_tables(self.engine))
+        _migrate("downgrade", "0001")
+        self.assertIn("leases", _public_tables(self.engine))
+        _migrate("downgrade", "base")
+        self.assertEqual(_public_tables(self.engine) & set(BUSINESS_TABLES), set())
+
+        # 重新升级后约束必须回来（迁移可重复执行）。
+        _migrate("upgrade", "head")
+        self.assertEqual(expected - self._constraint_names(), set())
+
+
 if __name__ == "__main__":
     unittest.main()
