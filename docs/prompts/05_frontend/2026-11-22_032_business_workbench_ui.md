@@ -105,8 +105,8 @@ Task 027–029 的协作工作台以“多 Agent 怎么协作”为主视角，�
 
 ## 9. 对应 Git Commit Hash
 
-- **Commit**：`Pending`（未提交、未推送；与 Task 034 改动同在工作区）。
-- **建议 Commit Message**：`feat(ui): business workbench redesign and U3 verification fixes (Task 032)`。
+- **Commit**：`e1d0d2e`（与 Task 034 同一提交，含两轮复查返修；未推送）。
+- **实际 Commit Message**：`feat: 业务流程工作台（Task 032）与 LLM Supervisor 混合规划（Task 034）`
 
 ## 10. 独立复查与返修（2026-11-22）
 

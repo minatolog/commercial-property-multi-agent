@@ -4,6 +4,13 @@
 
 > 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-23] 任务 032 / 034 提交（e1d0d2e）
+
+- **提交**：`e1d0d2e`（`feat: 业务流程工作台（Task 032）与 LLM Supervisor 混合规划（Task 034）`，作者 minatolog），包含 Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）及两轮复查返修；未推送。
+- **验证**：610 tests OK（skipped=1）、70 项契约、`check` exit 0、JS 48 用例 / 190 断言。
+- **复查**：[DeepSeek 返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)：条件已满足，**不等于最终验收**。
+- **回滚参考**：`git revert e1d0d2e`。
+
 ## [2026-11-22] 任务 034 - LLM Supervisor 与混合规划（Pending）
 
 - **起点 / HEAD**：main / 3be785e（已在 origin/main）；本轮未提交、未推送。

@@ -390,8 +390,8 @@ v2 包含 v1 全部 30 题。预估调用：llm 66 + hybrid 49 + hybrid（multi=
 
 ## 12. 对应 Git Commit Hash
 
-- **Commit**：`Pending`（未提交、未推送）。
-- **建议 Commit Message**：`feat(planner): add LLM Supervisor and hybrid planner with frozen paraphrase eval (Task 034)`。
+- **Commit**：`e1d0d2e`（与 Task 032 同一提交，含两轮复查返修；未推送）。
+- **实际 Commit Message**：`feat: 业务流程工作台（Task 032）与 LLM Supervisor 混合规划（Task 034）`
 
 ## 13. 独立复查与返修（2026-11-22）
 

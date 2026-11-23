@@ -272,7 +272,7 @@ commercial-property-multi-agent/
 
 ## 7. 当前状态（不夸大）
 
-- **代码状态**：`HEAD = 3be785e`；Task 034（LLM Supervisor / 混合规划）已实施并自检，**改动尚未提交**（`supervisor.py`、`planner.yaml`、`planner_suite.py`、`vocabulary.py`、`investigation.py` 等），待独立复查；Task 032（业务流程工作台 + U3 收尾，`display.py`、`case-status.js` 等）同样已实施自检、未提交、待独立复查。
+- **代码状态**：Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）已提交为 `e1d0d2e`（未推送）；独立复查为有条件通过，返修经确认复查条件已满足，**不等于最终验收**。
 - **测试口径**：[当前基线](CURRENT_BASELINE.md) 记录 Task 032 / 034 复查返修后 **610 项**测试（skipped=1）+ 70 项契约（2026-11-22）；Task 032 后为 606 项，Task 034 后为 595 项，Task 031 返修后为 551 项。
 - **默认行为**：规划器 `mode: rule`；CLI 单 Agent `ask` 默认脚本化模型；网页 `WorkflowService` 仍为确定性演示（`model_client=None`、`max_model_calls=0`），**网页没有接模型**。
 - **未完成 / 未验证**：PostgreSQL 实机（迁移与查询只在 SQLite 验证）、向量 / rerank 检索（只有 BM25）、外部业务副作用（调账 / 派单未实现）、正式真实 heldout 对照与重复测量、人工量表、独立环境复现、多实例并发语义。
