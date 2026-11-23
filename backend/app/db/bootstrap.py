@@ -26,30 +26,25 @@ from .repository import DatabaseRepository
 from .seed import create_schema, seed_from_fixture
 from .session import enforce_read_only
 
-__all__ = ["build_sqlite_repository"]
+__all__ = ["build_repository_for_engine", "build_sqlite_repository"]
 
 
-def build_sqlite_repository(
-    fixture_path: str | Path | None = None, *, in_memory: bool = True
-) -> tuple[Engine, DatabaseRepository]:
+def build_repository_for_engine(
+    engine: Engine,
+    fixture_path: str | Path | None = None,
+    *,
+    create_tables: bool = True,
+) -> DatabaseRepository:
+    """在给定 engine 上（可选建表）导入 fixture 并返回只读仓库。
+
+    PostgreSQL 实机测试先用迁移建表，再传 `create_tables=False` 复用这里的
+    seed + 只读装配，避免测试另写一份装配逻辑。
+    """
+
     path = Path(fixture_path or DEFAULT_FIXTURE_PATH)
     data = json.loads(path.read_text(encoding="utf-8"))
-
-    if in_memory:
-        engine = create_engine(
-            "sqlite+pysqlite://",
-            future=True,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-    else:  # pragma: no cover - 仅用于人工检查
-        from .session import create_engine_for, sqlite_url
-
-        # 落到仓库内的 data/business/（已被 .gitignore 排除），避免在 cwd 生成游离文件
-        SQLITE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        engine = create_engine_for(sqlite_url(SQLITE_DB_PATH))
-
-    create_schema(engine)
+    if create_tables:
+        create_schema(engine)
     setup = Session(engine)
     try:
         seed_from_fixture(setup, path)
@@ -67,4 +62,27 @@ def build_sqlite_repository(
     )
     for principal in data.get("principals", {}).values():
         repository.register_principal(principal)
+    return repository
+
+
+def build_sqlite_repository(
+    fixture_path: str | Path | None = None, *, in_memory: bool = True
+) -> tuple[Engine, DatabaseRepository]:
+    path = Path(fixture_path or DEFAULT_FIXTURE_PATH)
+
+    if in_memory:
+        engine = create_engine(
+            "sqlite+pysqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+    else:  # pragma: no cover - 仅用于人工检查
+        from .session import create_engine_for, sqlite_url
+
+        # 落到仓库内的 data/business/（已被 .gitignore 排除），避免在 cwd 生成游离文件
+        SQLITE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        engine = create_engine_for(sqlite_url(SQLITE_DB_PATH))
+
+    repository = build_repository_for_engine(engine, path)
     return engine, repository

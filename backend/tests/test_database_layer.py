@@ -383,5 +383,67 @@ class TestReadOnlyAssembly(unittest.TestCase):
         self.assertEqual(Decimal(statement["outstanding_total"]), Decimal("18036.00"))
 
 
+class TestTask035ADataLayerFixesOnSqlite(unittest.TestCase):
+    """Task 035A：SQLite 侧对问题 1–4 的追加断言（原有用例保持原样）。"""
+
+    def test_seed_works_with_sqlite_foreign_keys_enforced(self) -> None:
+        """问题 1：按父 → 子顺序落库。
+
+        SQLite 默认不检查外键，所以排序错误长期未暴露。这里显式打开
+        `PRAGMA foreign_keys = ON` 再 seed，插入顺序本身必须是正确的。
+        """
+
+        from sqlalchemy import create_engine, event
+        from sqlalchemy.orm import Session
+        from sqlalchemy.pool import StaticPool
+
+        from app.db.seed import create_schema, seed_from_fixture
+
+        engine = create_engine(
+            "sqlite+pysqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+
+        @event.listens_for(engine, "connect")
+        def _enable_foreign_keys(dbapi_connection, _connection_record) -> None:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("PRAGMA foreign_keys = ON")
+            finally:
+                cursor.close()
+
+        create_schema(engine)
+        with Session(engine) as session:
+            counts = seed_from_fixture(session)
+            session.commit()
+        with engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(text("PRAGMA foreign_keys")).scalar_one(), 1
+            )
+        snapshot = _fixture().snapshot()
+        self.assertEqual(counts["buildings"], len(snapshot["buildings"]))
+        self.assertEqual(counts["invoice_items"], len(snapshot["invoice_items"]))
+        engine.dispose()
+
+    def test_unit_price_and_quantity_keep_four_decimals(self) -> None:
+        """问题 4：单价 / 数量保留 4 位小数，金额仍是 2 位。"""
+
+        from sqlalchemy.orm import Session
+
+        from app.db.models import InvoiceItem, LeaseChargeRule
+
+        engine, _ = build_sqlite_repository()
+        with Session(engine) as session:
+            rule = session.get(LeaseChargeRule, "rule_xh_a301_rent_2027")
+            item = session.get(InvoiceItem, "itm_inv10_rent")
+        self.assertEqual(str(rule.unit_price), "132.3000")
+        self.assertEqual(str(item.quantity), "120.0000")
+        self.assertEqual(str(item.unit_price), "132.3000")
+        # 金额列保持 `Money`（2 位小数）
+        self.assertEqual(str(item.amount), "15876.00")
+
+
 if __name__ == "__main__":
     unittest.main()

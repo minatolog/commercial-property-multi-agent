@@ -49,6 +49,13 @@ def create_schema(engine) -> None:
 
 
 def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) -> dict[str, int]:
+    """按父 → 子顺序导入 fixture。
+
+    每组插入后立即 `flush()`：模型没有定义 `relationship`，SQLAlchemy 无法仅凭
+    外键推导插入顺序。SQLite 默认不检查外键，顺序错误长期未暴露；PostgreSQL
+    会直接以 `buildings_project_id_fkey` 拒绝（Task 035A 问题 1）。
+    """
+
     data = json.loads(Path(fixture_path or DEFAULT_FIXTURE_PATH).read_text(encoding="utf-8"))
 
     for item in data["projects"]:
@@ -62,6 +69,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 status=item.get("status", "active"),
             )
         )
+    session.flush()
     for item in data["buildings"]:
         session.add(
             Building(
@@ -71,6 +79,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 name=item["name"],
             )
         )
+    session.flush()
     for item in data["units"]:
         session.add(
             Unit(
@@ -85,6 +94,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 physical_status=item.get("physical_status", "normal"),
             )
         )
+    session.flush()
     for item in data["tenants"]:
         session.add(
             Tenant(
@@ -97,6 +107,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 status=item.get("status", "active"),
             )
         )
+    session.flush()
     for item in data["leases"]:
         session.add(
             Lease(
@@ -114,6 +125,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 currency=item.get("currency", "CNY"),
             )
         )
+    session.flush()
     for item in data["lease_charge_rules"]:
         session.add(
             LeaseChargeRule(
@@ -129,6 +141,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 is_rent_free=bool(item.get("is_rent_free", False)),
             )
         )
+    session.flush()
     for item in data["invoices"]:
         session.add(
             Invoice(
@@ -144,6 +157,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 status=item.get("status", "draft"),
             )
         )
+    session.flush()
     for item in data["invoice_items"]:
         session.add(
             InvoiceItem(
@@ -157,6 +171,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 amount=_m(item["amount"]),
             )
         )
+    session.flush()
     for item in data["payments"]:
         session.add(
             Payment(
@@ -171,6 +186,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 status=item.get("status", "pending_confirmation"),
             )
         )
+    session.flush()
     for item in data["payment_allocations"]:
         session.add(
             PaymentAllocation(
@@ -183,6 +199,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 reversed_at=_t(item["reversed_at"]) if item.get("reversed_at") else None,
             )
         )
+    session.flush()
     for item in data["work_orders"]:
         session.add(
             WorkOrder(
@@ -201,6 +218,7 @@ def seed_from_fixture(session: Session, fixture_path: str | Path | None = None) 
                 resolution_note=item.get("resolution_note"),
             )
         )
+    session.flush()
     for item in data["documents"]:
         session.add(
             Document(

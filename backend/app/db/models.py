@@ -60,6 +60,36 @@ class Money(TypeDecorator):
         return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
+class UnitPrice(TypeDecorator):
+    """4 位小数的单价 / 数量列（Task 035A）。
+
+    - PostgreSQL：原生 `NUMERIC(14,4)`；
+    - SQLite：TEXT，绑定/读取时转 `Decimal`。
+
+    单价（如 `132.3000` 元/㎡/月）与数量（如 `120.0000` ㎡）不能用 2 位小数的
+    `Money` 保存，否则最后两位会被静默截断。金额字段仍用 `Money`。
+    """
+
+    impl = Numeric(14, 4)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "sqlite":
+            return dialect.type_descriptor(Text())
+        return dialect.type_descriptor(Numeric(14, 4))
+
+    def process_bind_param(self, value: Any, dialect):
+        if value is None:
+            return None
+        amount = Decimal(str(value)).quantize(Decimal("0.0001"))
+        return str(amount) if dialect.name == "sqlite" else amount
+
+    def process_result_value(self, value: Any, dialect):
+        if value is None:
+            return None
+        return Decimal(str(value)).quantize(Decimal("0.0001"))
+
+
 class Project(Base):
     __tablename__ = "projects"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -128,7 +158,7 @@ class LeaseChargeRule(Base):
     charge_type: Mapped[str] = mapped_column(String(24), nullable=False)
     calculation_method: Mapped[str] = mapped_column(String(16), nullable=False)
     amount: Mapped[Decimal | None] = mapped_column(Money)
-    unit_price: Mapped[Decimal | None] = mapped_column(Money)
+    unit_price: Mapped[Decimal | None] = mapped_column(UnitPrice)
     period_unit: Mapped[str] = mapped_column(String(8), nullable=False, default="month")
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     effective_to: Mapped[date] = mapped_column(Date, nullable=False)
@@ -157,8 +187,10 @@ class InvoiceItem(Base):
     charge_rule_id: Mapped[str | None] = mapped_column(ForeignKey("lease_charge_rules.id"))
     charge_type: Mapped[str] = mapped_column(String(24), nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    quantity: Mapped[Decimal] = mapped_column(Money, nullable=False, default=Decimal("1"))
-    unit_price: Mapped[Decimal | None] = mapped_column(Money)
+    quantity: Mapped[Decimal] = mapped_column(
+        UnitPrice, nullable=False, default=Decimal("1")
+    )
+    unit_price: Mapped[Decimal | None] = mapped_column(UnitPrice)
     amount: Mapped[Decimal] = mapped_column(Money, nullable=False)
 
 
