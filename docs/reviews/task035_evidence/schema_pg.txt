@@ -1,0 +1,263 @@
+-- 数据来源：环境变量 COMMERCIAL_PG_TEST_URL 指向的 PostgreSQL 测试库
+-- （连接串、用户名、密码均不输出）
+-- server version: PostgreSQL 16.16 (Debian 16.16-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+-- alembic_version: 0003
+-- 业务表数量: 12：buildings, documents, invoice_items, invoices, lease_charge_rules, leases, payment_allocations, payments, projects, tenants, units, work_orders
+
+== 表 buildings ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   code                         VARCHAR(32)                NOT NULL
+   name                         VARCHAR(128)               NOT NULL
+-- 主键: buildings_pkey ['id']
+-- 唯一约束
+   uq_buildings_project_code: ['project_id', 'code']
+-- 外键
+   buildings_project_id_fkey: ['project_id'] -> projects['id']
+
+== 表 documents ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   lease_id                     VARCHAR(64)                NULL
+   doc_type                     VARCHAR(24)                NOT NULL
+   title                        VARCHAR(255)               NOT NULL
+   version                      INTEGER                    NOT NULL
+   document_status              VARCHAR(24)                NOT NULL
+   checksum_sha256              VARCHAR(64)                NOT NULL
+-- 主键: documents_pkey ['id']
+-- CHECK 约束
+   ck_documents_doc_type_p0: doc_type::text = ANY (ARRAY['lease_contract'::character varying, 'attachment'::character varying, 'inspection_report'::character varying, 'invoice_scan'::character varying, 'work_order_photo'::character varying, 'other'::character varying]::text[])
+   ck_documents_status_p0: document_status::text = ANY (ARRAY['signed'::character varying, 'draft'::character varying, 'draft_unsigned'::character varying]::text[])
+   ck_documents_version_positive_p0: version > 0
+-- 外键
+   documents_lease_id_fkey: ['lease_id'] -> leases['id']
+   documents_project_id_fkey: ['project_id'] -> projects['id']
+
+== 表 invoice_items ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   invoice_id                   VARCHAR(64)                NOT NULL
+   charge_rule_id               VARCHAR(64)                NULL
+   charge_type                  VARCHAR(24)                NOT NULL
+   description                  VARCHAR(255)               NOT NULL
+   quantity                     NUMERIC(14, 4)             NOT NULL
+   unit_price                   NUMERIC(14, 4)             NULL
+   amount                       NUMERIC(14, 2)             NOT NULL
+-- 主键: invoice_items_pkey ['id']
+-- CHECK 约束
+   ck_invoice_items_amount_adjustment_p0: charge_type::text = 'other_fee'::text OR amount >= 0::numeric
+   ck_invoice_items_charge_type_p0: charge_type::text = ANY (ARRAY['rent'::character varying, 'property_fee'::character varying, 'utility'::character varying, 'other_fee'::character varying]::text[])
+   ck_invoice_items_quantity_nonzero_p0: quantity <> 0::numeric
+   ck_invoice_items_unit_price_non_negative_p0: unit_price IS NULL OR unit_price >= 0::numeric
+-- 外键
+   invoice_items_charge_rule_id_fkey: ['charge_rule_id'] -> lease_charge_rules['id']
+   invoice_items_invoice_id_fkey: ['invoice_id'] -> invoices['id']
+
+== 表 invoices ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   lease_id                     VARCHAR(64)                NOT NULL
+   invoice_no                   VARCHAR(32)                NOT NULL
+   period_start                 DATE                       NOT NULL
+   period_end                   DATE                       NOT NULL
+   issue_date                   DATE                       NOT NULL
+   due_date                     DATE                       NOT NULL
+   currency                     VARCHAR(3)                 NOT NULL
+   status                       VARCHAR(12)                NOT NULL
+-- 主键: invoices_pkey ['id']
+-- 唯一约束
+   uq_invoices_project_no: ['project_id', 'invoice_no']
+-- CHECK 约束
+   ck_invoices_currency_format_p0: currency::text ~ '^[A-Z]{3}$'::text
+   ck_invoices_due_after_issue_p0: due_date >= issue_date
+   ck_invoices_period_range_p0: period_end >= period_start
+   ck_invoices_status_p0: status::text = ANY (ARRAY['draft'::character varying, 'issued'::character varying, 'void'::character varying]::text[])
+-- 外键
+   invoices_lease_id_fkey: ['lease_id'] -> leases['id']
+   invoices_project_id_fkey: ['project_id'] -> projects['id']
+
+== 表 lease_charge_rules ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   lease_id                     VARCHAR(64)                NOT NULL
+   charge_type                  VARCHAR(24)                NOT NULL
+   calculation_method           VARCHAR(16)                NOT NULL
+   amount                       NUMERIC(14, 2)             NULL
+   unit_price                   NUMERIC(14, 4)             NULL
+   period_unit                  VARCHAR(8)                 NOT NULL
+   effective_from               DATE                       NOT NULL
+   effective_to                 DATE                       NOT NULL
+   is_rent_free                 BOOLEAN                    NOT NULL
+-- 主键: lease_charge_rules_pkey ['id']
+-- CHECK 约束
+   ck_charge_rules_amount_non_negative_p0: amount IS NULL OR amount >= 0::numeric
+   ck_charge_rules_calc_consistency_p0: calculation_method::text = 'fixed_amount'::text AND amount IS NOT NULL AND unit_price IS NULL OR calculation_method::text = 'per_sqm'::text AND unit_price IS NOT NULL AND amount IS NULL
+   ck_charge_rules_calculation_method_p0: calculation_method::text = ANY (ARRAY['fixed_amount'::character varying, 'per_sqm'::character varying]::text[])
+   ck_charge_rules_charge_type_p0: charge_type::text = ANY (ARRAY['rent'::character varying, 'property_fee'::character varying, 'utility'::character varying, 'other_fee'::character varying]::text[])
+   ck_charge_rules_effective_range_p0: effective_to >= effective_from
+   ck_charge_rules_period_unit_p0: period_unit::text = ANY (ARRAY['day'::character varying, 'month'::character varying, 'quarter'::character varying, 'year'::character varying]::text[])
+   ck_charge_rules_unit_price_non_negative_p0: unit_price IS NULL OR unit_price >= 0::numeric
+-- 外键
+   lease_charge_rules_lease_id_fkey: ['lease_id'] -> leases['id']
+
+== 表 leases ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   lease_no                     VARCHAR(32)                NOT NULL
+   tenant_id                    VARCHAR(64)                NOT NULL
+   unit_id                      VARCHAR(64)                NOT NULL
+   start_date                   DATE                       NOT NULL
+   end_date                     DATE                       NOT NULL
+   status                       VARCHAR(20)                NOT NULL
+   billing_cycle                VARCHAR(16)                NOT NULL
+   payment_terms_days           INTEGER                    NOT NULL
+   deposit_amount               NUMERIC(14, 2)             NOT NULL
+   currency                     VARCHAR(3)                 NOT NULL
+-- 主键: leases_pkey ['id']
+-- 唯一约束
+   uq_leases_project_no: ['project_id', 'lease_no']
+-- CHECK 约束
+   ck_leases_billing_cycle_p0: billing_cycle::text = ANY (ARRAY['monthly'::character varying, 'quarterly'::character varying, 'semi_annual'::character varying, 'annual'::character varying]::text[])
+   ck_leases_currency_format_p0: currency::text ~ '^[A-Z]{3}$'::text
+   ck_leases_date_range_p0: end_date >= start_date
+   ck_leases_deposit_non_negative_p0: deposit_amount >= 0::numeric
+   ck_leases_payment_terms_days_p0: payment_terms_days >= 0 AND payment_terms_days <= 180
+   ck_leases_status_p0: status::text = ANY (ARRAY['draft'::character varying, 'pending_signature'::character varying, 'active'::character varying, 'terminated'::character varying, 'cancelled'::character varying]::text[])
+-- 外键
+   leases_project_id_fkey: ['project_id'] -> projects['id']
+   leases_tenant_id_fkey: ['tenant_id'] -> tenants['id']
+   leases_unit_id_fkey: ['unit_id'] -> units['id']
+
+== 表 payment_allocations ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   payment_id                   VARCHAR(64)                NOT NULL
+   invoice_id                   VARCHAR(64)                NOT NULL
+   amount                       NUMERIC(14, 2)             NOT NULL
+   allocated_at                 TIMESTAMP WITH TIME ZONE   NOT NULL
+   allocated_by                 VARCHAR(64)                NULL
+   reversed_at                  TIMESTAMP WITH TIME ZONE   NULL
+-- 主键: payment_allocations_pkey ['id']
+-- 唯一约束
+   uq_allocations_payment_invoice: ['payment_id', 'invoice_id']
+-- CHECK 约束
+   ck_payment_allocations_amount_positive_p0: amount > 0::numeric
+-- 外键
+   payment_allocations_invoice_id_fkey: ['invoice_id'] -> invoices['id']
+   payment_allocations_payment_id_fkey: ['payment_id'] -> payments['id']
+
+== 表 payments ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   receipt_no                   VARCHAR(32)                NOT NULL
+   payer_tenant_id              VARCHAR(64)                NULL
+   payment_method               VARCHAR(20)                NOT NULL
+   amount                       NUMERIC(14, 2)             NOT NULL
+   currency                     VARCHAR(3)                 NOT NULL
+   paid_at                      TIMESTAMP WITH TIME ZONE   NOT NULL
+   status                       VARCHAR(24)                NOT NULL
+-- 主键: payments_pkey ['id']
+-- 唯一约束
+   uq_payments_project_no: ['project_id', 'receipt_no']
+-- CHECK 约束
+   ck_payments_amount_positive_p0: amount > 0::numeric
+   ck_payments_currency_format_p0: currency::text ~ '^[A-Z]{3}$'::text
+   ck_payments_method_p0: payment_method::text = ANY (ARRAY['bank_transfer'::character varying, 'cash'::character varying, 'cheque'::character varying, 'online'::character varying, 'other'::character varying]::text[])
+   ck_payments_status_p0: status::text = ANY (ARRAY['pending_confirmation'::character varying, 'confirmed'::character varying, 'reversed'::character varying]::text[])
+-- 外键
+   payments_payer_tenant_id_fkey: ['payer_tenant_id'] -> tenants['id']
+   payments_project_id_fkey: ['project_id'] -> projects['id']
+
+== 表 projects ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   code                         VARCHAR(32)                NOT NULL
+   name                         VARCHAR(128)               NOT NULL
+   city                         VARCHAR(64)                NULL
+   timezone                     VARCHAR(64)                NOT NULL
+   status                       VARCHAR(16)                NOT NULL
+-- 主键: projects_pkey ['id']
+-- 唯一约束
+   projects_code_key: ['code']
+-- CHECK 约束
+   ck_projects_status_p0: status::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying, 'archived'::character varying]::text[])
+
+== 表 tenants ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   code                         VARCHAR(32)                NOT NULL
+   name                         VARCHAR(128)               NOT NULL
+   unified_social_credit_code   VARCHAR(32)                NULL
+   contact_name                 VARCHAR(64)                NULL
+   contact_phone                VARCHAR(32)                NULL
+   status                       VARCHAR(16)                NOT NULL
+-- 主键: tenants_pkey ['id']
+-- 唯一约束
+   tenants_code_key: ['code']
+   tenants_unified_social_credit_code_key: ['unified_social_credit_code']
+-- CHECK 约束
+   ck_tenants_status_p0: status::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying, 'blacklisted'::character varying]::text[])
+
+== 表 units ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   building_id                  VARCHAR(64)                NOT NULL
+   code                         VARCHAR(32)                NOT NULL
+   floor                        VARCHAR(16)                NULL
+   area_sqm                     NUMERIC(14, 2)             NOT NULL
+   chargeable_area_sqm          NUMERIC(14, 2)             NOT NULL
+   usage_type                   VARCHAR(32)                NULL
+   physical_status              VARCHAR(16)                NOT NULL
+-- 主键: units_pkey ['id']
+-- 唯一约束
+   uq_units_building_code: ['building_id', 'code']
+-- CHECK 约束
+   ck_units_area_positive_p0: area_sqm > 0::numeric
+   ck_units_chargeable_area_positive_p0: chargeable_area_sqm > 0::numeric
+   ck_units_physical_status_p0: physical_status::text = ANY (ARRAY['normal'::character varying, 'maintenance'::character varying, 'closed'::character varying]::text[])
+-- 外键
+   units_building_id_fkey: ['building_id'] -> buildings['id']
+   units_project_id_fkey: ['project_id'] -> projects['id']
+
+== 表 work_orders ==
+-- 列
+   id                           VARCHAR(64)                NOT NULL
+   project_id                   VARCHAR(64)                NOT NULL
+   unit_id                      VARCHAR(64)                NULL
+   lease_id                     VARCHAR(64)                NULL
+   work_order_no                VARCHAR(32)                NOT NULL
+   category                     VARCHAR(20)                NOT NULL
+   priority                     VARCHAR(8)                 NOT NULL
+   status                       VARCHAR(16)                NOT NULL
+   title                        VARCHAR(128)               NOT NULL
+   description                  TEXT                       NULL
+   reported_at                  TIMESTAMP WITH TIME ZONE   NOT NULL
+   resolved_at                  TIMESTAMP WITH TIME ZONE   NULL
+   resolution_note              TEXT                       NULL
+-- 主键: work_orders_pkey ['id']
+-- 唯一约束
+   uq_work_orders_project_no: ['project_id', 'work_order_no']
+-- CHECK 约束
+   ck_work_orders_category_p0: category::text = ANY (ARRAY['hvac'::character varying, 'electrical'::character varying, 'plumbing'::character varying, 'structure'::character varying, 'cleaning'::character varying, 'security'::character varying, 'other'::character varying]::text[])
+   ck_work_orders_priority_p0: priority::text = ANY (ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying]::text[])
+   ck_work_orders_resolved_after_reported_p0: resolved_at IS NULL OR resolved_at >= reported_at
+   ck_work_orders_resolved_status_time_p0: (status::text <> ALL (ARRAY['resolved'::character varying, 'closed'::character varying]::text[])) OR resolved_at IS NOT NULL
+   ck_work_orders_status_p0: status::text = ANY (ARRAY['open'::character varying, 'assigned'::character varying, 'in_progress'::character varying, 'on_hold'::character varying, 'resolved'::character varying, 'closed'::character varying, 'cancelled'::character varying]::text[])
+-- 外键
+   work_orders_lease_id_fkey: ['lease_id'] -> leases['id']
+   work_orders_project_id_fkey: ['project_id'] -> projects['id']
+   work_orders_unit_id_fkey: ['unit_id'] -> units['id']
+
+== PostgreSQL 排他约束（EXCLUDE）==
+   leases.ex_leases_unit_active_period_p0: EXCLUDE USING gist (unit_id WITH =, daterange(start_date, end_date, '[]'::text) WITH &&) WHERE (((status)::text = 'active'::text))
+
+== 汇总 ==
+   业务表: 12
+   CHECK 约束: 39
+   EXCLUDE 约束: 1

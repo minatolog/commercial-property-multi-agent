@@ -4,6 +4,18 @@
 
 > 各条目的“已解决/待修”是当时结论，后续复查可能发现遗漏；当前开放项以 [当前基线](../architecture/CURRENT_BASELINE.md) 和最新审查为准。
 
+## [2026-11-23] Task 035 - PostgreSQL 实机暴露的四个数据层问题
+
+- **状态**：已修复并自检（035A），PG 套件 36 个实际执行、全量 700 tests OK；**待独立复查**，未推送。见 [Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md) §5。
+- **发现方式**：Claude Code 用真实 PostgreSQL 16.16（Docker `postgres:16`）实机探测发现，**不是编码方发现的**；修复由编码方在 035A 完成。
+
+| 编号 | 现象与根因 | 解决 | 预防 |
+|---|---|---|---|
+| PG-1 | `seed_from_fixture` 在 PG 上报 `buildings_project_id_fkey`。根因：模型没有 `relationship`，SQLAlchemy 无法按外键推导插入顺序；SQLite 默认不检查外键，错误顺序长期未暴露 | 按父 → 子顺序逐表插入，每组 `flush()` | PG 实机回归必须真正执行 seed；不能只跑不校验外键的 SQLite |
+| PG-2 | 只读会话 `rollback()` 后，同一 Session 的新事务 `UPDATE` 成功。根因：`SET TRANSACTION READ ONLY` 只对当前事务有效；SQLite 的 `PRAGMA query_only` 是连接级，测不出事务级失效 | Session `after_begin` 为每个新事务重新声明只读（跳过 SAVEPOINT），测试覆盖 `rollback` / `commit` 后仍拒写 | 只读测试要跨事务边界；不要把“一个有只读语句的事务”当成“只读会话” |
+| PG-3 | fixture 工单 `13:20+08:00` 在 PG 读回 `05:20+00:00`，展示差 8 小时。根因：`timestamptz` 按连接会话时区（默认 UTC）返回；SQLite 存文本、不做换算 | `create_engine_for` 用连接启动参数 `-c timezone=Asia/Shanghai`；时区常量只定义一次 | 时间类断言比较 ISO 字符串含偏移，不只比较 `datetime` 相等；连接池复用下不能用 `SET TIME ZONE` |
+| PG-4 | 单价 `132.3000` 被静默截成 `132.30`。根因：单价 / 数量复用了 2 位小数的 `Money`（Python `quantize(0.01)` + `NUMERIC(14,2)`）；两种方言都会截断，但旧 SQLite 测试从未断言 4 位单价 | 新增 `UnitPrice`（`NUMERIC(14,4)`，SQLite TEXT），迁移 `0002` 显式 `alter_column`；金额仍 2 位 | 精度类字段要有“原样往返”断言，且覆盖单价 / 数量而不只金额 |
+
 ## [2026-11-23] Task 033 独立复查发现（已返修，待确认）
 
 - **状态**：返修已自检；见 [033 归档 §11](../prompts/04_agents/2026-11-23_033_mcp_gateway.md)、[复查报告](../reviews/2026-11-23_task033_independent_review.md)。

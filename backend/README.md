@@ -3,7 +3,7 @@
 离线优先：默认不联网、不调用真实模型；单 Agent ask 默认用脚本化模型（scripted），调查默认用确定性 Agent。业务数据默认来自 fixture，checkpoint/审批按模式可写本地 SQLite 控制面。
 业务数据来自 `../docs/evaluation/fixtures/agent_first_v1.json`（合成数据，只读）。
 
-> 当前指导关系见 [当前基线](../docs/architecture/CURRENT_BASELINE.md)。真实 DeepSeek 已有 dev/单题证据；真实 heldout/重复测量与 PostgreSQL 实机未完成。Task 031 已完成 Z1–Z3、CLI 契约、逐 Agent 模型配置、配置真实性与路由兜底的实施与自检（**待独立复查**），见 [Task 031](../docs/prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)。
+> 当前指导关系见 [当前基线](../docs/architecture/CURRENT_BASELINE.md)。真实 DeepSeek 已有 dev/单题证据；真实 heldout/重复测量未完成。PostgreSQL 实机验证已完成第一版（**待独立复查**，见 §6）。Task 031 已完成 Z1–Z3、CLI 契约、逐 Agent 模型配置、配置真实性与路由兜底的实施与自检（**待独立复查**），见 [Task 031](../docs/prompts/06_testing/2026-11-21_031_core_correctness_fixes.md)。
 
 ## 1. 环境
 
@@ -111,7 +111,7 @@ python -m unittest discover -s tests -p "test_*.py"
 | `app/orchestration/approval.py` | 审批规则、审计台账、校验链、幂等与并发（独立 SQLite）；`preview_decision` 在副本上做纯校验 |
 | `app/orchestration/checkpointing.py` | `AsyncSqliteSaver` 装配与 serde 白名单 |
 | `app/rag/` | 合成 PDF 生成、逐页条款分块、BM25、两级引用验证、fixture↔PDF 对齐校验、`DocumentCatalog` 目录契约（按租约限定文档版本） |
-| `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（装配期 `PRAGMA query_only=1`；本机用 SQLite 验证） |
+| `app/db/` + `migrations/` | SQLAlchemy 2.0 只读模型、Alembic 迁移、只读连接闸门（SQLite `PRAGMA query_only=1`；PG 每事务 `READ ONLY`）、P0 约束、只读数据库角色；已在 PG 16.16 实机验证第一版（待独立复查） |
 | `app/evaluation/` | 用例装载（`expected_outcome`/`scorable`）、三基线（统一结局推导）、字段绑定的确定性评分（`scoring-v3.3`：工具事实 / 资金结论 / 金额接地分开判定）、报告绑定与逐 Agent `models_by_agent` |
 | `app/api/` | FastAPI 适配层 + 同源工作台页面（`static/` 由受限 `/static` 挂载提供；**可整体删除**，CLI/评测不依赖它） |
 | `app/cli.py` | 命令行入口（tools/check/demo/ask/investigate/search/approve/pending/evaluate）；退出码 0/1/2/3、身份来源与匹配展示 |
@@ -187,12 +187,114 @@ stdout 只承载 MCP 协议；启动提示（“开发模式：固定主体，�
 
 Streamable HTTP + OAuth：令牌校验后把主体映射到 fixture 主体记录，再构造会话身份；`Budget` 按已认证会话计数；同步补充 HTTP 传输、TLS、会话恢复与并发测试。**最大风险是身份与传输会话的生命周期错配**（会话恢复/重连时复用旧主体的范围与预算），细节见 [归档 §9.2](../docs/prompts/04_agents/2026-11-23_033_mcp_gateway.md)。当前版本不实现 HTTP、OAuth 或 TLS，也不接入 Flowise 运行时。
 
-## 6. 已知限制（不夸大）
+## 6. PostgreSQL（Task 035）
+
+数据层已在 PostgreSQL 16.16 上完成第一版实机验证（迁移、seed、只读会话闸门、项目隔离、金额精度、39 条 CHECK、1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql`）。**已实施并自检，待独立复查；不是最终验收。** RLS、多实例并发与生产部署仍未做。证据见 [Task 035 归档](../docs/prompts/02_database/2026-11-23_035_postgresql_verification.md) 与 [schema_pg.txt](../docs/reviews/task035_evidence/schema_pg.txt)。
+
+### 6.1 启动本地测试库（Docker）
+
+```bash
+docker run --name cpma-pg-dev \
+  -e POSTGRES_PASSWORD=<本地测试密码> \
+  -e POSTGRES_DB=cpma \
+  -p 127.0.0.1:55432:5432 \
+  -d postgres:16
+```
+
+只绑定 `127.0.0.1`，不要暴露到公网。密码只用于本地测试，不要写进仓库或文档。
+
+```bash
+# Git Bash / WSL
+export COMMERCIAL_PG_TEST_URL='postgresql+psycopg://postgres:<本地测试密码>@127.0.0.1:55432/cpma'
+
+# PowerShell
+$env:COMMERCIAL_PG_TEST_URL = 'postgresql+psycopg://postgres:<本地测试密码>@127.0.0.1:55432/cpma'
+```
+
+连接串只放在环境变量里；`docs/reviews/task035_evidence/` 下的脚本也只从该变量读取，不输出连接串。
+
+### 6.2 迁移、seed 与 PG 测试
+
+测试套件会自己 `downgrade base` → `upgrade head` → seed，并在结束时清库；手工准备库时用：
+
+```bash
+cd backend
+
+# 迁移（env.py 优先读 COMMERCIAL_DB_URL）
+COMMERCIAL_DB_URL="$COMMERCIAL_PG_TEST_URL" python -m alembic upgrade head
+
+# seed（建表 + 导入 fixture + 装配只读仓库；会创建表，仅用于测试库）
+python -c "import os; from app.db.bootstrap import build_repository_for_engine; from app.db.session import create_engine_for; build_repository_for_engine(create_engine_for(os.environ['COMMERCIAL_PG_TEST_URL']))"
+```
+
+运行 PG 套件（需要 `COMMERCIAL_PG_TEST_URL`；未设置时整套跳过）：
+
+```bash
+cd backend
+python -m unittest tests.test_postgres_layer -v
+```
+
+全量回归默认不依赖 PG；设置 URL 后 PG 测试会真正执行：
+
+```bash
+cd D:\commercial-property-multi-agent
+D:/anacada/envs/commercial-agent/python.exe -X utf8 -m unittest discover -s backend/tests -t backend -p "test_*.py"
+```
+
+**注意**：`migrations/env.py` 会优先读取 `COMMERCIAL_DB_URL`。运行 SQLite 迁移测试或别的库时，不要全局导出指向 PG 的 `COMMERCIAL_DB_URL`；测试代码只在局部作用域设置它。
+
+### 6.3 创建只读数据库角色
+
+会话级 `SET TRANSACTION READ ONLY` 只是误写保护；真正的权限边界是只有 `SELECT` 权限的数据库角色。在 `backend/` 下执行：
+
+```python
+import os
+
+from sqlalchemy.engine import make_url
+
+from app.db.roles import create_readonly_role, drop_readonly_role
+from app.db.session import create_engine_for
+
+engine = create_engine_for(os.environ["COMMERCIAL_PG_TEST_URL"])
+create_readonly_role(engine, "cpma_readonly", "<强密码>")
+
+# 供 COMMERCIAL_DB_URL 使用的角色连接串（不要把输出写进仓库）
+print(
+    make_url(os.environ["COMMERCIAL_PG_TEST_URL"])
+    .set(username="cpma_readonly", password="<强密码>")
+    .render_as_string(hide_password=False)
+)
+
+# 回收授权并删除角色
+# drop_readonly_role(engine, "cpma_readonly")
+```
+
+- 角色名只允许 `[a-z_][a-z0-9_]*`（小写字母 / 数字 / 下划线，不能以数字开头）。
+- 只授予业务表 `SELECT`（含将来由同一账号新建的表），不授予 `alembic_version`，也没有任何写权限。
+- 这是运维 / 测试函数，不在业务路径里自动调用。
+
+### 6.4 CLI 使用 PostgreSQL
+
+```bash
+export COMMERCIAL_DB_URL='postgresql+psycopg://cpma_readonly:<强密码>@127.0.0.1:55432/cpma'
+
+cd backend
+python -m app.cli investigate --backend postgresql --lease lease_xh_a301_2025
+```
+
+- 连接串**只**从 `COMMERCIAL_DB_URL` 读取，不接受命令行明文；未设置时退出码 2。
+- CLI 连接的是**已迁移、已有数据**的库，不会建表或 seed；先用 §6.2 准备好数据。
+- 使用只读仓库（会话级只读仍然生效）；报告元数据记录 `backend=postgresql`，不记录连接串。
+- 不支持 `--variant`（变体只作用于 `--backend fixture`），同时使用会以退出码 2 拒绝。
+- 自己写代码连接 PG 时也必须用 `app.db.session.create_engine_for`：数据集时区（`Asia/Shanghai`）写在它的连接启动参数里，直接 `create_engine` 读出的时间会是 UTC。
+- 未实现：RLS、多实例并发、生产部署；这些不能写成“已验证”。
+
+## 7. 已知限制（不夸大）
 
 | 未完成/未验证 | 说明 |
 |---|---|
 | 正式真实模型实验 | 已实测 `ask` / `investigate` / `evaluate --split dev` 与有界单题；heldout 真实对照与重复测量**未做**，成本未换算。历史真实的模型名是 `deepseek-chat`（官方 2026-07-24 下线），当前配置为 `deepseek-flash` |
-| PostgreSQL | 本机无服务；迁移与查询仅在 SQLite 上验证，`EXCLUDE`/RLS/NUMERIC 未实测 |
+| PostgreSQL | 已在 PostgreSQL 16.16 上完成第一版实机验证（迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 CHECK + 1 EXCLUDE / 只读角色 / CLI），**待独立复查**；RLS、多实例并发与生产部署未做。见 §6 |
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20）。`retrieval_settings` 只接受 `enabled`/`top_k`，声明未实现字段即加载失败；`top_k` 为声明值 |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |
 | 演示鉴权 | `DEMO_PRINCIPAL_ID` + 白名单仅为演示，非真实认证；CLI `--principal` 是开发模式自报身份并会提示、记录 `identity_source=cli_flag` |

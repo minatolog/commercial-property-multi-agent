@@ -6,7 +6,7 @@
 > **关联任务**：004（用户侧编号「Task 003 — PostgreSQL 数据库架构设计」）
 > **配套文档**：[system_design.md](./system_design.md)、[agent_architecture.md](./agent_architecture.md)
 > **2026-11-09 适用范围修正（Task 026）**：方向以 [Agent-first V1.0](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)、[ADR-005](../decisions/ADR-005-agent-first-refocus.md) 和 [当前基线](CURRENT_BASELINE.md) 为准。下文设计正文保留；其中“MVP”“必须落地”等措辞仅适用于该长期模型，不能恢复完整 ERP 范围或覆盖当前精简实施。
-> **实现边界**：当前已有 12 表 SQLAlchemy/Alembic 精简实现及 SQLite 验证；PostgreSQL 尚无实机验收。本文未证明 EXCLUDE/RLS 等已实现；旧“未建任何表”仅是 2026-11-03 的阶段状态。当前映射见 `backend/app/db/models.py`，与本文的差异见 [系统架构](system_design.md) §4，后续按 P0 必要性评审，不机械补齐 14 表。
+> **实现边界**：当前已有 12 表 SQLAlchemy/Alembic 精简实现。Task 035（2026-11-23）已在 PostgreSQL 16.16 实机上完成第一版验证（迁移、seed、会话级只读、项目隔离、金额精度、39 条 CHECK、1 条租期 EXCLUDE、只读数据库角色与 CLI `--backend postgresql`），**已实施并自检，待独立复查；不是最终验收**。`lease_units`、`agent_runs` 两张设计表未实现；RLS、多实例并发与生产部署未做。当前映射见 `backend/app/db/models.py`，与本文的逐表差异见 §17，后续按 P0 必要性评审，不机械补齐 14 表。
 
 ---
 
@@ -1658,4 +1658,74 @@ for rule in lease_charge_rules where rule 与 [period_start, period_end] 有交�
 | 2026-11-03 | 005 | **v2 复核修正**：修复 12 项缺陷（D1 永久占位、D2 表达式索引、D3/D4 触发器缺失、D5 核销冲销、D6 枚举、D7 面积、D8 复合外键、D9 计数、D10 冗余索引、D11 并发方案、D12 表述）；记录 DEC-001~003 三项业务决策；删除 3 条冗余唯一约束与 3 个无效索引（18→15 唯一、21→18 索引）；补齐排他约束可执行 DDL、并发核销方案、金额计算规则；剩余 5 项待确认问题给出默认方案 |
 | 2026-11-03 | 004 | 由骨架升级为完整设计：13 张初始表评估后确定为 14 张（新增 `lease_units`）；补全 9 项设计缺口、2 条排他约束、21 条索引、4 个状态机、出账与核销数据流、Service 分层边界、8 项待确认问题；原 6 项待决策问题全部给出结论 |
 | 2026-11-03 | 002 | 建立文档骨架，确立 5 条设计原则、10 个待建模实体、6 项待决策问题 |
+
+---
+
+## 17. 实现对照（Task 035）
+
+本节记录 **2026-11-23 的 P0 精简实现**与本文件 14 表长期设计的差异。实现事实以 PostgreSQL 16.16 测试库的实际 schema 为准（[schema_pg.txt](../reviews/task035_evidence/schema_pg.txt)），不是设计承诺。Task 035 状态为**已实施并自检，待独立复查；未推送**。
+
+### 17.1 共同差异（适用于全部已实现表）
+
+| 设计 | 当前实现 |
+|---|---|
+| 主键 `uuid` + `gen_random_uuid()` | `VARCHAR(64)` 业务主键（直接使用 fixture ID） |
+| 每表 `created_at` / `updated_at`，主数据表另有 `deleted_at` | 均未实现；没有软删除，也没有部分唯一索引（`WHERE deleted_at IS NULL`） |
+| 业务唯一键按项目维度且带软删除谓词 | 普通 `UNIQUE`（如 `uq_leases_project_no`、`uq_invoices_project_no`） |
+| `(id, project_id)` 复合唯一 + 子表复合外键锁定项目归属 | 未实现；各表只有单列 `project_id → projects.id` 外键，项目一致性仍靠查询层范围校验 |
+| 区间生成列（`daterange`）+ 触发器维护 | 未实现；日期直接用 `DATE` 两列，唯一排他约束见 17.3 |
+| 金额 `NUMERIC(14,2)`、单价 `NUMERIC(12,4)`、面积 `NUMERIC(10,2)` | 金额 `NUMERIC(14,2)`；单价与数量 `NUMERIC(14,4)`；面积 `NUMERIC(14,2)`（Task 035A 修正精度后） |
+
+### 17.2 逐表对照（12 已实现 / 14 设计）
+
+| # | 设计表 | 状态 | 主要差异 |
+|---|---|---|---|
+| 1 | `projects` | 已实现 | 缺 `address` |
+| 2 | `buildings` | 已实现 | 缺 `floors_above_ground`、`gross_floor_area`、`status` |
+| 3 | `units` | 已实现 | 缺 `remark`；面积精度为 `NUMERIC(14,2)` 而非设计 `NUMERIC(10,2)` |
+| 4 | `tenants` | 已实现 | 缺 `legal_representative`、`contact_email`、`credit_rating` |
+| 5 | `leases` | 已实现 | 直接用 `leases.unit_id`（设计把空间关系放在 `lease_units`）；缺 `signing_date`、`termination_date`、`auto_renewal`、`remark`；日期检查用 `end_date >= start_date`（设计为 `>`） |
+| 6 | `lease_units` | **未实现** | 一租约一商铺的 MVP 约束由 `leases.unit_id` 直接表达；租期不冲突改为 `leases` 上的 PG 排他约束（见 17.3） |
+| 7 | `lease_charge_rules` | 已实现 | 缺 `effective_period` 生成列、`sort_order`、`note`；`effective_to >= effective_from`（设计为 `>`）；**没有**同类费用规则区间不重叠的 `EXCLUDE` |
+| 8 | `invoices` | 已实现 | 缺 `void_reason`、`remark`；没有“作废必须有原因”的检查；无复合外键 |
+| 9 | `invoice_items` | 已实现 | 缺 `tax_rate`、`sort_order` |
+| 10 | `payments` | 已实现 | 缺 `payer_name`、`reversed_reason`、`external_ref`、`remark`；没有“冲销必须有原因”的检查 |
+| 11 | `payment_allocations` | 已实现 | 缺 `reversed_reason`；唯一约束是**全量** `(payment_id, invoice_id)`，不是设计中的 `WHERE reversed_at IS NULL` 部分索引，因此冲销后不能对同一账单重新核销同一笔收款 |
+| 12 | `work_orders` | 已实现 | 缺 `location_note`、`assigned_to`、`cost_amount`；没有“无商铺必须填位置说明”的检查 |
+| 13 | `documents` | 已实现 | 缺 `supersedes_id`、`source`、`storage_backend`、`storage_uri`、`mime_type`、`file_size_bytes`、`unit_id`、`work_order_id`、`tenant_id`、`uploaded_by`；实现另有 `document_status`（设计用 `source` 与版本链）；无“同一租约同类文档版本号唯一”索引；无复合外键 |
+| 14 | `agent_runs` | **未实现** | Agent 运行审计仍只存在于进程内 Trace，不落库 |
+
+**fixture 中存在、数据库不保存的字段**（Task 035C 清点）：
+
+| 字段 / 数据 | 位置 | 影响 |
+|---|---|---|
+| `leases.signing_date` | fixture 租约字段 | 数据库没有该列，`--backend sqlite` / `postgresql` 的租约事实不含签署日；fixture 路径保留 |
+| `leases.referenced_document_ids` | fixture 租约字段 | 数据库没有该列；DB 仓库改为按 `documents.lease_id` 查实存文档，并把“合同引用但未电子化”的 `doc_xh_a301_annex_b` 写成 `REFERENCED_BUT_MISSING_BY_LEASE` 常量 |
+| `approval_drafts`（`rent_reduction_draft`） | fixture `approval_drafts`，如 A-301 的 v2：金额 `700.00`、`expires_at` 带 `+08:00` | 12 张表里**没有存草案的表**。同一个问题，`--backend fixture` 的报告有 `proposed_draft`，`--backend sqlite` 与 `--backend postgresql` 都没有（两者彼此一致）。这是精简设计差异，不是 PostgreSQL 问题 |
+
+### 17.3 已在 PG 实机验证的约束
+
+实际 schema 见 [schema_pg.txt](../reviews/task035_evidence/schema_pg.txt)：12 张业务表 + `alembic_version`，**39 条 CHECK、1 条 EXCLUDE**，另有主键、唯一约束与外键。
+
+| 类别 | 数量 / 约束 | 说明 |
+|---|---|---|
+| 状态 / 类别枚举 | `ck_projects_status_p0`、`ck_units_physical_status_p0`、`ck_tenants_status_p0`、`ck_leases_status_p0`、`ck_leases_billing_cycle_p0`、`ck_charge_rules_charge_type_p0`、`ck_charge_rules_calculation_method_p0`、`ck_charge_rules_period_unit_p0`、`ck_invoices_status_p0`、`ck_invoice_items_charge_type_p0`、`ck_payments_status_p0`、`ck_payments_method_p0`、`ck_work_orders_category_p0`、`ck_work_orders_priority_p0`、`ck_work_orders_status_p0`、`ck_documents_doc_type_p0`、`ck_documents_status_p0` | 取值来自 fixture + 设计 §9 状态机；不使用 PG 原生 ENUM |
+| 金额 / 面积 / 数量 | `ck_units_area_positive_p0`、`ck_units_chargeable_area_positive_p0`、`ck_leases_deposit_non_negative_p0`、`ck_charge_rules_amount_non_negative_p0`、`ck_charge_rules_unit_price_non_negative_p0`、`ck_invoice_items_amount_adjustment_p0`、`ck_invoice_items_quantity_nonzero_p0`、`ck_invoice_items_unit_price_non_negative_p0`、`ck_payments_amount_positive_p0`、`ck_payment_allocations_amount_positive_p0` | `invoice_items.amount` 仅 `charge_type='other_fee'` 允许负数（减免 / 冲抵） |
+| 日期区间 / 账期 | `ck_leases_date_range_p0`、`ck_leases_payment_terms_days_p0`、`ck_charge_rules_effective_range_p0`、`ck_invoices_period_range_p0`、`ck_invoices_due_after_issue_p0`、`ck_work_orders_resolved_after_reported_p0`、`ck_work_orders_resolved_status_time_p0` | 账期 `0–180` 天；`resolved/closed` 必须有 `resolved_at` |
+| 币种 / 规则一致性 / 版本 | `ck_leases_currency_format_p0`、`ck_invoices_currency_format_p0`、`ck_payments_currency_format_p0`、`ck_charge_rules_calc_consistency_p0`、`ck_documents_version_positive_p0` | 币种 `^[A-Z]{3}$`；`fixed_amount` 与 `per_sqm` 的金额 / 单价互斥且必填其一 |
+| 租期不冲突（PG 专属） | `ex_leases_unit_active_period_p0`：`EXCLUDE USING gist (unit_id WITH =, daterange(start_date, end_date, '[]') WITH &&) WHERE (status = 'active')` | 需 `btree_gist`；仅 `active` 租约占位（DEC-003）；闭区间与 fixture / 仓库“含首尾日”的语义一致。SQLite 不保证 |
+| 类型 / 表结构 | `unit_price`、`quantity` = `NUMERIC(14,4)`；金额 = `NUMERIC(14,2)`；时间列 = `TIMESTAMP WITH TIME ZONE` | 迁移 `0001` 建表、`0002` 改精度、`0003` 加约束，均可在 PG 上升级 / 降级 |
+
+**仍未实现或未验证**：
+
+- **RLS 未启用**：权限只在应用层与只读角色层；`project_id` 已就位但没有任何 `ROW LEVEL SECURITY` 策略。
+- 软删除 / 部分唯一索引、`(id, project_id)` 复合唯一与复合外键、`lease_charge_rules` 区间排他约束、`documents` 版本唯一索引、作废 / 冲销原因、工单位置说明等设计约束均未实现。
+- `lease_units` / `agent_runs` 两张表未实现，因此依赖它们的触发器、生成列与审计落库也不存在。
+- 多实例并发、生产部署、连接池与故障切换未验证；Task 035 只在单个本地容器上验证。
+
+### 17.4 只读边界
+
+- **会话级只读闸门**（035A）：SQLite 用连接级 `PRAGMA query_only`；PostgreSQL 在 Session 的 `after_begin` 上为**每个事务**执行 `SET TRANSACTION READ ONLY`，`rollback()` / `commit()` 后的新事务仍只读。这是误写保护，不是权限边界。
+- **只读数据库角色**（035B，`backend/app/db/roles.py`）：`create_readonly_role` 只授予业务表 `SELECT`（含 `ALTER DEFAULT PRIVILEGES`），不授予 `alembic_version`；角色无 `SUPERUSER` / `CREATEDB` / `CREATEROLE` / `BYPASSRLS`。测试验证了 `INSERT` / `UPDATE` / `DELETE` / `CREATE TABLE` 以及在 `SET TRANSACTION READ WRITE` 后再写都被数据库拒绝。角色名白名单 `[a-z_][a-z0-9_]*`，密码经随机 dollar-quote 转义，失败异常不含 SQL 与密码。
+- **残留**：CLI 的 PG 仓库注入是临时替换 `bootstrap.build_sqlite_repository`（`cli.py::_postgres_repository_seam`），依赖延迟导入且不是线程安全的；建议后续让 `build_investigation_bundle` 直接接受仓库参数。
 

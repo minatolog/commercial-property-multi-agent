@@ -4,6 +4,16 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-23] 任务 035 - PostgreSQL 实机验证第一版（编码方 DeepSeek / dev_loop）
+
+- **起点**：`main`；035A 提交 `af03655`，035B 提交 `f901ac5`；本轮 035C 只补证据与文档，未改代码和测试。
+- **四个实机问题（Claude Code 探测发现，编码方修复）**：① seed 外键顺序（模型无 `relationship`，SQLite 默认不查外键）→ 逐表 `flush()`；② `SET TRANSACTION READ ONLY` 只对单个事务有效 → Session `after_begin` 每事务声明，`rollback` / `commit` 后仍拒写；③ PG 读回 UTC 差 8 小时 → `create_engine_for` 连接启动参数 `timezone=Asia/Shanghai`；④ 单价 `132.3000` 被截成 `132.30` → 新增 `UnitPrice` `NUMERIC(14,4)` + 迁移 `0002` 显式改列。SQLite 测不出的原因逐条见归档 §5。
+- **035B**：迁移 `0003` 新增 39 条 CHECK + PG 专属 `EXCLUDE USING gist`（同一商铺生效租约 `[start, end]` 不重叠，需 `btree_gist`）；`roles.py` 创建只授 `SELECT` 的只读登录角色（角色名白名单、密码不泄露）；CLI `investigate --backend postgresql`，连接串只从 `COMMERCIAL_DB_URL` 读取，engine 走 `create_engine_for`，报告记 `backend=postgresql` 且不含连接串。
+- **清点**：实现 12 表，设计 14 表；`lease_units`、`agent_runs` 未实现；`leases.signing_date`、`referenced_document_ids`、`approval_drafts` 不落库（草案表缺失导致 fixture 报告有 `proposed_draft`、sqlite / postgresql 都没有，两者一致）。逐表差异见 [database_design.md §17](../architecture/database_design.md#17-实现对照task-035)。
+- **验证**：PG 16.16 实机，PG 套件 **36 tests OK（实际执行，0 skip）**；全量 **700 tests OK（skipped=1）**；契约 **70 项**。证据 `docs/reviews/task035_evidence/`（`pg_unittest.txt`、`unittest.txt`、`smoke.txt`、`schema_pg.txt`、`dump_schema.py`）。
+- **未做**：RLS、多实例并发、生产部署。**已知遗留**：CLI 的 PG 仓库注入是临时替换 `build_sqlite_repository`，依赖延迟导入且非线程安全。
+- **归档**：[Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。未调用付费接口；035C 未提交、未推送；**已实施并自检，待独立复查**。
+
 ## [2026-11-23] Task 033 独立复查返修（Claude Code）
 
 - **依据**：DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)：**有条件通过**，无 P1，P2 两项、P3 六项。用户确认 P2-1 在工具层修。
