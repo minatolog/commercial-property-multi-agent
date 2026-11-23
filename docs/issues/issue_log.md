@@ -4,6 +4,16 @@
 
 > 各条目的“已解决/待修”是当时结论，后续复查可能发现遗漏；当前开放项以 [当前基线](../architecture/CURRENT_BASELINE.md) 和最新审查为准。
 
+## [2026-11-23] Task 035 独立复查发现（已返修，待确认）
+
+- **状态**：DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)判**不通过**；返修已自检，见 [035 归档 §12](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。
+
+| 编号 | 现象与根因 | 解决 | 预防 |
+|---|---|---|---|
+| P1-1 | 数据库仓库读出单价 / 数量时仍量化到 2 位并参与应收计算，真实 4 位费率会算错差额。根因：任务单把 `repository.py` 列为“不改”，修复与复核都只看了存储层 | 读路径新增 4 位 `_unit()` | 修精度要沿“存储 → 读取 → 计算 → 输出”整条路径验证；任务单不要把数据流中间的文件排除在外 |
+| P2-1 | 精度测试测不出截断：fixture 单价末两位是 0，截断后补 0 与原值相同 | 用末位非零的 4 位值做仓库级等价测试 | 精度测试数据必须让截断可见 |
+| P3-3a | `raise ... from None` 仍在 `__context__` 留着含密码的原异常 | 在 `except` 块之外抛出 | 断言 `__context__` 与完整 traceback，而不只是消息 |
+
 ## [2026-11-23] Task 035 - PostgreSQL 实机暴露的四个数据层问题
 
 - **状态**：已修复并自检（035A），PG 套件 36 个实际执行、全量 700 tests OK；**待独立复查**，未推送。见 [Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md) §5。
@@ -14,7 +24,7 @@
 | PG-1 | `seed_from_fixture` 在 PG 上报 `buildings_project_id_fkey`。根因：模型没有 `relationship`，SQLAlchemy 无法按外键推导插入顺序；SQLite 默认不检查外键，错误顺序长期未暴露 | 按父 → 子顺序逐表插入，每组 `flush()` | PG 实机回归必须真正执行 seed；不能只跑不校验外键的 SQLite |
 | PG-2 | 只读会话 `rollback()` 后，同一 Session 的新事务 `UPDATE` 成功。根因：`SET TRANSACTION READ ONLY` 只对当前事务有效；SQLite 的 `PRAGMA query_only` 是连接级，测不出事务级失效 | Session `after_begin` 为每个新事务重新声明只读（跳过 SAVEPOINT），测试覆盖 `rollback` / `commit` 后仍拒写 | 只读测试要跨事务边界；不要把“一个有只读语句的事务”当成“只读会话” |
 | PG-3 | fixture 工单 `13:20+08:00` 在 PG 读回 `05:20+00:00`，展示差 8 小时。根因：`timestamptz` 按连接会话时区（默认 UTC）返回；SQLite 存文本、不做换算 | `create_engine_for` 用连接启动参数 `-c timezone=Asia/Shanghai`；时区常量只定义一次 | 时间类断言比较 ISO 字符串含偏移，不只比较 `datetime` 相等；连接池复用下不能用 `SET TIME ZONE` |
-| PG-4 | 单价 `132.3000` 被静默截成 `132.30`。根因：单价 / 数量复用了 2 位小数的 `Money`（Python `quantize(0.01)` + `NUMERIC(14,2)`）；两种方言都会截断，但旧 SQLite 测试从未断言 4 位单价 | 新增 `UnitPrice`（`NUMERIC(14,4)`，SQLite TEXT），迁移 `0002` 显式 `alter_column`；金额仍 2 位 | 精度类字段要有“原样往返”断言，且覆盖单价 / 数量而不只金额 |
+| PG-4 | 单价 `132.3000` 被静默截成 `132.30`。根因：单价 / 数量复用了 2 位小数的 `Money`（Python `quantize(0.01)` + `NUMERIC(14,2)`）；两种方言都会截断，但旧 SQLite 测试从未断言 4 位单价 | 新增 `UnitPrice`（`NUMERIC(14,4)`，SQLite TEXT），迁移 `0002` 显式 `alter_column`；金额仍 2 位。**复查更正**：这只修了存储层，业务读路径的修复见 2026-11-23“Task 035 独立复查发现”条目 | 精度类字段要有“原样往返”断言，且覆盖单价 / 数量而不只金额 |
 
 ## [2026-11-23] Task 033 独立复查发现（已返修，待确认）
 

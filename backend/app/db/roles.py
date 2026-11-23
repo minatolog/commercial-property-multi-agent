@@ -15,8 +15,13 @@
 
 - 角色名只允许 `[a-z_][a-z0-9_]*`（且不超过 PostgreSQL 的 63 字节标识符上限），
   标识符再经 SQLAlchemy 方言转义，杜绝拼接注入；
-- 密码先由服务器 `quote_literal()` 转义再拼入 DDL（PostgreSQL 的实用语句不接受
-  绑定参数），密码本身不出现在日志/异常消息里；
+- 密码用随机标签的 dollar-quote 包裹后拼入 DDL，经 `exec_driver_sql` 执行（PostgreSQL
+  的实用语句不接受绑定参数）；失败时抛出的 `RoleCreationError` 不含 SQL 文本，也不保留
+  原异常（`__cause__` / `__context__` 均为空），所以 traceback 里没有密码；
+- **结构性限制**（PG 不能参数化 DDL）：执行期间 `pg_stat_activity.query`、服务器开启
+  `log_statement = 'ddl'/'all'` 时的服务器日志都会看到含密码的语句。生产上应在关闭语句
+  日志的会话里建角色，或建好后立即 `ALTER ROLE ... PASSWORD` 轮换；`echo=True` 的
+  engine 会把语句打印到本地日志，因此直接拒绝；
 - 仅支持 PostgreSQL；SQLite 直接报错，避免“以为建了角色、实际没建”。
 """
 
@@ -107,6 +112,9 @@ def create_readonly_role(engine: Engine, role_name: str, password: str) -> None:
     if not isinstance(password, str) or not password:
         raise ValueError("只读角色必须有非空密码")
 
+    if getattr(engine, "echo", False):
+        raise ValueError("engine 开启了 echo，会把含密码的 CREATE ROLE 语句打印到日志；请用 echo=False 的 engine")
+
     role = _quote(engine, role_name)
     with engine.begin() as connection:
         if _role_exists(connection, role_name):
@@ -115,17 +123,21 @@ def create_readonly_role(engine: Engine, role_name: str, password: str) -> None:
             f"CREATE ROLE {role} LOGIN PASSWORD {_password_literal(password)} "
             "NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"
         )
+        failed = False
         try:
             # exec_driver_sql：不做 text() 的 `:name` 参数解析，也不给 psycopg
             # 传参数（因此密码中的 `%` 不会被当作占位符）。
             connection.exec_driver_sql(statement)
         except SQLAlchemyError:
-            # 原异常的 [SQL: ...] / [parameters: ...] 会带明文密码；替换掉，
-            # 并且不保留异常链。
+            # 原异常的 [SQL: ...] / [parameters: ...] 会带明文密码。
+            failed = True
+        if failed:
+            # 在 except 块**之外**抛出：`raise ... from None` 只是不显示原异常，
+            # `__context__` 里仍留着它（Task 035 复查 P3-3a）；这里两者都为空。
             raise RoleCreationError(
                 f"创建只读角色失败（角色名 {role_name!r}）；"
                 "为避免泄露密码，错误详情不包含 SQL 文本，请查看数据库日志"
-            ) from None
+            )
 
         database = connection.execute(text("SELECT current_database()")).scalar_one()
         connection.execute(
@@ -151,6 +163,8 @@ def drop_readonly_role(engine: Engine, role_name: str) -> None:
 
     role = _quote(engine, role_name)
     with engine.begin() as connection:
+        # 角色仍有会话或对象被锁时，不无限等待（复查 P3 收尾）
+        connection.execute(text("SET LOCAL lock_timeout = '5s'"))
         if not _role_exists(connection, role_name):
             return
         connection.execute(

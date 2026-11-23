@@ -38,6 +38,17 @@ def _fixture() -> FixtureRepository:
 
 
 class TestMigrations(unittest.TestCase):
+    def setUp(self) -> None:
+        # `migrations/env.py` 优先读取 COMMERCIAL_DB_URL；开发者按 README 导出它
+        # 再跑全量测试时，这里的 SQLite 迁移会被指向 PG（Task 035 复查 P3 收尾）。
+        import os
+        from unittest import mock
+
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop("COMMERCIAL_DB_URL", None)
+
     def test_upgrade_and_downgrade_on_sqlite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "mig.db"
@@ -616,6 +627,62 @@ class TestTask035BConstraintsOnSqlite(unittest.TestCase):
             "'2026-02-01 10:00:00')",
             "ck_work_orders_resolved_after_reported_p0",
         )
+
+
+def _four_decimal_fixture(directory: Path) -> Path:
+    """复制 fixture，把 A-301 2026 年租金规则与对应账单明细改成**末位非零**的 4 位值。
+
+    原 fixture 的 `126.0000` / `120.0000` 末两位是 0：存储或读取时被截成 2 位再补 0，
+    与真正保留 4 位在字符串上无法区分（Task 035 复查 P2-1）。
+    """
+
+    import json
+
+    from app.paths import DEFAULT_FIXTURE_PATH
+
+    data = json.loads(DEFAULT_FIXTURE_PATH.read_text(encoding="utf-8"))
+    for rule in data["lease_charge_rules"]:
+        if rule["id"] == "rule_xh_a301_rent_2026":
+            rule["unit_price"] = "126.3456"
+    for item in data["invoice_items"]:
+        if item.get("charge_rule_id") == "rule_xh_a301_rent_2026":
+            item["quantity"] = "120.1234"
+            item["unit_price"] = "126.3456"
+    path = directory / "four_decimal_fixture.json"
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+class TestFourDecimalReadPath(unittest.TestCase):
+    """复查 P1-1 / P2-1：4 位单价 / 数量必须贯通到**仓库输出与应收计算**，不只是 ORM。"""
+
+    def test_statement_and_facts_match_fixture_with_nonzero_trailing_digits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _four_decimal_fixture(Path(tmp))
+            fixture = FixtureRepository.load(path)
+            engine, db = build_sqlite_repository(path)
+            try:
+                expected = fixture.statement(project_ids=SCOPE, lease_id=LEASE)
+                actual = db.statement(project_ids=SCOPE, lease_id=LEASE)
+                facts = db.lease_facts(project_ids=SCOPE, lease_id=LEASE)
+            finally:
+                engine.dispose()
+
+        self.assertEqual(actual["rent_variance_total"], expected["rent_variance_total"])
+        rent_lines = 0
+        for exp_view, act_view in zip(expected["invoices"], actual["invoices"]):
+            self.assertEqual(act_view["expected_rent"], exp_view["expected_rent"])
+            self.assertEqual(act_view["rent_variance"], exp_view["rent_variance"])
+            for exp_item, act_item in zip(exp_view["items"], act_view["items"]):
+                self.assertEqual(act_item["quantity"], exp_item["quantity"])
+                self.assertEqual(act_item["unit_price"], exp_item["unit_price"])
+            if act_view["expected_rent"] is not None:
+                rent_lines += 1
+                # 4 位计算：120.1234 × 126.3456 = 15177.06（截成 2 位会算出 120.12 × 126.35 = 15177.16）
+                self.assertEqual(act_view["expected_rent"], Decimal("15177.06"))
+        self.assertGreater(rent_lines, 0, "至少要有一期租金按 2026 规则计算")
+        rule = next(r for r in facts["rules"] if r["id"] == "rule_xh_a301_rent_2026")
+        self.assertEqual(rule["unit_price"], "126.3456")
 
 
 if __name__ == "__main__":

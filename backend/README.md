@@ -270,7 +270,10 @@ print(
 ```
 
 - 角色名只允许 `[a-z_][a-z0-9_]*`（小写字母 / 数字 / 下划线，不能以数字开头）。
-- 只授予业务表 `SELECT`（含将来由同一账号新建的表），不授予 `alembic_version`，也没有任何写权限。
+- 只授予业务表 `SELECT`，不授予 `alembic_version`，也没有任何写权限。
+- **部署前提**：`ALTER DEFAULT PRIVILEGES` 只对**执行它的账号之后建的表**生效。所以要用跑迁移的同一个账号调用 `create_readonly_role`；换账号建表的话，新表需要重新授权。
+- **密码暴露面**：PostgreSQL 不能参数化 DDL，执行期间 `pg_stat_activity.query`、服务器开启 `log_statement = 'ddl'/'all'` 时的日志都会看到含密码的 `CREATE ROLE`。建角色时关闭语句日志，或建好后立即 `ALTER ROLE ... PASSWORD` 轮换。`echo=True` 的 engine 会被直接拒绝。
+- 删除角色前先断开它的会话；`drop_readonly_role` 等锁最多 5 秒。
 - 这是运维 / 测试函数，不在业务路径里自动调用。
 
 ### 6.4 CLI 使用 PostgreSQL
@@ -282,11 +285,13 @@ cd backend
 python -m app.cli investigate --backend postgresql --lease lease_xh_a301_2025
 ```
 
-- 连接串**只**从 `COMMERCIAL_DB_URL` 读取，不接受命令行明文；未设置时退出码 2。
+- 连接串**只**从 `COMMERCIAL_DB_URL` 读取，不接受命令行明文；未设置时退出码 2。连不上、库未迁移、账号无权限时同样退出码 2，只报告异常类型，不打印连接串、密码或 traceback。
 - CLI 连接的是**已迁移、已有数据**的库，不会建表或 seed；先用 §6.2 准备好数据。
 - 使用只读仓库（会话级只读仍然生效）；报告元数据记录 `backend=postgresql`，不记录连接串。
 - 不支持 `--variant`（变体只作用于 `--backend fixture`），同时使用会以退出码 2 拒绝。
 - 自己写代码连接 PG 时也必须用 `app.db.session.create_engine_for`：数据集时区（`Asia/Shanghai`）写在它的连接启动参数里，直接 `create_engine` 读出的时间会是 UTC。
+- 迁移 `0003` 会校验**存量数据**：真实库若有枚举外的状态、零金额收款或重叠的生效租约，需要先清洗再升级；它会 `CREATE EXTENSION IF NOT EXISTS btree_gist`（需要相应权限），`downgrade` 时保留该扩展。
+- 租金只支持按面积（`per_sqm`）的规则；`fixed_amount` 租金规则目前会让账单核对出错，尚未实现。
 - 未实现：RLS、多实例并发、生产部署；这些不能写成“已验证”。
 
 ## 7. 已知限制（不夸大）
@@ -294,7 +299,7 @@ python -m app.cli investigate --backend postgresql --lease lease_xh_a301_2025
 | 未完成/未验证 | 说明 |
 |---|---|
 | 正式真实模型实验 | 已实测 `ask` / `investigate` / `evaluate --split dev` 与有界单题；heldout 真实对照与重复测量**未做**，成本未换算。历史真实的模型名是 `deepseek-chat`（官方 2026-07-24 下线），当前配置为 `deepseek-flash` |
-| PostgreSQL | 已在 PostgreSQL 16.16 上完成第一版实机验证（迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 CHECK + 1 EXCLUDE / 只读角色 / CLI），**待独立复查**；RLS、多实例并发与生产部署未做。见 §6 |
+| PostgreSQL | 已在 PostgreSQL 16.16 上完成第一版实机验证（迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 CHECK + 1 EXCLUDE / 只读角色 / CLI）；[独立复查](../docs/reviews/2026-11-23_task035_independent_review.md)不通过（单价读路径），已返修，**待复查确认**；RLS、多实例并发与生产部署未做。见 §6 |
 | 向量检索 / Embedding / Reranker | 只有 BM25；长问题召回不足是已知短板（见评测 H18–H20）。`retrieval_settings` 只接受 `enabled`/`top_k`，声明未实现字段即加载失败；`top_k` 为声明值 |
 | 外部副作用 | 没有调账/派单实现；接入前需先定义幂等键与补偿策略 |
 | 演示鉴权 | `DEMO_PRINCIPAL_ID` + 白名单仅为演示，非真实认证；CLI `--principal` 是开发模式自报身份并会提示、记录 `identity_source=cli_flag` |

@@ -4,6 +4,13 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-23] Task 035 独立复查返修（Claude Code）
+
+- **依据**：DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)，**首次由 `dev_review.ps1` 自动执行**（133 轮、约 22 分钟，仓库未被改动，测试库已清理）。结论**不通过**：P1-1 数据库仓库读路径仍把单价 / 数量量化到 2 位并参与应收计算。
+- **根因在任务单**：035A / 035B 把 `repository.py` 列为“不改”，复核者也只验证了存储层；fixture 单价末两位是 0，测试测不出截断。
+- **返修**：读路径 4 位（`_unit()`）；SQLite / PG 仓库级测试改用末位非零的 `126.3456` / `120.1234`；EXCLUDE 首尾同日 / 次日 / 草案激活边界；CLI 拦截 `SQLAlchemyError`（退出码 2、不泄露连接信息）；`RoleCreationError` 不留 `__context__`、拒绝 `echo=True`；删除角色加锁超时；seam 断言；SQLite 迁移测试隔离 `COMMERCIAL_DB_URL`；文档更正精度与闭区间措辞、部署前提。
+- **验证**：707 tests OK（PG 环境 skipped=1；默认 skipped=43），PG 套件 42 个全部执行，70 项契约，`check` exit 0；复查者存活的变异 M2b / M4b / M6b 现在均被抓到。返修为自检，**待复查确认**；未推送。归档 [§12](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。
+
 ## [2026-11-23] 任务 035 - PostgreSQL 实机验证第一版（编码方 DeepSeek / dev_loop）
 
 - **起点**：`main`；035A 提交 `af03655`，035B 提交 `f901ac5`；本轮 035C 只补证据与文档，未改代码和测试。

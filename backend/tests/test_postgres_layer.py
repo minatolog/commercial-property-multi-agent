@@ -983,6 +983,51 @@ class TestLeaseExclusionPostgres(_SeededPostgresCase):
             status="draft",
         )
 
+    # 复查 P3-1：把闭区间 `[]` 的选择固化下来。现有 A-301 生效租约为 2025-01-01 ~ 2027-12-31。
+    def test_same_day_handover_is_rejected(self) -> None:
+        """新租约起始日 = 旧租约结束日：闭区间下两天重叠，必须拒绝（开区间 `[)` 会放行）。"""
+
+        with Session(self.engine) as session:
+            with self.assertRaises(DBAPIError) as ctx:
+                session.execute(
+                    text(
+                        self._LEASE_COLUMNS
+                        + "('probe_same_day', 'prj_xinghui', 'PROBE-SAME', "
+                        "'ten_xh_yunduan', 'unit_xh_a301', '2027-12-31', "
+                        "'2028-06-30', 'active', 'monthly', 30, '0.00', 'CNY')"
+                    )
+                )
+            self.assertIn(EXCLUSION_CONSTRAINT_NAME, str(ctx.exception.orig))
+            session.rollback()
+
+    def test_next_day_handover_is_allowed(self) -> None:
+        self._insert(
+            row_id="probe_next_day",
+            lease_no="PROBE-NEXT",
+            start="2028-01-01",
+            end="2028-06-30",
+            status="active",
+        )
+
+    def test_activating_overlapping_draft_is_rejected(self) -> None:
+        """草案可以与生效租约重叠，但把它改成 active 的那一刻必须被拒绝（更新路径）。"""
+
+        with Session(self.engine) as session:
+            session.execute(
+                text(
+                    self._LEASE_COLUMNS
+                    + "('probe_draft_to_active', 'prj_xinghui', 'PROBE-D2A', "
+                    "'ten_xh_yunduan', 'unit_xh_a301', '2026-06-01', "
+                    "'2026-12-31', 'draft', 'monthly', 30, '0.00', 'CNY')"
+                )
+            )
+            with self.assertRaises(DBAPIError) as ctx:
+                session.execute(
+                    text("UPDATE leases SET status = 'active' WHERE id = 'probe_draft_to_active'")
+                )
+            self.assertIn(EXCLUSION_CONSTRAINT_NAME, str(ctx.exception.orig))
+            session.rollback()
+
 
 @requires_pg
 class TestReadonlyRolePostgres(_SeededPostgresCase):
@@ -1122,14 +1167,16 @@ class TestReadonlyRolePostgres(_SeededPostgresCase):
             self.assertNotIn(password, message)
             self.assertNotIn("PASSWORD", message)
             self.assertNotIn("CREATE ROLE", message)
-            # `raise ... from None`：traceback 不会打印带 SQL/密码的原始异常。
-            self.assertTrue(ctx.exception.__suppress_context__)
+            # 异常在 except 块之外抛出：既没有 __cause__，也没有 __context__（见下），
+            # traceback 不会打印带 SQL/密码的原始异常。
             # `raise ... from <原异常>` 同样会把 __suppress_context__ 设为真，但原异常
             # （含 [SQL: CREATE ROLE ... PASSWORD ...]）会进 __cause__ 并被 traceback 打印。
             # 所以还要断言没有 __cause__，并检查完整 traceback 文本（Claude Code 复核补充）。
             import traceback
 
             self.assertIsNone(ctx.exception.__cause__)
+            # 复查 P3-3a：`from None` 只抑制显示，__context__ 仍会留着原异常
+            self.assertIsNone(ctx.exception.__context__)
             rendered = "".join(traceback.format_exception(ctx.exception))
             self.assertNotIn(password, rendered)
             self.assertNotIn("CREATE ROLE", rendered)
@@ -1137,6 +1184,27 @@ class TestReadonlyRolePostgres(_SeededPostgresCase):
             if limited_engine is not None:
                 limited_engine.dispose()
             drop_readonly_role(self.engine, creator_name)
+
+    def test_create_role_refuses_echo_engine(self) -> None:
+        """echo=True 会把含密码的 CREATE ROLE 打印到日志，必须拒绝（复查 P3-3b）。"""
+
+        import secrets
+
+        from app.db.roles import create_readonly_role
+
+        echo_engine = create_engine_for(PG_URL, echo=True)
+        try:
+            with self.assertRaises(ValueError):
+                create_readonly_role(echo_engine, f"ro_echo_{secrets.token_hex(4)}", "secret")
+            with self.engine.connect() as connection:
+                self.assertEqual(
+                    connection.execute(
+                        text("SELECT count(*) FROM pg_roles WHERE rolname LIKE 'ro_echo_%'")
+                    ).scalar_one(),
+                    0,
+                )
+        finally:
+            echo_engine.dispose()
 
     def test_readonly_role_has_no_elevated_attributes(self) -> None:
         """角色属性也是权限边界：不能是超级用户，也不能建库 / 建角色 / 绕过 RLS（复核补充）。"""
@@ -1163,6 +1231,67 @@ class TestReadonlyRolePostgres(_SeededPostgresCase):
             )
         finally:
             drop_readonly_role(self.engine, role_name)
+
+
+def _four_decimal_fixture(directory) -> "Path":
+    """与 `test_database_layer._four_decimal_fixture` 相同：把 A-301 2026 租金规则与对应
+    明细改成末位非零的 4 位值（复查 P2-1：原 fixture 末两位是 0，测不出截断）。"""
+
+    import json
+    from pathlib import Path
+
+    from app.paths import DEFAULT_FIXTURE_PATH
+
+    data = json.loads(DEFAULT_FIXTURE_PATH.read_text(encoding="utf-8"))
+    for rule in data["lease_charge_rules"]:
+        if rule["id"] == "rule_xh_a301_rent_2026":
+            rule["unit_price"] = "126.3456"
+    for item in data["invoice_items"]:
+        if item.get("charge_rule_id") == "rule_xh_a301_rent_2026":
+            item["quantity"] = "120.1234"
+            item["unit_price"] = "126.3456"
+    path = Path(directory) / "four_decimal_fixture.json"
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+@requires_pg
+class TestFourDecimalReadPathPostgres(unittest.TestCase):
+    """复查 P1-1 / P2-1：PG 上 4 位单价 / 数量贯通到仓库输出与应收计算。"""
+
+    def test_statement_matches_fixture_with_nonzero_trailing_digits(self) -> None:
+        import tempfile
+
+        _reset_database()
+        engine = create_engine_for(PG_URL)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = _four_decimal_fixture(tmp)
+                fixture = FixtureRepository.load(path)
+                db = build_repository_for_engine(engine, path, create_tables=False)
+                expected = fixture.statement(project_ids=SCOPE, lease_id=LEASE)
+                actual = db.statement(project_ids=SCOPE, lease_id=LEASE)
+                facts = db.lease_facts(project_ids=SCOPE, lease_id=LEASE)
+                db._session.close()  # noqa: SLF001 - 测试持有的只读会话
+        finally:
+            engine.dispose()
+            _migrate("downgrade", "base")
+
+        self.assertEqual(actual["rent_variance_total"], expected["rent_variance_total"])
+        rent_lines = 0
+        for exp_view, act_view in zip(expected["invoices"], actual["invoices"]):
+            self.assertEqual(act_view["expected_rent"], exp_view["expected_rent"])
+            self.assertEqual(act_view["rent_variance"], exp_view["rent_variance"])
+            for exp_item, act_item in zip(exp_view["items"], act_view["items"]):
+                self.assertEqual(act_item["quantity"], exp_item["quantity"])
+                self.assertEqual(act_item["unit_price"], exp_item["unit_price"])
+            if act_view["expected_rent"] is not None:
+                rent_lines += 1
+                # 120.1234 × 126.3456 = 15177.06；截成 2 位会算出 15177.16
+                self.assertEqual(act_view["expected_rent"], Decimal("15177.06"))
+        self.assertGreater(rent_lines, 0)
+        rule = next(r for r in facts["rules"] if r["id"] == "rule_xh_a301_rent_2026")
+        self.assertEqual(rule["unit_price"], "126.3456")
 
 
 @requires_pg
@@ -1289,6 +1418,58 @@ class TestCliPostgres(_SeededPostgresCase):
                     self.assertTrue(
                         order["resolved_at"].endswith("+08:00"), order["resolved_at"]
                     )
+
+    def test_database_failures_exit_2_without_leaking_connection_info(self) -> None:
+        """复查 P3-2：连不上、库未迁移、账号无权限，都退出码 2，且不泄露连接串 / 密码。"""
+
+        import secrets
+
+        from sqlalchemy.engine import make_url
+
+        from app.db.roles import create_readonly_role, drop_readonly_role
+
+        wrong_password = f"wrong_{secrets.token_hex(8)}"
+        bad_auth = make_url(self.role_url).set(password=wrong_password).render_as_string(
+            hide_password=False
+        )
+        # 同一服务器上的 `postgres` 库没有迁移过业务表
+        unmigrated = make_url(PG_URL).set(database="postgres").render_as_string(
+            hide_password=False
+        )
+        # 一个没有任何表权限的登录角色（建好后收回 SELECT）
+        nogrant_role = f"ro_nogrant_{secrets.token_hex(4)}"
+        nogrant_password = secrets.token_hex(12)
+        create_readonly_role(self.engine, nogrant_role, nogrant_password)
+        try:
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(f'REVOKE SELECT ON ALL TABLES IN SCHEMA public FROM "{nogrant_role}"')
+                )
+            no_grant = (
+                make_url(PG_URL)
+                .set(username=nogrant_role, password=nogrant_password)
+                .render_as_string(hide_password=False)
+            )
+            cases = {
+                "认证失败": (bad_auth, wrong_password),
+                "库未迁移": (unmigrated, make_url(PG_URL).password or ""),
+                "无表权限": (no_grant, nogrant_password),
+            }
+            for label, (url, secret) in cases.items():
+                with self.subTest(case=label):
+                    code, out, err = self._run_cli(
+                        ["investigate", "--backend", "postgresql", "--lease", LEASE],
+                        {"COMMERCIAL_DB_URL": url, "DEMO_PRINCIPAL_ID": "principal_ops_xinghui"},
+                    )
+                    self.assertEqual(code, 2, err)
+                    combined = out + err
+                    self.assertNotIn(url, combined)
+                    if secret:
+                        self.assertNotIn(secret, combined)
+                    self.assertNotIn("Traceback", combined)
+                    self.assertIn("[error]", err)
+        finally:
+            drop_readonly_role(self.engine, nogrant_role)
 
     def test_missing_db_url_exits_usage_error(self) -> None:
         code, out, err = self._run_cli(

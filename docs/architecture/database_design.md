@@ -1674,7 +1674,7 @@ for rule in lease_charge_rules where rule 与 [period_start, period_end] 有交�
 | 业务唯一键按项目维度且带软删除谓词 | 普通 `UNIQUE`（如 `uq_leases_project_no`、`uq_invoices_project_no`） |
 | `(id, project_id)` 复合唯一 + 子表复合外键锁定项目归属 | 未实现；各表只有单列 `project_id → projects.id` 外键，项目一致性仍靠查询层范围校验 |
 | 区间生成列（`daterange`）+ 触发器维护 | 未实现；日期直接用 `DATE` 两列，唯一排他约束见 17.3 |
-| 金额 `NUMERIC(14,2)`、单价 `NUMERIC(12,4)`、面积 `NUMERIC(10,2)` | 金额 `NUMERIC(14,2)`；单价与数量 `NUMERIC(14,4)`；面积 `NUMERIC(14,2)`（Task 035A 修正精度后） |
+| 金额 `NUMERIC(14,2)`、单价 `NUMERIC(12,4)`、面积 `NUMERIC(10,2)` | 金额 `NUMERIC(14,2)`；单价与数量 `NUMERIC(14,4)`；面积 `NUMERIC(14,2)`（Task 035A 修正存储精度；业务读路径在 Task 035 复查返修后同为 4 位） |
 
 ### 17.2 逐表对照（12 已实现 / 14 设计）
 
@@ -1713,7 +1713,7 @@ for rule in lease_charge_rules where rule 与 [period_start, period_end] 有交�
 | 金额 / 面积 / 数量 | `ck_units_area_positive_p0`、`ck_units_chargeable_area_positive_p0`、`ck_leases_deposit_non_negative_p0`、`ck_charge_rules_amount_non_negative_p0`、`ck_charge_rules_unit_price_non_negative_p0`、`ck_invoice_items_amount_adjustment_p0`、`ck_invoice_items_quantity_nonzero_p0`、`ck_invoice_items_unit_price_non_negative_p0`、`ck_payments_amount_positive_p0`、`ck_payment_allocations_amount_positive_p0` | `invoice_items.amount` 仅 `charge_type='other_fee'` 允许负数（减免 / 冲抵） |
 | 日期区间 / 账期 | `ck_leases_date_range_p0`、`ck_leases_payment_terms_days_p0`、`ck_charge_rules_effective_range_p0`、`ck_invoices_period_range_p0`、`ck_invoices_due_after_issue_p0`、`ck_work_orders_resolved_after_reported_p0`、`ck_work_orders_resolved_status_time_p0` | 账期 `0–180` 天；`resolved/closed` 必须有 `resolved_at` |
 | 币种 / 规则一致性 / 版本 | `ck_leases_currency_format_p0`、`ck_invoices_currency_format_p0`、`ck_payments_currency_format_p0`、`ck_charge_rules_calc_consistency_p0`、`ck_documents_version_positive_p0` | 币种 `^[A-Z]{3}$`；`fixed_amount` 与 `per_sqm` 的金额 / 单价互斥且必填其一 |
-| 租期不冲突（PG 专属） | `ex_leases_unit_active_period_p0`：`EXCLUDE USING gist (unit_id WITH =, daterange(start_date, end_date, '[]') WITH &&) WHERE (status = 'active')` | 需 `btree_gist`；仅 `active` 租约占位（DEC-003）；闭区间与 fixture / 仓库“含首尾日”的语义一致。SQLite 不保证 |
+| 租期不冲突（PG 专属） | `ex_leases_unit_active_period_p0`：`EXCLUDE USING gist (unit_id WITH =, daterange(start_date, end_date, '[]') WITH &&) WHERE (status = 'active')` | 需 `btree_gist`；仅 `active` 租约占位（DEC-003）；闭区间：两段生效租约首尾同一天视为重叠并被拒绝（已有测试）。仓库没有租约区间查询，只有费用规则 `effective_to >= period_start` 含首尾日，闭区间是业务选择而非由现有查询推出。SQLite 不保证 |
 | 类型 / 表结构 | `unit_price`、`quantity` = `NUMERIC(14,4)`；金额 = `NUMERIC(14,2)`；时间列 = `TIMESTAMP WITH TIME ZONE` | 迁移 `0001` 建表、`0002` 改精度、`0003` 加约束，均可在 PG 上升级 / 降级 |
 
 **仍未实现或未验证**：

@@ -1,6 +1,6 @@
 # 项目总开发路线与进度表 V1.1
 
-- 更新：2026-11-23，Task 035 PostgreSQL 实机验证第一版（035A/035B/035C）**已实施并自检，待独立复查；未推送**：PG 16.16 上迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 条 CHECK + 1 条租期 `EXCLUDE` / 只读数据库角色 / CLI `--backend postgresql`；PG 套件 36 个实际执行、全量 700 tests OK（skipped=1）、70 项契约；RLS、多实例并发与生产部署未做；Task 033 MCP 工具网关（stdio 第一版）DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)**有条件通过**（无 P1），P2/P3 已返修，[返修确认复查](../reviews/2026-11-23_task033_repair_review.md)条件已满足；未推送；Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）独立复查有条件通过，返修经 [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认条件已满足，复查新提的 3 项 P3 已再修；2026-11-22 两任务实施；此前 2026-11-21 Task 031 返修与复查条件同步；027–031 成果与返修已提交为 `3be785e`（已在 `origin/main`）。原主体规划由 Task 026 整理。
+- 更新：2026-11-23，Task 035 PostgreSQL 实机验证第一版（035A/035B/035C）已实施；DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)**不通过**（单价读路径），已返修并自检，**待复查确认；未推送**：PG 16.16 上迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 条 CHECK + 1 条租期 `EXCLUDE` / 只读数据库角色 / CLI `--backend postgresql`；PG 套件 36 个实际执行、全量 700 tests OK（skipped=1）、70 项契约；RLS、多实例并发与生产部署未做；Task 033 MCP 工具网关（stdio 第一版）DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)**有条件通过**（无 P1），P2/P3 已返修，[返修确认复查](../reviews/2026-11-23_task033_repair_review.md)条件已满足；未推送；Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）独立复查有条件通过，返修经 [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认条件已满足，复查新提的 3 项 P3 已再修；2026-11-22 两任务实施；此前 2026-11-21 Task 031 返修与复查条件同步；027–031 成果与返修已提交为 `3be785e`（已在 `origin/main`）。原主体规划由 Task 026 整理。
 - 目标与范围：[当前架构基线](../architecture/CURRENT_BASELINE.md)、[Agent-first V1.0](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)。
 - 旧版完整路线与逐次更新：[历史快照](PROJECT_DEVELOPMENT_ROADMAP_legacy_2026-11-09.md)。下表为现状，不用旧版“剩余 9 次 Prompt”等首次规划数字判断进度。
 
@@ -51,7 +51,7 @@
 |---|---|---|
 | 1 | 收尾 Z1/Z2/Z3 | **Task 031 已实施并自检（待独立复查）**：真实 ask 装配传可信目标；换目标拒绝；失败工具不满足取证；合法零结果保留；ask/investigate 默认输出展示可信资金字段；覆盖默认/完整输出并回归 |
 | 2 | 明确独立模型配置策略 | **Task 031 已实施并自检（待独立复查）**：每 Agent 按自己 YAML 创建/缓存客户端；实际 provider/model/参数逐 Agent 写入 `agent_models`/`models_by_agent`；无效配置启动期失败；离线装配测试通过 |
-| 3 | PostgreSQL 实机与数据边界验收 | **PG 实机验证已完成第一版（待独立复查）**：PG 16.16 上迁移 / seed / 只读限制 / 项目隔离 / 精度与 fixture 等价通过；清点 12 / 14 表差异；39 条 CHECK + 1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql` 已实测。RLS、多实例并发与生产部署未做，复查通过前不记验收。见 [Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md) |
+| 3 | PostgreSQL 实机与数据边界验收 | **PG 实机验证已完成第一版（独立复查不通过，已返修，待复查确认）**：PG 16.16 上迁移 / seed / 只读限制 / 项目隔离 / 精度与 fixture 等价通过；清点 12 / 14 表差异；39 条 CHECK + 1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql` 已实测。RLS、多实例并发与生产部署未做，复查通过前不记验收。见 [Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md) |
 | 4 | 正式真实评测与人工量表 | 冻结代码/数据/评分/Prompt/模型/预算与重复次数；同一工具/权限/预算下完成 B/C、配 A 确定性基线；保存全部重复、失败题和人工结果；揭示旧保留题已被开发查看的限制 |
 | 5 | 最终版本复现、演示与交付 | 独立环境按 README 重建运行；完整测试、调查/冲突/审批/失败案例及可插拔回归；文档与结果一致；完成验收后才建议发布 |
 

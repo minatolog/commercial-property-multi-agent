@@ -49,6 +49,17 @@ def _money(value: Any) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
+def _unit(value: Any) -> Decimal:
+    """单价 / 数量：4 位小数（Task 035 复查 P1-1）。
+
+    存储层（`UnitPrice`，PG `NUMERIC(14,4)`）在 035A 已改为 4 位，但读路径原先
+    仍用 `_money` 量化到 2 位，并用 2 位值计算应收租金——真实 4 位费率（如
+    `126.3456`）会算错差额。金额（`amount`、差额）仍只在最终结果上量化到分。
+    """
+
+    return Decimal(str(value)).quantize(Decimal("0.0001"))
+
+
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
@@ -242,7 +253,7 @@ class DatabaseRepository:
             for item in items:
                 if item.charge_type != "rent" or rule is None:
                     continue
-                expected = (_money(item.quantity) * _money(rule.unit_price)).quantize(
+                expected = (_unit(item.quantity) * _unit(rule.unit_price)).quantize(
                     Decimal("0.01")
                 )
                 expected_rent = expected
@@ -389,7 +400,7 @@ def _rule_dict(rule: LeaseChargeRule) -> dict[str, Any]:
         "charge_type": rule.charge_type,
         "calculation_method": rule.calculation_method,
         "amount": str(_money(rule.amount)) if rule.amount is not None else None,
-        "unit_price": str(_money(rule.unit_price)) if rule.unit_price is not None else None,
+        "unit_price": str(_unit(rule.unit_price)) if rule.unit_price is not None else None,
         "period_unit": rule.period_unit,
         "effective_from": _iso(rule.effective_from),
         "effective_to": _iso(rule.effective_to),
@@ -418,8 +429,8 @@ def _item_dict(item: InvoiceItem) -> dict[str, Any]:
         "invoice_id": item.invoice_id,
         "charge_type": item.charge_type,
         "description": item.description,
-        "quantity": str(_money(item.quantity)),
-        "unit_price": str(_money(item.unit_price)) if item.unit_price is not None else None,
+        "quantity": str(_unit(item.quantity)),
+        "unit_price": str(_unit(item.unit_price)) if item.unit_price is not None else None,
         "amount": str(_money(item.amount)),
     }
 

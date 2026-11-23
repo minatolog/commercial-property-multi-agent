@@ -946,6 +946,13 @@ def _investigation_assembly(args: argparse.Namespace, *, control_plane: Any = No
             bundle = _build_investigation_bundle(
                 args, control_plane=control_plane, backend="sqlite"
             )
+        # 复查 P3 收尾：替换装配工厂是依赖实现细节的做法；`investigation_demo` 将来改了
+        # 取仓库的方式时，这里会静默退回内存 SQLite。断言 bundle 用的就是注入的 PG 仓库。
+        if getattr(bundle, "repository", None) is not repository:
+            raise RuntimeError(
+                "postgresql 后端装配失败：调查装配没有使用注入的 PG 仓库"
+                "（investigation_demo 的取仓库方式可能已改变）"
+            )
         yield bundle
     finally:
         repository._session.close()  # noqa: SLF001 - 装配资源，仅 CLI 持有
@@ -1522,6 +1529,19 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     except (ConfigError, AgentError, FileNotFoundError, ValueError) as exc:
         print(f"[error] {type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    except Exception as exc:  # noqa: BLE001 - 只拦截数据库错误，其余原样抛出
+        from sqlalchemy.exc import SQLAlchemyError
+
+        if not isinstance(exc, SQLAlchemyError):
+            raise
+        # Task 035 复查 P3-2：库连不上 / 未迁移 / 无权限时，SQLAlchemy 的异常消息可能带
+        # 连接参数与 SQL；只报告异常类型，不打印消息，也不留 traceback。
+        print(
+            f"[error] 数据库错误（{type(exc).__name__}）：请确认 COMMERCIAL_DB_URL 指向"
+            "已迁移、已导入数据的库，且账号有读取权限；为避免泄露连接信息，不显示详细错误",
+            file=sys.stderr,
+        )
         return EXIT_USAGE
     parser.print_help()
     return EXIT_USAGE

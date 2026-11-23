@@ -6,7 +6,7 @@
 - **任务编号**：035（分 A / B / C 三段实施）。
 - **模块**：02_database（只读数据层的 PostgreSQL 实机验证、P0 约束与只读角色）。
 - **执行者**：编码方 DeepSeek（由 `scripts/dev_loop/` 驱动；任务单写明“编码方 DeepSeek，审查方 Claude”）。035A、035B 由编码方实施并提交；035C（证据与文档归档）由同一编码方在本轮完成。任务单由 Claude Code 编写；**四个实机问题由 Claude Code 用真实 PostgreSQL 探测发现，不是编码方发现的**（见 §5）。
-- **Git Commit**：035A `af03655`，035B `f901ac5`；035C **未提交**（改动留在工作区，由用户决定）。以上均未推送。
+- **Git Commit**：035A `af03655`，035B `f901ac5`，035C `5586ef3`（归档写作时未提交，之后提交）；独立复查返修见 §12。均未推送。
 - **当前状态**：**已实施并自检，待独立复查；未推送。** 自检不等于最终验收。
 - **环境**：Docker 容器 `cpma-pg-dev`（`postgres:16`），只绑定 `127.0.0.1:55432`；测试库实际版本 **PostgreSQL 16.16**（`select version()`，见 `schema_pg.txt` 第 3 行）；驱动 `psycopg==3.3.8`。连接串只放在环境变量 `COMMERCIAL_PG_TEST_URL`，未写入任何文件。
 - **付费接口**：未调用（本任务不涉及任何模型调用）。
@@ -74,7 +74,7 @@
 - `backend/app/cli.py`：`--backend postgresql`，连接串只从 `COMMERCIAL_DB_URL` 读取。
 - `backend/tests/test_postgres_layer.py`、`test_database_layer.py`：只追加测试。
 
-### 4.3 035C（本轮，未提交）：证据与文档
+### 4.3 035C（Commit `5586ef3`）：证据与文档
 
 - 新增 `docs/reviews/task035_evidence/dump_schema.py`（只读导出脚本）与 `schema_pg.txt`、`pg_unittest.txt`、`unittest.txt`、`smoke.txt`。
 - 新增本归档；更新 `docs/architecture/database_design.md`、`backend/README.md`、`docs/README.md`、开发日志、问题日志、`CURRENT_BASELINE.md`、路线图。
@@ -106,6 +106,8 @@
 - **SQLite 为什么没测出**：SQLite 没有 `timestamptz`，时间以文本存储并原样读回，不做时区换算。
 
 ### 5.4 单价精度
+
+> **复查更正**：本节的修复只覆盖**存储层 / ORM**。业务只读仓库（`DatabaseRepository`）读出单价与数量时仍量化到 2 位并用它计算应收租金，独立复查判为 P1-1，返修见 §12。
 
 - **现象**：fixture 单价 `132.3000` 被保存成 `132.30`，最后两位静默丢失。
 - **根因**：`lease_charge_rules.unit_price`、`invoice_items.unit_price`、`invoice_items.quantity` 复用了 2 位小数的 `Money`（Python 侧 `quantize(0.01)`，PG 侧 `NUMERIC(14,2)`）。
@@ -225,11 +227,31 @@ D:/anacada/envs/commercial-agent/python.exe -X utf8 -m unittest discover -s back
 | 6 | `referenced_document_ids` 不落库 | DB 仓库用 `REFERENCED_BUT_MISSING_BY_LEASE` 常量补 A-301 的缺失文档事实；新增类似数据需要改代码 |
 | 7 | 多实例并发、生产部署、连接池故障切换未验证 | Task 035 只在单个本地容器上验证 |
 | 8 | 既有的 PG 专属架构未覆盖 | 未验证其它 PG 版本、备份恢复、扩展安装权限受限的场景 |
-| 9 | 状态 | **已实施并自检，待独立复查**；035C 未提交、未推送 |
+| 9 | 状态 | 独立复查**不通过**（P1-1 单价读路径），已返修并自检，待复查确认（§12）；未推送 |
 
 ## 11. 对应 Git Commit Hash
 
 - **035A**：`af03655`（`fix(db): Task 035A PostgreSQL 实机——seed 外键顺序、会话级只读、时区、单价精度`）。
 - **035B**：`f901ac5`（`feat(db): Task 035B PostgreSQL P0 约束、只读数据库角色与 CLI --backend postgresql`）。
-- **035C**：**未提交**——本任务的证据与文档改动留在工作区，由用户最终决定是否提交。
+- **035C**：`5586ef3`。
 - 以上均**未推送**。
+
+## 12. 独立复查与返修（2026-11-23）
+
+DeepSeek [独立复查](../../reviews/2026-11-23_task035_independent_review.md)（首次由 `scripts/dev_loop/dev_review.ps1` 自动执行，用户无需转交）结论：**不通过**。阻断项 P1-1；另有 P2 一项、P3 若干。Claude Code 直接返修，未新增付费调用以外的操作：
+
+| 编号 | 问题 | 返修 |
+|---|---|---|
+| P1-1 | `DatabaseRepository` 读出 `unit_price` / `quantity` 时用 `_money` 量化到 2 位，并用 2 位值算 `expected_rent` / `rent_variance`；真实 4 位费率 `126.3456` 会算错差额 | 新增 `_unit()`（4 位）用于单价 / 数量的输出与应收计算；金额只在最终结果上量化到分。**根因在任务单**：035A / 035B 任务单把 `repository.py` 列为“不改”，复核者（Claude Code）也只验证了存储层 |
+| P2-1 | 精度测试只读 ORM，fixture 单价末两位是 0，截断后补 0 无法区分；复查者的变异 M2b（写入量化回 2 位）存活 | SQLite 与 PG 各新增仓库级测试：把 A-301 2026 租金规则与明细改成 `126.3456` / `120.1234`，断言 `statement` / `lease_facts` 与 fixture 路径一致，`expected_rent = 15177.06`（截成 2 位会是 15177.16） |
+| P3-1 | EXCLUDE 无首尾边界测试；`[]` → `[)` 变异存活 | 新增：首尾同日拒绝、次日允许、草案改为 active 时拒绝 |
+| P3-2 | CLI 无连接失败 / 未迁移 / 无权限测试 | `main` 拦截 `SQLAlchemyError`，只报异常类型、退出码 2、无 traceback；新增三种失败的测试，断言不泄露连接串 / 密码 |
+| P3-3a | `raise ... from None` 仍在 `__context__` 留着含密码的原异常 | 在 `except` 块之外抛出，`__cause__` / `__context__` 均为空；测试补 `__context__` 断言 |
+| P3-3b | DDL 含密码，`echo=True` / `log_statement` / `pg_stat_activity` 可见 | `create_readonly_role` 拒绝 `echo=True` 的 engine；docstring 与 README 写明其余暴露面（PG 不能参数化 DDL） |
+| P3-3c | `roles.py` docstring 说用 `quote_literal()`，实际是 dollar-quote | 已更正 |
+| P3 收尾 | `drop_readonly_role` 可能无限等锁；seam 失效会静默回退 SQLite；SQLite 迁移测试受 `COMMERCIAL_DB_URL` 影响 | 删除角色加 `lock_timeout = 5s`；CLI 断言 bundle 用的是注入的 PG 仓库；`TestMigrations` 在 `setUp` 里移除该变量 |
+| P3-6 / 文档 | 精度、闭区间语义措辞过宽；035C 提交状态陈旧；部署前提未写 | 本归档、`database_design.md`、`backend/README.md`、问题日志已更正（`ALTER DEFAULT PRIVILEGES` 的同一账号前提、`btree_gist` 保留、`0003` 校验存量行、`fixed_amount` 租金未支持） |
+
+**验证**：707 tests OK（PG 环境 skipped=1；默认 skipped=43）、PG 套件 42 个全部执行（035C 时 36 个）、70 项契约、`check` exit 0；证据 `docs/reviews/task035_evidence/repair_unittest.txt`、`repair_pg_unittest.txt`。变异验证：读路径回到 2 位 → 2 失败；写入量化回 2 位（复查 M2b）→ 4 失败；EXCLUDE 开区间（M4b）→ 1 失败；角色异常回到 `except` 内 `from None` → 1 失败；CLI 不拦数据库错误（M6b）→ 2 错误。存储类型改回 `NUMERIC(14,2)`（复查 M2）仍存活：迁移后的库会被 `0002` 再改回 4 位，对已迁移库不是真回归。
+
+返修为自检，需复查确认后才能关闭；不等于最终验收。

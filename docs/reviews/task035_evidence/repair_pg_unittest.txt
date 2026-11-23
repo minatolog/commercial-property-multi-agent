@@ -1,0 +1,271 @@
+D:\anacada\envs\commercial-agent\Lib\site-packages\alembic\config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+  util.warn_deprecated(
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_cli_postgres_repository_keeps_dataset_offset (tests.test_postgres_layer.TestCliPostgres.test_cli_postgres_repository_keeps_dataset_offset)
+CLI 的 PG engine 必须由 create_engine_for 创建（工单时间带 +08:00）。 ... ok
+test_database_failures_exit_2_without_leaking_connection_info (tests.test_postgres_layer.TestCliPostgres.test_database_failures_exit_2_without_leaking_connection_info)
+复查 P3-2：连不上、库未迁移、账号无权限，都退出码 2，且不泄露连接串 / 密码。 ... ok
+test_investigate_matches_fixture_and_reports_backend (tests.test_postgres_layer.TestCliPostgres.test_investigate_matches_fixture_and_reports_backend) ... ok
+test_missing_db_url_exits_usage_error (tests.test_postgres_layer.TestCliPostgres.test_missing_db_url_exits_usage_error) ... ok
+test_variant_with_postgres_is_rejected_clearly (tests.test_postgres_layer.TestCliPostgres.test_variant_with_postgres_is_rejected_clearly) ... ok
+D:\anacada\envs\commercial-agent\Lib\site-packages\alembic\config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+  util.warn_deprecated(
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+test_downgrade_drops_constraints_then_older_revisions (tests.test_postgres_layer.TestConstraintsMigrationDowngradePostgres.test_downgrade_drops_constraints_then_older_revisions) ... INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_arrears_amounts_match (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_arrears_amounts_match) ... ok
+test_connections_use_dataset_timezone (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_connections_use_dataset_timezone) ... ok
+test_lease_facts_match (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_lease_facts_match) ... ok
+test_payment_timestamps_keep_dataset_offset (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_payment_timestamps_keep_dataset_offset) ... ok
+test_statement_allocations_and_payments_match (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_statement_allocations_and_payments_match) ... ok
+test_unit_price_keeps_four_decimals (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_unit_price_keeps_four_decimals) ... ok
+test_work_orders_and_timestamps_match (tests.test_postgres_layer.TestEquivalenceWithFixturePostgres.test_work_orders_and_timestamps_match) ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+test_statement_matches_fixture_with_nonzero_trailing_digits (tests.test_postgres_layer.TestFourDecimalReadPathPostgres.test_statement_matches_fixture_with_nonzero_trailing_digits) ... INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_activating_overlapping_draft_is_rejected (tests.test_postgres_layer.TestLeaseExclusionPostgres.test_activating_overlapping_draft_is_rejected)
+草案可以与生效租约重叠，但把它改成 active 的那一刻必须被拒绝（更新路径）。 ... ok
+test_active_overlap_is_rejected (tests.test_postgres_layer.TestLeaseExclusionPostgres.test_active_overlap_is_rejected) ... ok
+test_next_day_handover_is_allowed (tests.test_postgres_layer.TestLeaseExclusionPostgres.test_next_day_handover_is_allowed) ... ok
+test_non_overlapping_active_lease_is_allowed (tests.test_postgres_layer.TestLeaseExclusionPostgres.test_non_overlapping_active_lease_is_allowed) ... ok
+test_overlap_with_non_active_status_is_allowed (tests.test_postgres_layer.TestLeaseExclusionPostgres.test_overlap_with_non_active_status_is_allowed) ... ok
+test_same_day_handover_is_rejected (tests.test_postgres_layer.TestLeaseExclusionPostgres.test_same_day_handover_is_rejected)
+新租约起始日 = 旧租约结束日：闭区间下两天重叠，必须拒绝（开区间 `[)` 会放行）。 ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+test_0002_downgrade_narrows_then_upgrade_widens (tests.test_postgres_layer.TestMigrationsPostgres.test_0002_downgrade_narrows_then_upgrade_widens)
+证明 0002 是真实 DDL：降到 0001 后是 2 位，再升级回到 4 位。 ... INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+ok
+test_downgrade_base_drops_business_tables (tests.test_postgres_layer.TestMigrationsPostgres.test_downgrade_base_drops_business_tables) ... INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+ok
+test_numeric_precision_after_upgrade (tests.test_postgres_layer.TestMigrationsPostgres.test_numeric_precision_after_upgrade) ... INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+ok
+test_upgrade_head_creates_business_tables (tests.test_postgres_layer.TestMigrationsPostgres.test_upgrade_head_creates_business_tables) ... INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_constraint_names_are_installed (tests.test_postgres_layer.TestP0ConstraintsPostgres.test_constraint_names_are_installed) ... ok
+test_fixture_seed_satisfies_all_constraints (tests.test_postgres_layer.TestP0ConstraintsPostgres.test_fixture_seed_satisfies_all_constraints)
+类级 seed 已带约束执行；这里再核对行数与 fixture 一致。 ... ok
+test_invalid_rows_are_rejected (tests.test_postgres_layer.TestP0ConstraintsPostgres.test_invalid_rows_are_rejected) ... ok
+test_other_fee_negative_amount_is_allowed (tests.test_postgres_layer.TestP0ConstraintsPostgres.test_other_fee_negative_amount_is_allowed)
+设计允许调整类明细为负数（减免/冲抵）；fixture 暂无此类行。 ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_first_transaction_rejects_write_then_reads (tests.test_postgres_layer.TestReadOnlyPostgres.test_first_transaction_rejects_write_then_reads) ... ok
+test_transaction_after_commit_still_rejects_write (tests.test_postgres_layer.TestReadOnlyPostgres.test_transaction_after_commit_still_rejects_write) ... ok
+test_transaction_after_rollback_still_rejects_write (tests.test_postgres_layer.TestReadOnlyPostgres.test_transaction_after_rollback_still_rejects_write) ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_create_role_refuses_echo_engine (tests.test_postgres_layer.TestReadonlyRolePostgres.test_create_role_refuses_echo_engine)
+echo=True 会把含密码的 CREATE ROLE 打印到日志，必须拒绝（复查 P3-3b）。 ... ok
+test_password_with_special_characters_can_login (tests.test_postgres_layer.TestReadonlyRolePostgres.test_password_with_special_characters_can_login)
+密码含 `:x`、`%`、`'`、`\` 时仍能建角色并登录。 ... ok
+test_readonly_role_can_read_but_never_write (tests.test_postgres_layer.TestReadonlyRolePostgres.test_readonly_role_can_read_but_never_write) ... ok
+test_readonly_role_has_no_elevated_attributes (tests.test_postgres_layer.TestReadonlyRolePostgres.test_readonly_role_has_no_elevated_attributes)
+角色属性也是权限边界：不能是超级用户，也不能建库 / 建角色 / 绕过 RLS（复核补充）。 ... ok
+test_role_creation_failure_never_leaks_password (tests.test_postgres_layer.TestReadonlyRolePostgres.test_role_creation_failure_never_leaks_password)
+CREATE ROLE 被数据库拒绝时，异常消息/链不出现密码或 SQL 文本。 ... ok
+test_role_name_is_validated (tests.test_postgres_layer.TestReadonlyRolePostgres.test_role_name_is_validated) ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_amounts_are_decimal_not_float (tests.test_postgres_layer.TestRepositoryIsolationPostgres.test_amounts_are_decimal_not_float) ... ok
+test_cross_project_access_is_denied (tests.test_postgres_layer.TestRepositoryIsolationPostgres.test_cross_project_access_is_denied) ... ok
+test_unknown_lease_is_not_found (tests.test_postgres_layer.TestRepositoryIsolationPostgres.test_unknown_lease_is_not_found) ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_seed_row_counts_match_fixture (tests.test_postgres_layer.TestSeedPostgres.test_seed_row_counts_match_fixture) ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+test_investigation_uses_postgres_repository (tests.test_postgres_layer.TestToolsBoundToPostgres.test_investigation_uses_postgres_repository)
+工具层不修改即可指向 PG 仓库；关键数字与 fixture 路径一致。 ... ok
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+
+----------------------------------------------------------------------
+Ran 42 tests in 6.320s
+
+OK
