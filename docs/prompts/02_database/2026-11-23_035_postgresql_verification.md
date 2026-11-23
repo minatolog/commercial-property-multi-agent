@@ -252,6 +252,23 @@ DeepSeek [独立复查](../../reviews/2026-11-23_task035_independent_review.md)�
 | P3 收尾 | `drop_readonly_role` 可能无限等锁；seam 失效会静默回退 SQLite；SQLite 迁移测试受 `COMMERCIAL_DB_URL` 影响 | 删除角色加 `lock_timeout = 5s`；CLI 断言 bundle 用的是注入的 PG 仓库；`TestMigrations` 在 `setUp` 里移除该变量 |
 | P3-6 / 文档 | 精度、闭区间语义措辞过宽；035C 提交状态陈旧；部署前提未写 | 本归档、`database_design.md`、`backend/README.md`、问题日志已更正（`ALTER DEFAULT PRIVILEGES` 的同一账号前提、`btree_gist` 保留、`0003` 校验存量行、`fixed_amount` 租金未支持） |
 
-**验证**：707 tests OK（PG 环境 skipped=1；默认 skipped=43）、PG 套件 42 个全部执行（035C 时 36 个）、70 项契约、`check` exit 0；证据 `docs/reviews/task035_evidence/repair_unittest.txt`、`repair_pg_unittest.txt`。变异验证：读路径回到 2 位 → 2 失败；写入量化回 2 位（复查 M2b）→ 4 失败；EXCLUDE 开区间（M4b）→ 1 失败；角色异常回到 `except` 内 `from None` → 1 失败；CLI 不拦数据库错误（M6b）→ 2 错误。存储类型改回 `NUMERIC(14,2)`（复查 M2）仍存活：迁移后的库会被 `0002` 再改回 4 位，对已迁移库不是真回归。
+**验证**：707 tests OK（PG 环境 skipped=1；默认 skipped=43）、PG 套件 42 个全部执行（035C 时 36 个）、70 项契约、`check` exit 0；证据 `docs/reviews/task035_evidence/repair_unittest.txt`、`repair_pg_unittest.txt`。变异验证：读路径回到 2 位 → 2 失败；写入量化回 2 位（复查 M2b）→ 4 失败（PG 与 SQLite 两个测试模块合计；只跑 PG 模块为 2 项）；EXCLUDE 开区间（M4b）→ 1 失败；角色异常回到 `except` 内 `from None` → 1 失败；CLI 不拦数据库错误（M6b）→ 2 错误。存储类型改回 `NUMERIC(14,2)`（复查 M2）仍存活：迁移后的库会被 `0002` 再改回 4 位，对已迁移库不是真回归。
 
 返修为自检，需复查确认后才能关闭；不等于最终验收。
+
+### 12.1 返修确认复查（2026-11-23）
+
+DeepSeek [返修确认复查](../../reviews/2026-11-23_task035_repair_review.md)（`dev_review`，157 轮、约 12 分钟）：**有条件通过**。P1-1、P2-1、P3-1、P3-2、P3-3a、P3-3c、P3 收尾**关闭**；P3-3b **部分关闭**；P3-6 基本关闭。新发现一项**既有 P2**与若干 P3 残留，已处理：
+
+| 编号 | 问题 | 处理 |
+|---|---|---|
+| 既有 P2 | `DatabaseRepository.arrears()` 只返回总额，缺 `invoices` / `payments` / `allocations`；`billing.arrears.calculate` 遍历 `arrears["invoices"]`，在数据库后端抛 `KeyError`（`9fb3935` 之前就存在；以前只比较仓库方法的部分字段，从没在数据库仓库上调用过工具） | 补齐三项，与 `FixtureRepository.arrears()` 同契约。新增 `TestArrearsToolOnDatabase`（SQLite）、`TestArrearsToolOnPostgres`：在数据库仓库上真正调用 `billing.arrears.calculate` / `billing.statement.read` / `lease.lookup`，输出与 fixture 一致；撤回修复时两个测试都报错 |
+| P3-3b 残留 | `echo=False` 但 `sqlalchemy.engine` logger 为 INFO/DEBUG 时，含密码的 DDL 仍会进日志 | `create_readonly_role` 在这种情况下同样拒绝；补测试 |
+| docstring | `RoleCreationError` 仍写 `from None` | 已改为“在 except 之外抛出、无 `__cause__` / `__context__`” |
+| 文档 | 开发日志 035C 状态；M2b 失败数；SQLite 方言限制未写 | 已更正；SQLite 限制写进 `backend/README.md` §7（见下） |
+| 已知限制 | `fixed_amount` 租金规则未实现 | 复查判为可接受的已知限制，保持 README 说明 |
+
+**SQLite 方言限制**（只影响离线 / 演示用的 SQLite 后端，PG 不受影响）：`DateTime(timezone=True)` 不保存 UTC 偏移，读回不带偏移的本地时间（fixture 为 `+08:00`）；金额以 TEXT 存储，约束里用 `CAST(... AS REAL)` 比较，非数字文本会被当作 0；币种约束用 `length` + `upper`，不能拒绝非 ASCII 字母；不保证租期不重叠。
+
+验证见开发日志对应条目与 `docs/reviews/task035_evidence/repair2_unittest.txt`。条件满足后 Task 035 返修确认完成，**不等于最终验收**。
+

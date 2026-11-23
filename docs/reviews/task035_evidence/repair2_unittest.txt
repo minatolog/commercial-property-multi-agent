@@ -1,0 +1,266 @@
+...................................  [LOG] asyncio Executing <Task pending name='Task-1176' coro=<TestApprovalIdentityAndAudit.test_resume_reuses_persisted_request_id() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:427> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.141 seconds
+...............  [LOG] asyncio Executing <Task pending name='Task-1235' coro=<TestNoApprovalWithoutControlPlane.test_arrears_question_still_surfaces_known_variance() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:614> wait_for=<Task pending name='Task-1236' coro=<RunnableCallable.ainvoke() running at D:\anacada\envs\commercial-agent\Lib\site-packages\langgraph\_internal\_runnable.py:484> cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\tasks.py:386> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+....  [LOG] asyncio Executing <Task pending name='Task-1352' coro=<TestPausedAndResumedFlow.test_investigation_pauses_then_resumes_across_control_plane() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:301> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+  [LOG] asyncio Executing <Task pending name='Task-1352' coro=<TestPausedAndResumedFlow.test_investigation_pauses_then_resumes_across_control_plane() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:314> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+..  [LOG] asyncio Executing <Task pending name='Task-1470' coro=<TestPausedAndResumedFlow.test_resume_with_stale_version_is_refused_and_graph_stays_paused() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:373> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.110 seconds
+..  [LOG] asyncio Executing <Task pending name='Task-1581' coro=<TestTerminalIdempotencyIsGuarded.test_unauthorised_principal_cannot_replay() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:549> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.110 seconds
+.  [LOG] asyncio Executing <Task pending name='Task-1640' coro=<TestTerminalIdempotencyIsGuarded.test_wrong_version_cannot_replay_as_approved() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:533> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+.  [LOG] asyncio Executing <Task pending name='Task-1699' coro=<TestThreadIdentityBoundary.test_fresh_thread_still_works_and_denies_intruder() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:738> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.110 seconds
+  [LOG] agent.lease agent 执行失败
+  [LOG] agent.property agent 执行失败
+  [LOG] agent.billing agent 执行失败
+  [LOG] agent.lease agent 执行失败
+  [LOG] agent.property agent 执行失败
+  [LOG] agent.billing agent 执行失败
+..  [LOG] asyncio Executing <Task pending name='Task-1878' coro=<TestThreadIdentityBoundary.test_other_lease_cannot_reuse_thread() running at D:\commercial-property-multi-agent\backend\tests\test_approval.py:694> wait_for=<Future pending cb=[Task.task_wakeup()] created at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:428> cb=[_run_until_complete_cb() at D:\anacada\envs\commercial-agent\Lib\asyncio\base_events.py:181] created at D:\anacada\envs\commercial-agent\Lib\asyncio\runners.py:100> took 0.109 seconds
+.........D:\anacada\envs\commercial-agent\Lib\site-packages\alembic\config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+  util.warn_deprecated(
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+.............INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+...........................................................................................................................................................s.......................................................[mcp-gateway] 拒绝：会话 mcp_local_dev_0ecf5857c98e 调用 'lease_lookup' 的参数含保留键 ['principal_id']
+[mcp-gateway] 拒绝：会话 mcp_local_dev_b560581435e4 调用 'lease_lookup' 的参数含保留键 ['permissions']
+[mcp-gateway] 拒绝：会话 mcp_local_dev_8997ade53a14 调用 'lease_lookup' 的参数含保留键 ['project_ids']
+...................................D:\anacada\envs\commercial-agent\Lib\site-packages\alembic\config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+  util.warn_deprecated(
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+.....INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+.......INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+......INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+....INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+...INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+.......INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+...INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, initial schema from ORM metadata
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, add P0 CHECK / EXCLUDE constraints
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0003 -> 0002, add P0 CHECK / EXCLUDE constraints
+INFO  [alembic.runtime.migration] Running downgrade 0002 -> 0001, widen unit price / quantity to NUMERIC(14,4)
+INFO  [alembic.runtime.migration] Running downgrade 0001 -> , initial schema from ORM metadata
+........................................................WARNI [agent.slow] agent 执行失败
+.WARNI [agent.slow] agent 执行失败
+.WARNI [agent.slow] agent 执行失败
+......WARNI [agent.scripted_tool_agent] agent 执行失败
+................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 710 tests in 42.816s
+
+OK (skipped=1)

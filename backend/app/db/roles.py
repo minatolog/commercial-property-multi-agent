@@ -27,6 +27,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 
@@ -45,8 +46,8 @@ class RoleCreationError(RuntimeError):
     """创建只读角色失败。
 
     数据库拒绝 `CREATE ROLE` 时，SQLAlchemy 的原始异常会把整条语句
-    （含明文密码）放进消息。调用方看到的这个异常**消息不含 SQL/密码**，
-    且以 `raise ... from None` 抛出，traceback 不再展示原始异常。
+    （含明文密码）放进消息。这个异常在 `except` 块**之外**抛出：消息不含 SQL /
+    密码，`__cause__` 与 `__context__` 都为空，traceback 不会带出原始异常。
     """
 
 
@@ -112,8 +113,15 @@ def create_readonly_role(engine: Engine, role_name: str, password: str) -> None:
     if not isinstance(password, str) or not password:
         raise ValueError("只读角色必须有非空密码")
 
-    if getattr(engine, "echo", False):
-        raise ValueError("engine 开启了 echo，会把含密码的 CREATE ROLE 语句打印到日志；请用 echo=False 的 engine")
+    if getattr(engine, "echo", False) or logging.getLogger("sqlalchemy.engine").isEnabledFor(
+        logging.INFO
+    ):
+        # echo=True 与把 `sqlalchemy.engine` logger 调到 INFO / DEBUG 都会打印完整 SQL，
+        # 含密码的 CREATE ROLE 会进日志（Task 035 返修确认复查 P3 残留 1）。
+        raise ValueError(
+            "SQL 语句日志已开启（engine.echo 或 sqlalchemy.engine logger 为 INFO/DEBUG），"
+            "会把含密码的 CREATE ROLE 打印到日志；请关闭后再创建角色"
+        )
 
     role = _quote(engine, role_name)
     with engine.begin() as connection:

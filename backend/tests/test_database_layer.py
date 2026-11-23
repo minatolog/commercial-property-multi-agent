@@ -685,5 +685,61 @@ class TestFourDecimalReadPath(unittest.TestCase):
         self.assertEqual(rule["unit_price"], "126.3456")
 
 
+
+def _tool_outputs(repository, fixture) -> tuple[dict, dict]:
+    """在两个仓库上各调用一次三个账务 / 合同工具，返回 (数据库输出, fixture 输出)。"""
+
+    import asyncio
+
+    from app.runtime.types import TrustedContext
+    from app.tools.fixture_tools import build_fixture_tools
+
+    principal = fixture.principal("principal_ops_xinghui")
+    context = TrustedContext.from_principal(principal, trace_id="trace_db_tools").to_agent_context(
+        run_id="run_db_tools"
+    )
+    names = ("billing.arrears.calculate", "billing.statement.read", "lease.lookup")
+
+    async def run(repo) -> dict:
+        tools = {tool.name: tool for tool in build_fixture_tools(repo)}
+        out = {}
+        for name in names:
+            tool = tools[name]
+            invocation = await tool.invoke(tool.input_model(lease_id=LEASE), context)
+            out[name] = invocation.data
+        return out
+
+    return asyncio.run(run(repository)), asyncio.run(run(fixture))
+
+
+class TestArrearsToolOnDatabase(unittest.TestCase):
+    """返修确认复查发现的既有 P2：`billing.arrears.calculate` 在数据库后端曾抛 KeyError('invoices')。
+
+    以前只比较了仓库方法的部分字段，从没真正调用过工具；这里在数据库仓库上直接调用工具，
+    输出必须与 fixture 仓库完全一致。
+    """
+
+    def test_tools_on_sqlite_match_fixture(self) -> None:
+        engine, db = build_sqlite_repository()
+        try:
+            actual, expected = _tool_outputs(db, _fixture())
+        finally:
+            engine.dispose()
+        # SQLite 方言限制：`DateTime(timezone=True)` 在 SQLite 上不保存 UTC 偏移，读回的是
+        # 不带偏移的本地时间（fixture 为 `+08:00`）。PG 上保存并逐字一致（见 test_postgres_layer）。
+        # 这里只去掉数据集时区后缀再比较，其余字段（含金额、单价、差额）必须逐字一致。
+        def strip_offset(value):
+            if isinstance(value, dict):
+                return {k: strip_offset(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [strip_offset(v) for v in value]
+            if isinstance(value, str) and value.endswith("+08:00") and "T" in value:
+                return value[: -len("+08:00")]
+            return value
+
+        for name in expected:
+            with self.subTest(tool=name):
+                self.assertEqual(strip_offset(actual[name]), strip_offset(expected[name]))
+
 if __name__ == "__main__":
     unittest.main()

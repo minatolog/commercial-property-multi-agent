@@ -1206,6 +1206,30 @@ class TestReadonlyRolePostgres(_SeededPostgresCase):
         finally:
             echo_engine.dispose()
 
+    def test_create_role_refuses_when_sql_logging_enabled(self) -> None:
+        """`sqlalchemy.engine` logger 为 INFO 时同样会打印含密码的 DDL，必须拒绝（复查 P3 残留 1）。"""
+
+        import logging
+        import secrets
+
+        from app.db.roles import create_readonly_role
+
+        logger = logging.getLogger("sqlalchemy.engine")
+        previous = logger.level
+        logger.setLevel(logging.INFO)
+        try:
+            with self.assertRaises(ValueError):
+                create_readonly_role(self.engine, f"ro_log_{secrets.token_hex(4)}", "secret")
+        finally:
+            logger.setLevel(previous)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text("SELECT count(*) FROM pg_roles WHERE rolname LIKE 'ro_log_%'")
+                ).scalar_one(),
+                0,
+            )
+
     def test_readonly_role_has_no_elevated_attributes(self) -> None:
         """角色属性也是权限边界：不能是超级用户，也不能建库 / 建角色 / 绕过 RLS（复核补充）。"""
 
@@ -1293,6 +1317,36 @@ class TestFourDecimalReadPathPostgres(unittest.TestCase):
         rule = next(r for r in facts["rules"] if r["id"] == "rule_xh_a301_rent_2026")
         self.assertEqual(rule["unit_price"], "126.3456")
 
+
+
+@requires_pg
+class TestArrearsToolOnPostgres(_SeededPostgresCase):
+    """返修确认复查发现的既有 P2：PG 仓库上真正调用账务 / 合同工具，输出与 fixture 一致。"""
+
+    def test_tools_on_postgres_match_fixture(self) -> None:
+        import asyncio
+
+        from app.runtime.types import TrustedContext
+        from app.tools.fixture_tools import build_fixture_tools
+
+        fixture = _fixture()
+        context = TrustedContext.from_principal(
+            fixture.principal("principal_ops_xinghui"), trace_id="trace_pg_tools"
+        ).to_agent_context(run_id="run_pg_tools")
+        names = ("billing.arrears.calculate", "billing.statement.read", "lease.lookup")
+
+        async def run(repo) -> dict:
+            tools = {tool.name: tool for tool in build_fixture_tools(repo)}
+            out = {}
+            for name in names:
+                tool = tools[name]
+                out[name] = (await tool.invoke(tool.input_model(lease_id=LEASE), context)).data
+            return out
+
+        actual, expected = asyncio.run(run(self.repository)), asyncio.run(run(fixture))
+        for name in names:
+            with self.subTest(tool=name):
+                self.assertEqual(actual[name], expected[name])
 
 @requires_pg
 class TestCliPostgres(_SeededPostgresCase):

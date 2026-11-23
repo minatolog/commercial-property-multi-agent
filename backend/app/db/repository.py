@@ -302,6 +302,11 @@ class DatabaseRepository:
             "paid_total": statement["paid_total"],
             "outstanding_total": statement["outstanding_total"],
             "outstanding_invoice_ids": statement["outstanding_invoice_ids"],
+            # 与 FixtureRepository.arrears 同契约（Task 035 返修确认复查发现的既有 P2）：
+            # `billing.arrears.calculate` 会遍历这三项；缺了它们，工具在数据库后端抛 KeyError。
+            "invoices": statement["invoices"],
+            "payments": statement["payments"],
+            "allocations": statement["allocations"],
             "rent_variance_total": statement["rent_variance_total"],
         }
 

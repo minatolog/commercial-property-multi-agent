@@ -9,7 +9,8 @@
 - **依据**：DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)，**首次由 `dev_review.ps1` 自动执行**（133 轮、约 22 分钟，仓库未被改动，测试库已清理）。结论**不通过**：P1-1 数据库仓库读路径仍把单价 / 数量量化到 2 位并参与应收计算。
 - **根因在任务单**：035A / 035B 把 `repository.py` 列为“不改”，复核者也只验证了存储层；fixture 单价末两位是 0，测试测不出截断。
 - **返修**：读路径 4 位（`_unit()`）；SQLite / PG 仓库级测试改用末位非零的 `126.3456` / `120.1234`；EXCLUDE 首尾同日 / 次日 / 草案激活边界；CLI 拦截 `SQLAlchemyError`（退出码 2、不泄露连接信息）；`RoleCreationError` 不留 `__context__`、拒绝 `echo=True`；删除角色加锁超时；seam 断言；SQLite 迁移测试隔离 `COMMERCIAL_DB_URL`；文档更正精度与闭区间措辞、部署前提。
-- **验证**：707 tests OK（PG 环境 skipped=1；默认 skipped=43），PG 套件 42 个全部执行，70 项契约，`check` exit 0；复查者存活的变异 M2b / M4b / M6b 现在均被抓到。返修为自检，**待复查确认**；未推送。归档 [§12](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。
+- **验证**：707 tests OK（PG 环境 skipped=1；默认 skipped=43），PG 套件 42 个全部执行，70 项契约，`check` exit 0；复查者存活的变异 M2b / M4b / M6b 现在均被抓到。返修为自检；未推送。归档 [§12](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。
+- **返修确认复查**（[报告](../reviews/2026-11-23_task035_repair_review.md)，同样由 `dev_review` 执行，157 轮）：**有条件通过**，P1-1 / P2-1 / P3-1 / P3-2 / P3-3a 关闭；另发现一项**既有 P2**——`DatabaseRepository.arrears()` 少返回 `invoices` / `payments` / `allocations`，`billing.arrears.calculate` 在数据库后端抛 `KeyError`（以前从没在数据库仓库上真正调用过工具）。已修复，并补 SQLite / PG 工具级等价测试；同时关闭 P3 残留（SQL 日志开启时拒绝建角色、`RoleCreationError` docstring、SQLite 方言限制文档化）。再验证：**710 tests OK**（PG 环境 skipped=1；默认 skipped=45），PG 套件 44 个全部执行，70 项契约，`check` exit 0，证据 `docs/reviews/task035_evidence/repair2_unittest.txt`。
 
 ## [2026-11-23] 任务 035 - PostgreSQL 实机验证第一版（编码方 DeepSeek / dev_loop）
 
@@ -19,7 +20,7 @@
 - **清点**：实现 12 表，设计 14 表；`lease_units`、`agent_runs` 未实现；`leases.signing_date`、`referenced_document_ids`、`approval_drafts` 不落库（草案表缺失导致 fixture 报告有 `proposed_draft`、sqlite / postgresql 都没有，两者一致）。逐表差异见 [database_design.md §17](../architecture/database_design.md#17-实现对照task-035)。
 - **验证**：PG 16.16 实机，PG 套件 **36 tests OK（实际执行，0 skip）**；全量 **700 tests OK（skipped=1）**；契约 **70 项**。证据 `docs/reviews/task035_evidence/`（`pg_unittest.txt`、`unittest.txt`、`smoke.txt`、`schema_pg.txt`、`dump_schema.py`）。
 - **未做**：RLS、多实例并发、生产部署。**已知遗留**：CLI 的 PG 仓库注入是临时替换 `build_sqlite_repository`，依赖延迟导入且非线程安全。
-- **归档**：[Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。未调用付费接口；035C 未提交、未推送；**已实施并自检，待独立复查**。
+- **归档**：[Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md)。未调用付费接口；035C 归档时未提交，之后提交为 `5586ef3`；未推送；当时状态为**已实施并自检，待独立复查**（复查与返修见上一条）。
 
 ## [2026-11-23] Task 033 独立复查返修（Claude Code）
 
