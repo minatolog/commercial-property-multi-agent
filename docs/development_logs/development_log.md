@@ -4,6 +4,16 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-23] 任务 033 - MCP 工具网关（stdio 第一版，编码方 DeepSeek / dev_loop）
+
+- **起点**：`main`；033A 提交 `083335a`，033B 提交 `4422a74`；本轮 033C 只补手动连接证据与文档，未改代码和测试。
+- **实现**：`app/mcp_gateway/`（`profiles` 客户端档案、`identity` 会话身份、`results` 结果信封、`server` low-level `Server` 与 stdio 入口）；`app/config/mcp_clients/{local_dev,flowise}.yaml`；CLI `mcp-serve --transport stdio --client <档案>`；`mcp==2.3.0`（构造函数回调，不是 v1 装饰器）。
+- **设计**：薄协议外壳，`ToolExecutor.execute()` 唯一入口；一个连接一个会话，独立 `Budget` / `ToolExecutor` / `TraceLog`；`tools/list` 只列档案允许的只读工具并给出下划线别名；`tools/call` 先拦保留键（`principal_id` / `permissions` / `project_ids` 等），再从会话身份构造 `AgentContext`；失败一律 `isError: true`，金额全程十进制字符串。
+- **手动连接（033C）**：用官方 SDK `ClientSession` + `stdio_client` 启动真实 CLI（`--client local_dev`），完成初始化、`tools/list`（5 个工具）、星汇 A-301 `lease_lookup`（`deposit_amount: "40000.00"` 等金额为字符串）与带 `principal_id` 的调用（`isError: true`、`status: denied`、`permission_denied`）；服务端 stderr 出现“开发模式：固定主体，不可用于生产”。原始输出 `docs/reviews/task033_evidence/stdio_probe.txt`。
+- **验证**：全量回归 **651 tests OK（skipped=1）**（此前 610，+41 为 `test_mcp_gateway.py`）、契约自检 **70 项**；证据 `docs/reviews/task033_evidence/unittest.txt`、`smoke.txt`。
+- **未做**：Streamable HTTP、OAuth、TLS；未在 Flowise 中实际连接；未使用 MCP Inspector（原 Prompt 允许 Inspector 或 SDK 客户端二选一）。
+- **归档**：[Task 033 归档](../prompts/04_agents/2026-11-23_033_mcp_gateway.md)，风险分析见 §9.2（身份与传输会话生命周期错配）。未调用付费接口；未提交/推送；**已实施并自检，待独立复查**。
+
 ## [2026-11-23] Task 032 / 034 返修确认复查与 P3 再修（Claude Code）
 
 - **依据**：DeepSeek [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)：上一轮 032 的 2 项 P2 与 6 项 P3、034 的 1 项 P2 与 4 项 P3 关闭，034 P3-1 部分关闭（ADR 残留）；无新 P1/P2，新提 3 项 P3。

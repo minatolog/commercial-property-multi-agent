@@ -1,0 +1,302 @@
+=== Task 033C MCP stdio 手动连接记录（mcp==2.3.0 SDK 客户端）===
+启动命令: D:\anacada\envs\commercial-agent\python.exe -m app.cli mcp-serve --transport stdio --client local_dev
+工作目录: D:\commercial-property-multi-agent\backend
+
+=== 1. 初始化（initialize） ===
+请求: initialize（SDK 默认协议版本与客户端能力）
+结果: server=commercial-property-mcp-gateway 0.1.0, protocol=2025-11-25
+instructions: MCP 客户端档案 'local_dev'；只开放只读工具；身份来自服务端会话（开发模式）。
+
+=== 2. 列出工具（tools/list） ===
+请求: tools/list {}
+工具数: 5
+
+- name: lease_lookup
+  description: 按租约或商铺代码查询租约条款、收费规则与引用文档（只读）（原名: lease.lookup）
+  inputSchema: {"properties": ["lease_id", "unit_code"], "required": []}
+  outputSchema: {"title": "LeaseLookupOutputToolResultEnvelope", "status": ["ok", "denied", "error", "timeout", "budget_exhausted"], "data_declared_as_nullable": true}
+
+- name: billing_statement_read
+  description: 读取账单、明细、有效付款与核销，并计算应收/已收/未收（只读）（原名: billing.statement.read）
+  inputSchema: {"properties": ["lease_id"], "required": ["lease_id"]}
+  outputSchema: {"title": "StatementOutputToolResultEnvelope", "status": ["ok", "denied", "error", "timeout", "budget_exhausted"], "data_declared_as_nullable": true}
+
+- name: billing_arrears_calculate
+  description: 按账单与有效核销计算应收、已收、未收（只读，Decimal）（原名: billing.arrears.calculate）
+  inputSchema: {"properties": ["lease_id"], "required": ["lease_id"]}
+  outputSchema: {"title": "ArrearsOutputToolResultEnvelope", "status": ["ok", "denied", "error", "timeout", "budget_exhausted"], "data_declared_as_nullable": true}
+
+- name: property_work_orders_read
+  description: 读取维修工单时间线（只读）（原名: property.work_orders.read）
+  inputSchema: {"properties": ["category", "lease_id", "unit_id"], "required": []}
+  outputSchema: {"title": "WorkOrdersOutputToolResultEnvelope", "status": ["ok", "denied", "error", "timeout", "budget_exhausted"], "data_declared_as_nullable": true}
+
+- name: document_search
+  description: 在合同文本中检索条款，返回可定位到页码与原文的证据（原名: document.search）
+  inputSchema: {"properties": ["document_id", "document_ids", "document_version", "include_drafts", "include_project_documents", "lease_id", "query", "top_k"], "required": ["query"]}
+  outputSchema: {"title": "DocumentSearchOutputToolResultEnvelope", "status": ["ok", "denied", "error", "timeout", "budget_exhausted"], "data_declared_as_nullable": true}
+
+=== 3. 调用 lease_lookup（星汇 A-301 合同，预期成功） ===
+请求:
+{
+  "name": "lease_lookup",
+  "arguments": {
+    "lease_id": "lease_xh_a301_2025"
+  }
+}
+
+isError: False
+structuredContent:
+{
+  "call_id": "tc_ee716b07db4b",
+  "status": "ok",
+  "data": {
+    "lease_id": "lease_xh_a301_2025",
+    "lease_no": "XH-A301-2025-01",
+    "project_id": "prj_xinghui",
+    "unit_id": "unit_xh_a301",
+    "unit_code": "A-301",
+    "tenant_id": "ten_xh_yunduan",
+    "currency": "CNY",
+    "deposit_amount": "40000.00",
+    "start_date": "2025-01-01",
+    "end_date": "2027-12-31",
+    "status": "active",
+    "rules": [
+      {
+        "rule_id": "rule_xh_a301_rent_2025",
+        "charge_type": "rent",
+        "calculation_method": "per_sqm",
+        "unit_price": "120.0000",
+        "effective_from": "2025-01-01",
+        "effective_to": "2025-12-31"
+      },
+      {
+        "rule_id": "rule_xh_a301_rent_2026",
+        "charge_type": "rent",
+        "calculation_method": "per_sqm",
+        "unit_price": "126.0000",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31"
+      },
+      {
+        "rule_id": "rule_xh_a301_rent_2027",
+        "charge_type": "rent",
+        "calculation_method": "per_sqm",
+        "unit_price": "132.3000",
+        "effective_from": "2027-01-01",
+        "effective_to": "2027-12-31"
+      },
+      {
+        "rule_id": "rule_xh_a301_pf_all",
+        "charge_type": "property_fee",
+        "calculation_method": "per_sqm",
+        "unit_price": "18.0000",
+        "effective_from": "2025-01-01",
+        "effective_to": "2027-12-31"
+      }
+    ],
+    "document_ids": [
+      "doc_xh_a301_contract"
+    ],
+    "signed_document_ids": [
+      "doc_xh_a301_contract"
+    ],
+    "draft_document_ids": [],
+    "missing_document_ids": [
+      "doc_xh_a301_annex_b"
+    ]
+  },
+  "evidence": [
+    {
+      "evidence_id": "lease_xh_a301_2025",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "lease",
+      "record_id": "lease_xh_a301_2025",
+      "fields": {
+        "lease_no": "XH-A301-2025-01",
+        "unit_id": "unit_xh_a301",
+        "tenant_id": "ten_xh_yunduan",
+        "start_date": "2025-01-01",
+        "end_date": "2027-12-31",
+        "status": "active",
+        "deposit_amount": "40000.00"
+      }
+    },
+    {
+      "evidence_id": "unit_xh_a301",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "unit",
+      "record_id": "unit_xh_a301",
+      "fields": {
+        "code": "A-301",
+        "area_sqm": "120.00",
+        "chargeable_area_sqm": "120.00",
+        "usage_type": "food"
+      }
+    },
+    {
+      "evidence_id": "ten_xh_yunduan",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "tenant",
+      "record_id": "ten_xh_yunduan",
+      "fields": {
+        "code": "T-XH-001",
+        "name": "云端咖啡（合成租户）",
+        "status": "active"
+      }
+    },
+    {
+      "evidence_id": "rule_xh_a301_rent_2025",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "lease_charge_rule",
+      "record_id": "rule_xh_a301_rent_2025",
+      "fields": {
+        "charge_type": "rent",
+        "calculation_method": "per_sqm",
+        "unit_price": "120.0000",
+        "period_unit": "month",
+        "effective_from": "2025-01-01",
+        "effective_to": "2025-12-31"
+      }
+    },
+    {
+      "evidence_id": "rule_xh_a301_rent_2026",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "lease_charge_rule",
+      "record_id": "rule_xh_a301_rent_2026",
+      "fields": {
+        "charge_type": "rent",
+        "calculation_method": "per_sqm",
+        "unit_price": "126.0000",
+        "period_unit": "month",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31"
+      }
+    },
+    {
+      "evidence_id": "rule_xh_a301_rent_2027",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "lease_charge_rule",
+      "record_id": "rule_xh_a301_rent_2027",
+      "fields": {
+        "charge_type": "rent",
+        "calculation_method": "per_sqm",
+        "unit_price": "132.3000",
+        "period_unit": "month",
+        "effective_from": "2027-01-01",
+        "effective_to": "2027-12-31"
+      }
+    },
+    {
+      "evidence_id": "rule_xh_a301_pf_all",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "lease_charge_rule",
+      "record_id": "rule_xh_a301_pf_all",
+      "fields": {
+        "charge_type": "property_fee",
+        "calculation_method": "per_sqm",
+        "unit_price": "18.0000",
+        "period_unit": "month",
+        "effective_from": "2025-01-01",
+        "effective_to": "2027-12-31"
+      }
+    },
+    {
+      "evidence_id": "doc_xh_a301_contract",
+      "kind": "db_fact",
+      "source_tool": "lease.lookup",
+      "tool_call_id": "tc_ee716b07db4b",
+      "project_id": "prj_xinghui",
+      "dataset_version": "agent-first-v1",
+      "as_of_date": "2026-11-03",
+      "collected_at": "2026-11-23T08:31:46.197602Z",
+      "synthetic": true,
+      "entity": "document",
+      "record_id": "doc_xh_a301_contract",
+      "fields": {
+        "doc_type": "lease_contract",
+        "version": 1,
+        "document_status": "signed"
+      }
+    }
+  ],
+  "error": null
+}
+content[0].text 与 structuredContent 相同: True
+
+=== 4. 调用 lease_lookup 但参数带 principal_id（预期被拒绝） ===
+请求:
+{
+  "name": "lease_lookup",
+  "arguments": {
+    "lease_id": "lease_xh_a301_2025",
+    "principal_id": "principal_finance_jinlan"
+  }
+}
+
+isError: True
+structuredContent:
+{
+  "call_id": "tc_gw_6f95a7402442",
+  "status": "denied",
+  "data": null,
+  "evidence": [],
+  "error": {
+    "code": "permission_denied",
+    "message": "payload 含保留键，权限/项目范围/预算只能由可信上下文提供"
+  }
+}
+content[0].text 与 structuredContent 相同: True
+
+=== 5. 服务端 stderr（启动提示与诊断，stdout 只承载 MCP 协议） ===
+[dev-mode] 开发模式：固定主体，不可用于生产

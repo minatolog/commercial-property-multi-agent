@@ -4,6 +4,14 @@
 
 > 各条目的“已解决/待修”是当时结论，后续复查可能发现遗漏；当前开放项以 [当前基线](../architecture/CURRENT_BASELINE.md) 和最新审查为准。
 
+## [2026-11-23] Task 033 - MCP 网关手动连接与文档归档
+
+- **状态**：已解决；Task 033 已实施并自检，待独立复查；未提交。本轮未发现产品代码或测试问题，只记录证据脚本自身的一次路径错误。见 [Task 033 归档](../prompts/04_agents/2026-11-23_033_mcp_gateway.md)。
+
+| 编号 | 现象与根因 | 解决 | 预防 |
+|---|---|---|---|
+| 033C-1 | `stdio_probe.py` 首次运行报 `FileNotFoundError: 'D:\commercial-property-multi-agent\docs\backend'`，子进程无法启动。根因：用 `Path(__file__).parents[2]` 定位仓库根，少算一层（文件位于 `docs/reviews/task033_evidence/`） | 改为 `parents[3]`，重新运行并把真实输出写入 `stdio_probe.txt` | 证据脚本先校验工作目录存在再启动子进程；证据必须来自实际运行，失败输出不能保存为最终证据 |
+
 ## [2026-11-23] Task 032 / 034 返修确认复查发现
 
 - **状态**：DeepSeek [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认上一轮 P2 全部关闭、无新 P1/P2；以下 3 项 P3 已由 Claude Code 再修并自检，未提交。

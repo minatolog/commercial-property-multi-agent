@@ -125,7 +125,69 @@ python -m unittest discover -s tests -p "test_*.py"
 - 审批只产出 `approved_draft`（`executed_side_effects=[]`），**不执行**调账/派单
 - API 请求不能自报身份；审批人只能从服务端白名单选择（`X-Actor-Id` 只是选择，不是认证）
 
-## 5. 已知限制（不夸大）
+## 5. MCP 网关（Task 033）
+
+把受控只读工具以 MCP 服务开放给外部客户端。**当前是 stdio + 开发模式固定主体的第一版，已实施并自检，待独立复查；未推送，不可用于生产。** 网关是薄协议外壳，`ToolExecutor.execute()` 仍是唯一调用入口，不直接调用工具的 `invoke()`。SDK 为 `mcp==2.3.0`（low-level `Server` 的构造函数回调，不是 v1 装饰器写法）。详见 [Task 033 归档](../docs/prompts/04_agents/2026-11-23_033_mcp_gateway.md) 与 [手动连接证据](../docs/reviews/task033_evidence/stdio_probe.txt)。
+
+### 5.1 启动
+
+MCP 客户端会以子进程方式启动它；不要在一个普通交互终端里直接运行后继续输入命令（stdin/stdout 属于协议通道）。
+
+```bash
+cd backend
+python -m app.cli mcp-serve --transport stdio --client local_dev
+```
+
+stdout 只承载 MCP 协议；启动提示“开发模式：固定主体，不可用于生产”与诊断信息只写 stderr。档案不存在、被禁用、列出未注册/非只读工具或工具别名冲突时，进程以退出码 2 结束。
+
+### 5.2 客户端档案
+
+档案位于 `app/config/mcp_clients/<name>.yaml`，pydantic `extra="forbid"`；每会话预算 20 次。
+
+| 档案 | 开发主体 | 开放工具 | 用途 |
+|---|---|---|---|
+| `local_dev` | `principal_ops_xinghui` | 全部 5 个只读工具，含 `billing.arrears.calculate` | 本地 SDK 客户端、调试与手动验证 |
+| `flowise` | `principal_ops_xinghui` | 4 个只读工具，**不含** `billing.arrears.calculate` | 给 Flowise 接入时使用，白名单更保守 |
+
+两者只差工具白名单与档案名；身份、预算与只读约束相同。
+
+### 5.3 安全边界
+
+- **只读**：只开放 `lease.lookup`、`billing.statement.read`、`billing.arrears.calculate`、`property.work_orders.read`、`document.search`；不暴露审批、调账、派单等写操作。写工具即使注册，档案列出也会被拒绝。
+- **身份只来自会话**：`AgentContext` 只能由会话身份与服务端 fixture 主体记录构造；`principal_id`、`permissions`、`project_ids` 等保留键出现在调用参数中直接拒绝（`permission_denied`），不执行工具。
+- **预算按会话**：每个 MCP 连接一个独立 `Budget`，额度来自档案；重连重新计算，不能跨连接共享。
+- **失败不伪装成功**：所有失败返回 `isError: true` 与执行器错误码；网关自身异常只在 stderr 记录堆栈。
+- **开发模式固定主体**：本版没有令牌校验，主体来自档案或 `DEMO_PRINCIPAL_ID`；启动即向 stderr 告警，**不可用于生产**，也不能替代认证。
+
+### 5.4 Flowise 以 stdio 连接
+
+使用 `flowise` 档案，让 Flowise 以子进程方式启动本仓库的 CLI（未在 Flowise 中实测，配置形状以 Flowise 的 Custom MCP Server / stdio 字段为准）：
+
+```json
+{
+  "command": "D:\\anacada\\envs\\commercial-agent\\python.exe",
+  "args": ["-m", "app.cli", "mcp-serve", "--transport", "stdio", "--client", "flowise"],
+  "cwd": "D:\\commercial-property-multi-agent\\backend",
+  "env": {
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1",
+    "DEMO_PRINCIPAL_ID": ""
+  }
+}
+```
+
+要点：
+
+- **工作目录必须是 `backend/`**，否则 `-m app.cli` 找不到包；
+- 使用 Flowise 所在机器上的 Python 解释器路径；若 Flowise 在容器内，需要把仓库挂载进去并安装同一套依赖；
+- 一个 Flowise MCP 连接对应一个 MCP 会话与一份预算；重连会重新计算额度；
+- 不要给服务进程额外注入自报身份参数；身份只由档案（开发模式）决定。
+
+### 5.5 下一版计划
+
+Streamable HTTP + OAuth：令牌校验后把主体映射到 fixture 主体记录，再构造会话身份；`Budget` 按已认证会话计数；同步补充 HTTP 传输、TLS、会话恢复与并发测试。**最大风险是身份与传输会话的生命周期错配**（会话恢复/重连时复用旧主体的范围与预算），细节见 [归档 §9.2](../docs/prompts/04_agents/2026-11-23_033_mcp_gateway.md)。当前版本不实现 HTTP、OAuth 或 TLS，也不接入 Flowise 运行时。
+
+## 6. 已知限制（不夸大）
 
 | 未完成/未验证 | 说明 |
 |---|---|
