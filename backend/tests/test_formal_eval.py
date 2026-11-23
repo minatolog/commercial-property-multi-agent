@@ -44,7 +44,7 @@ def _report(passed: dict[str, bool], *, tokens: int = 100, served: list[str] | N
 
 
 def _write_rep(out: Path, rep: int, reports: dict[str, dict]) -> None:
-    names = {"A_deterministic": ("main", "A_deterministic"), "B_single_agent": ("main", "B_single_agent"),
+    names = {"A_deterministic": ("a", "A_deterministic"), "B_single_agent": ("main", "B_single_agent"),
              "C_rule": ("main", "C_multi_agent"), "C_hybrid": ("hybrid", "C_multi_agent")}
     for group, data in reports.items():
         sub, suffix = names[group]
@@ -130,13 +130,26 @@ class TestRunGuards(unittest.TestCase):
     def test_completed_reps_are_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            _write_rep(out, 1, {"C_rule": _report({"H01": True}), "C_hybrid": _report({"H01": True})})
+            _write_rep(out, 1, {"A_deterministic": _report({"H01": True}), "C_rule": _report({"H01": True}),
+                                "C_hybrid": _report({"H01": True})})
             fresh = {"code_commit": "c", "files": {}, "worktree": "clean", "frozen_at": "x"}
             with mock.patch.object(formal, "freeze_manifest", return_value=fresh), \
                     mock.patch.object(formal.subprocess, "run") as runner:
                 formal.run(reps=1, out=out)
             runner.assert_not_called()
             self.assertTrue((out / "freeze.json").exists())
+
+    def test_missing_offline_a_is_not_treated_as_complete(self) -> None:
+        """A 由单独的离线命令产出；只有 B / C 报告时这一次重复不算完成。"""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            _write_rep(out, 1, {"C_rule": _report({"H01": True}), "C_hybrid": _report({"H01": True})})
+            self.assertFalse(formal._rep_complete(out / "rep1"))
+            commands = [label for label, _ in formal._commands("heldout", out / "rep1")]
+            self.assertEqual(commands, ["a", "main", "hybrid"])
+            a_cmd = dict(formal._commands("heldout", out / "rep1"))["a"]
+            self.assertNotIn("deepseek", a_cmd, "A 必须走离线路径，不调用模型")
 
 
 if __name__ == "__main__":

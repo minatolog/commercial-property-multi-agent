@@ -7,8 +7,9 @@
 - ``C_rule``：多 Agent，规则规划，领域 Agent 用 DeepSeek；
 - ``C_hybrid``：多 Agent，混合规划（规划也用 DeepSeek），领域 Agent 用 DeepSeek。
 
-每次重复执行两条已有的 CLI 命令（不改评测与评分逻辑）::
+每次重复执行三条已有的 CLI 命令（不改评测与评分逻辑）::
 
+    python -m app.cli evaluate --split heldout --baseline A_deterministic --out <rep>/a   # 离线，不花钱
     python -m app.cli evaluate --split heldout --model-provider deepseek --out <rep>/main
     python -m app.cli evaluate --split heldout --model-provider deepseek \\
         --baseline C_multi_agent --planner hybrid --planner-provider deepseek --out <rep>/hybrid
@@ -68,10 +69,19 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def freeze_manifest(*, allow_dirty: bool = False) -> dict[str, Any]:
-    """记录本批次的冻结信息；工作区不干净时拒绝（除非显式允许，仅用于试跑）。"""
+def freeze_manifest(*, allow_dirty: bool = False, out: Path | None = None) -> dict[str, Any]:
+    """记录本批次的冻结信息；工作区不干净时拒绝（除非显式允许，仅用于试跑）。
 
-    dirty = _git("status", "--porcelain", "--", ".", ":(exclude).claude", ":(exclude)tmp")
+    本批次自己的输出目录不算“改动”：否则中断后续跑时，已生成的报告会让检查失败。
+    """
+
+    excludes = [":(exclude).claude", ":(exclude)tmp"]
+    if out is not None:
+        try:
+            excludes.append(f":(exclude){out.resolve().relative_to(REPO_ROOT).as_posix()}")
+        except ValueError:
+            pass  # 输出在仓库外，本来就不影响工作区
+    dirty = _git("status", "--porcelain", "--", ".", *excludes)
     if dirty and not allow_dirty:
         raise SystemExit(
             "工作区有未提交改动，正式评测必须在干净的提交上运行（先提交）：\n" + dirty
@@ -93,23 +103,33 @@ def freeze_manifest(*, allow_dirty: bool = False) -> dict[str, Any]:
 def _commands(split: str, out: Path) -> list[tuple[str, list[str]]]:
     base = [sys.executable, "-m", "app.cli", "evaluate", "--split", split,
             "--model-provider", "deepseek", "--quiet"]
+    # `--model-provider deepseek` 时 runner 不跑 A（A 恒为离线），所以 A 单独跑一条离线命令（不花钱）
+    offline_a = [sys.executable, "-m", "app.cli", "evaluate", "--split", split, "--quiet",
+                 "--baseline", "A_deterministic", "--out", str(out / "a")]
     return [
+        ("a", offline_a),
         ("main", base + ["--out", str(out / "main")]),
         ("hybrid", base + ["--baseline", "C_multi_agent", "--planner", "hybrid",
                            "--planner-provider", "deepseek", "--out", str(out / "hybrid")]),
     ]
 
 
+#: 每条命令完成的标志：该子目录下出现这一组的报告
+_DONE_MARKERS = {"a": "*_A_deterministic.json", "main": "*_C_multi_agent.json", "hybrid": "*_C_multi_agent.json"}
+
+
+def _done(rep_dir: Path, label: str) -> bool:
+    return bool(list((rep_dir / label).glob(_DONE_MARKERS[label])))
+
+
 def _rep_complete(rep_dir: Path) -> bool:
-    main = list((rep_dir / "main").glob("*_C_multi_agent.json"))
-    hybrid = list((rep_dir / "hybrid").glob("*_C_multi_agent.json"))
-    return bool(main) and bool(hybrid)
+    return all(_done(rep_dir, label) for label in _DONE_MARKERS)
 
 
 def run(*, reps: int, out: Path, split: str = "heldout", allow_dirty: bool = False) -> None:
     out.mkdir(parents=True, exist_ok=True)
     manifest_path = out / "freeze.json"
-    manifest = freeze_manifest(allow_dirty=allow_dirty)
+    manifest = freeze_manifest(allow_dirty=allow_dirty, out=out)
     if manifest_path.exists():
         previous = json.loads(manifest_path.read_text(encoding="utf-8"))
         if (previous["code_commit"], previous["files"]) != (manifest["code_commit"], manifest["files"]):
@@ -131,7 +151,7 @@ def run(*, reps: int, out: Path, split: str = "heldout", allow_dirty: bool = Fal
             continue
         for label, command in _commands(split, rep_dir):
             target = rep_dir / label
-            if list(target.glob("*_C_multi_agent.json")):
+            if _done(rep_dir, label):
                 print(f"[formal] rep{rep}/{label} 已完成，跳过", file=sys.stderr)
                 continue
             target.mkdir(parents=True, exist_ok=True)
@@ -142,7 +162,7 @@ def run(*, reps: int, out: Path, split: str = "heldout", allow_dirty: bool = Fal
                     command, cwd=BACKEND_ROOT, env=env, stdout=handle, stderr=subprocess.STDOUT
                 ).returncode
             print(f"[formal] rep{rep}/{label} 退出码 {code}", file=sys.stderr)
-            if not list(target.glob("*_C_multi_agent.json")):
+            if not _done(rep_dir, label):
                 raise SystemExit(f"rep{rep}/{label} 没有生成报告（退出码 {code}），见 {log}")
 
 
@@ -166,10 +186,10 @@ def collect(out: Path) -> list[GroupReport]:
     reports: list[GroupReport] = []
     for rep_dir in sorted(out.glob("rep*"), key=lambda p: int(p.name[3:] or 0)):
         rep = int(rep_dir.name[3:])
+        for path in (rep_dir / "a").glob("*_A_deterministic.json"):
+            reports.append(GroupReport("A_deterministic", rep, _load(path)))
         for path in (rep_dir / "main").glob("*.json"):
-            if path.name.endswith("_A_deterministic.json"):
-                reports.append(GroupReport("A_deterministic", rep, _load(path)))
-            elif path.name.endswith("_B_single_agent.json"):
+            if path.name.endswith("_B_single_agent.json"):
                 reports.append(GroupReport("B_single_agent", rep, _load(path)))
             elif path.name.endswith("_C_multi_agent.json"):
                 reports.append(GroupReport("C_rule", rep, _load(path)))
