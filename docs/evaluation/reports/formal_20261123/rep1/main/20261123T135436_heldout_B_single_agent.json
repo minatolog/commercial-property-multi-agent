@@ -1,0 +1,4399 @@
+{
+  "schema": "evaluation-report-v1",
+  "baseline": "B_single_agent",
+  "split": "heldout",
+  "bindings": {
+    "code_commit": "c6037fe0359973ae0378fcc4167e08471f2faa14",
+    "code_worktree": "dirty",
+    "cases_path": "docs\\evaluation\\cases\\heldout_v3.jsonl",
+    "cases_sha256": "cf22fd467992f6c24d10776124f79ca88aeab773cac0e96efe09659097cd7f4f",
+    "fixture_sha256": "bcff5ce93b9b815c1bd65f15d6bb40f9f7c598a44a54ab86a994fde4a0321ff6",
+    "scoring_version": "scoring-v3.3",
+    "model": {
+      "provider": "deepseek",
+      "model_name": "deepseek-flash",
+      "note": "模型按各 Agent 自己的 YAML 配置创建（provider/model 为合集，逐 Agent 明细见 bindings.models_by_agent）；model_name 为配置名，服务端实际应答模型见 models_by_agent.*.served_models；token 与延迟来自实际调用；成本未内置定价，故不换算金额"
+    },
+    "models_by_agent": {
+      "single": {
+        "provider": "deepseek",
+        "model_name": "deepseek-flash",
+        "temperature": 0.0,
+        "max_tokens": 1024,
+        "timeout_seconds": 60.0,
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "api_key_env_present": true,
+        "client_is_shared": false,
+        "config_source": "single.yaml",
+        "served_models": [
+          "deepseek-flash"
+        ],
+        "served_model_mismatch": false
+      }
+    },
+    "config": {
+      "max_tool_calls": 12,
+      "max_total_tokens": 60000,
+      "baselines": [
+        "A_deterministic",
+        "B_single_agent",
+        "C_multi_agent"
+      ],
+      "model_provider": "deepseek",
+      "tool_permissions": "由 fixture principal 决定；三基线使用同一套只读工具",
+      "planner_mode": "n/a",
+      "planner_provider": null,
+      "hybrid_multi_domain": null
+    }
+  },
+  "started_at": "2026-11-23T13:54:36.711026+00:00",
+  "duration_ms": 212531,
+  "summary": {
+    "cases": 32,
+    "cases_scored": 30,
+    "cases_not_scored": [
+      "H25",
+      "H26"
+    ],
+    "cases_passed": 9,
+    "pass_rate": 0.3,
+    "correctness_rate_mean": 0.6268,
+    "correctness_note": "自动断言通过率；不含 rubric（人工量表）与路由效率",
+    "by_kind": {
+      "tool_facts": {
+        "assertions": 33,
+        "passed": 30,
+        "failed": 3,
+        "rate": 0.9091
+      },
+      "fund_conclusions": {
+        "assertions": 11,
+        "passed": 4,
+        "failed": 7,
+        "rate": 0.3636
+      },
+      "answer_grounding": {
+        "assertions": 11,
+        "passed": 11,
+        "failed": 0,
+        "rate": 1.0
+      },
+      "evidence": {
+        "assertions": 46,
+        "passed": 37,
+        "failed": 9,
+        "rate": 0.8043
+      },
+      "outcome": {
+        "assertions": 9,
+        "passed": 0,
+        "failed": 9,
+        "rate": 0.0
+      },
+      "approval": {
+        "assertions": 2,
+        "passed": 0,
+        "failed": 2,
+        "rate": 0.0
+      }
+    },
+    "fund_conclusions": {
+      "verified": 4,
+      "mismatch": 7,
+      "unverified": 2,
+      "not_checkable": 9,
+      "cases_checked": 22,
+      "verified_rate": 0.1818,
+      "note": "verified=字段金额与工具事实一致；mismatch=结论写错；unverified=叙述未绑定字段（未验证，不算通过）"
+    },
+    "by_kind_note": "tool_facts=内部事实字段；fund_conclusions=最终答案里应收/已收/未收与可信值是否一致；answer_grounding=辅助检查（金额是否都有工具来源）；三者不可互相代替",
+    "routing": {
+      "cases_with_expectation": 32,
+      "route_in_allowed": 0,
+      "note": "仅效率指标，不参与 correctness"
+    },
+    "cost": {
+      "latency_ms_total": 211683,
+      "latency_ms_p50": 5747,
+      "latency_ms_max": 16079,
+      "tool_calls": 69,
+      "model_calls": 78,
+      "total_tokens": 180038,
+      "cost_amount": null,
+      "cost_basis": "unavailable_no_pricing",
+      "note": "真实调用已产生 token，但项目未内置价格表，因此不换算金额"
+    },
+    "manual_queue_count": 6,
+    "failed_cases": [
+      {
+        "case_id": "H01",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ]
+      },
+      {
+        "case_id": "H03",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ]
+      },
+      {
+        "case_id": "H04",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ]
+      },
+      {
+        "case_id": "H05",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ]
+      },
+      {
+        "case_id": "H06",
+        "errors": [
+          "insufficient_evidence: 问题涉及的领域 billing（账单/费用） 没有取得任何事实（查询失败：相关工具调用失败）；其他领域的事实回答不了这个问题，不能算取证"
+        ]
+      },
+      {
+        "case_id": "H07",
+        "errors": []
+      },
+      {
+        "case_id": "H11",
+        "errors": [
+          "insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）"
+        ]
+      },
+      {
+        "case_id": "H12",
+        "errors": [
+          "insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）"
+        ]
+      },
+      {
+        "case_id": "H14",
+        "errors": []
+      },
+      {
+        "case_id": "H15",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 invoiced_total 写成了 15120.00，可信值为 52596.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ]
+      },
+      {
+        "case_id": "H16",
+        "errors": [
+          "insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）"
+        ]
+      },
+      {
+        "case_id": "H17",
+        "errors": [
+          "部分取证：问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具），结果只回答了一部分"
+        ]
+      },
+      {
+        "case_id": "H18",
+        "errors": []
+      },
+      {
+        "case_id": "H19",
+        "errors": [
+          "部分取证：问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具），结果只回答了一部分"
+        ]
+      },
+      {
+        "case_id": "H20",
+        "errors": []
+      },
+      {
+        "case_id": "H23",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 52596.00，可信值为 18036.00"
+        ]
+      },
+      {
+        "case_id": "H24",
+        "errors": []
+      },
+      {
+        "case_id": "H27",
+        "errors": []
+      },
+      {
+        "case_id": "H30",
+        "errors": []
+      },
+      {
+        "case_id": "H31",
+        "errors": []
+      },
+      {
+        "case_id": "H32",
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ]
+      }
+    ],
+    "by_case_count": 32,
+    "models_by_agent": {
+      "single": {
+        "provider": "deepseek",
+        "model_name": "deepseek-flash",
+        "temperature": 0.0,
+        "max_tokens": 1024,
+        "timeout_seconds": 60.0,
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "api_key_env_present": true,
+        "client_is_shared": false,
+        "config_source": "single.yaml",
+        "served_models": [
+          "deepseek-flash"
+        ],
+        "served_model_mismatch": false
+      }
+    },
+    "planning": {}
+  },
+  "rows": [
+    {
+      "case_id": "H01",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 7,
+      "correctness_total": 9,
+      "correctness_rate": 0.7778,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [
+          "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "detail": "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H01-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H01-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H01-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H01-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        },
+        {
+          "assertion_id": "H01-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H01-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H01-N:约 ",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "答案中出现禁用内容: 约 "
+        },
+        {
+          "assertion_id": "H01-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H01-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H01",
+        "status": "ok",
+        "answer": "## 结论\n\nA-301（租约 XH-A301-2025-01，租户 ten_xh_yunduan）最近三个月（2026-08 至 2026-10）：\n\n| 项目 | 金额（CNY） |\n|---|---|\n| 应收合计 | 52,596.00 |\n| 已收合计 | 34,560.00 |\n| **未收合计** | **18,036.00** |\n\n未收金额全部来自 10 月账单 `inv_2026_10`，为 18,036.00；该笔账单尚未收到任何有效付款。8 月与 9 月账单均已结清，未收金额均为 0.00。\n\n## 依据\n\n- `billing.statement.read` / `billing.arrears.calculate`（lease_xh_a301_2025）：\n  - `inv_2026_08`：总额 17,280.00（租金 15,120.00 + 物业费 2,160.00），未收 0.00\n  - `inv_2026_09`：总额 17,280.00（同上构成），未收 0.00\n  - `inv_2026_10`：总额 18,036.00（租金 15,876.00 + 物业费 2,160.00），未收 18,036.00\n  - 有效付款两笔：`pay_2026_08_28` 17,280.00（confirmed）、`pay_2026_09_28` 17,280.00（confirmed）\n- `lease.lookup`（lease_xh_a301_2025）：单元 A-301，面积 120 ㎡；2026 年租金规则 `rule_xh_a301_rent_2026` 单价 126.00/㎡/月，物业费 18.00/㎡/月。\n\n## 待确认事项\n\n1. **10 月租金存在 756.00 的单价差异**：工具输出 `rent_variance` = 756.00、`rent_variance_total` = 756.00。10 月账单租金按 132.30/㎡ 计（即 `rule_xh_a301_rent_2027` 的 2027 年费率），而 2026 年生效费率应为 126.00/㎡。这是否为提前调价或录入错误，需与计费规则负责人核实；本系统只读，未做任何调整。\n2. 租约文件缺失：`missing_document_ids` 含 `doc_xh_a301_annex_b`（附件 B），建议补档。\n3. 本系统为只读查询，未执行催缴、减免或调账等任何操作。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 7710,
+        "tool_calls": 3,
+        "model_calls": 3,
+        "total_tokens": 8565,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H02",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 9,
+      "correctness_total": 9,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "verified",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [],
+        "detail": "字段金额与工具事实一致"
+      },
+      "answer_verified": true,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H02-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H02-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H02-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H02-FN",
+          "kind": "fund",
+          "passed": true,
+          "detail": "字段金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H02-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H02-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H02-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H02-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H02-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H02",
+        "status": "ok",
+        "answer": "## 结论\n\n**账面上应收、已收和未收的金额能对上，但其中有一笔账单存在计费疑点，需要先核实，再判断是否确实欠缴。**\n\n## 核对依据（billing.statement.read、billing.arrears.calculate）\n\n| 项目 | 金额（CNY） | 来源 |\n|---|---|---|\n| 应收合计 invoiced_total | 52,596.00 | 两个账单工具一致 |\n| 已收合计 paid_total | 34,560.00 | 两个账单工具一致 |\n| 未收合计 outstanding_total | 18,036.00 | 两个账单工具一致 |\n| 未收账单 | inv_2026_10 | outstanding_invoice_ids |\n\n- 账单明细：inv_2026_08 = 17,280.00，inv_2026_09 = 17,280.00，inv_2026_10 = 18,036.00（三条记录的 outstanding 分别为 0.00、0.00、18,036.00）。\n- 有效付款：pay_2026_08_28 为 17,280.00（2026-08-28，confirmed）、pay_2026_09_28 为 17,280.00（2026-09-28，confirmed），两笔合计 34,560.00，分别与 8 月、9 月账单对应；工具返回的核销记录为 alloc_001、alloc_002。\n- 因此，34,560.00 + 18,036.00 = 52,596.00。按工具输出，账面金额的合计关系是闭合的。\n\n## 需要注意的计费疑点（重要）\n\ninv_2026_10 的租金不是按合同当期单价计收的：\n\n- 该账单租金明细 itm_inv10_rent：数量 120.0000，单价 **132.3000**，金额 15,876.00。\n- 该账单的 expected_rent 为 15,120.00，**rent_variance = 756.00**；账单层的 rent_variance_total 也是 756.00。\n- 按 lease.lookup 的规则：rule_xh_a301_rent_2026 的有效期是 2026-01-01 至 2026-12-31，单价为 **126.0000**；单价 132.3000 属于 rule_xh_a301_rent_2027，有效期为 2027-01-01 至 2027-12-31。\n- inv_2026_10 的计费期间是 2026-10-01 至 2026-10-31，却使用了 2027 年的单价。工具已明确给出差额 756.00，即为多计金额，本回复不做另外推算。\n\n也就是说：**账目上已经对得上，但这笔未收金额（18,036.00）中包含 756.00 的单价错配差额**；如果该差额确实属于误计，那么实际未收金额应当以调整后的账单为准。目前该账单尚未调整，仍处于未收状态。\n\n## 待确认\n\n1. inv_2026_10 使用 132.3000 单价，是否另有经批准的调价、补充协议或临时约定；合同缺失附件 **doc_xh_a301_annex_b**（lease.lookup 的 missing_document_ids），该附件可能包含相关约定，需要补齐。\n2. 本次只调用了租约与账单工具，未查询工单；如果该差额与工程或维保补偿有关，需另行核对。\n\n## 说明\n\n以上均为只读查询结果，我没有也无法执行任何减免、调账或催缴操作；如需按 126.0000 单价更正 inv_2026_10，须走正式的账单调整或减免流程。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 10724,
+        "tool_calls": 3,
+        "model_calls": 3,
+        "total_tokens": 9123,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H03",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 7,
+      "correctness_total": 9,
+      "correctness_rate": 0.7778,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          },
+          {
+            "field": "invoiced_total",
+            "value": "52596.00",
+            "expected": "52596.00"
+          },
+          {
+            "field": "paid_total",
+            "value": "34560.00",
+            "expected": "34560.00"
+          }
+        ],
+        "problems": [
+          "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "detail": "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H03-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H03-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H03-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H03-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        },
+        {
+          "assertion_id": "H03-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H03-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H03-N:约 ",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "答案中出现禁用内容: 约 "
+        },
+        {
+          "assertion_id": "H03-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H03-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H03",
+        "status": "ok",
+        "answer": "**结论：A-301 当前未收余额为 CNY 18,036.00**（租约 lease_xh_a301_2025）。\n\n**依据**\n- 工具 `billing.arrears.calculate`：应收合计 52,596.00，已收 34,560.00，未收 18,036.00；未收账单为 `inv_2026_10`。\n- 工具 `billing.statement.read`：`inv_2026_10`（2026-10-01 至 2026-10-31）总额 18,036.00，未收 18,036.00，其中租金 15,876.00（120 × 132.3000）、物业费 2,160.00（120 × 18.0000）。\n- 2026-08、2026-09 两期账单各 17,280.00 均已结清；有效付款两笔共 34,560.00（`pay_2026_08_28`、`pay_2026_09_28`）。\n\n**待确认**\n- `inv_2026_10` 记录的租金差异（rent_variance）为 756.00，即本期租金单价为 132.3000，而与前期 126.0000 及预期租金 15,120.00 相比存在差额；如需确认该调价依据，应另行核对租约条款（本次未查询租约工具）。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "lease_xh_a301_2025",
+          "rule_xh_a301_rent_2026"
+        ],
+        "route": "single_agent",
+        "latency_ms": 2827,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 4174,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H04",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 8,
+      "correctness_total": 9,
+      "correctness_rate": 0.8889,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "0.00",
+            "expected": "18036.00"
+          },
+          {
+            "field": "paid_total",
+            "value": "34560.00",
+            "expected": "34560.00"
+          }
+        ],
+        "problems": [
+          "字段 outstanding_total 写成了 0.00，可信值为 18036.00",
+          "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "detail": "字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H04-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H04-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H04-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H04-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        },
+        {
+          "assertion_id": "H04-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H04-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H04-N:约 ",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H04-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H04-N:左右",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H04",
+        "status": "ok",
+        "answer": "## 结论\n\n**A-301 的八月和九月账单均已结清**，这两个月的账单未收金额均为 0.00。\n\n## 依据\n\n数据来源：`billing.statement.read` + `billing.arrears.calculate`（lease_xh_a301_2025，币种 CNY）\n\n| 账期 | 账单号 | 金额 | 未收 | 核销记录 |\n|---|---|---|---|---|\n| 2026-08-01 ~ 2026-08-31 | inv_2026_08 | 17,280.00 | 0.00 | pay_2026_08_28，17,280.00，2026-08-28，confirmed |\n| 2026-09-01 ~ 2026-09-30 | inv_2026_09 | 17,280.00 | 0.00 | pay_2026_09_28，17,280.00，2026-09-28，confirmed |\n| 2026-10-01 ~ 2026-10-31 | inv_2026_10 | 18,036.00 | 18,036.00 | 无 |\n\n这两个月的账单各包含两项：租金 15,120.00（120.0000 × 126.0000）和物业费 2,160.00（120.0000 × 18.0000），合计 17,280.00；两个月的未收金额和租金差异均为 0.00，各有一笔金额相匹配的 confirmed 付款完成核销。\n\n整份租约汇总：已开票 52,596.00，已收 34,560.00，未收 18,036.00；未收明细**仅**来自十月的账单 inv_2026_10，与八月和九月无关。\n\n## 待确认（以下仅为提示，不作结论）\n\n1. **十月账单租金单价存在偏差**：inv_2026_10 的租金明细按 132.3000 计价（15,876.00），而 `lease.lookup` 显示 2026 年适用的规则 rule_xh_a301_rent_2026 单价为 126.0000（132.3000 属于 2027 年规则 rule_xh_a301_rent_2027）。工具输出的十月 rent_variance 为 756.00。建议核实十月账单计价是否串用了年度费率。\n2. **租约文档不完整**：`lease.lookup` 的 missing_document_ids 含 doc_xh_a301_annex_b（附件 B 缺失），可能影响收费规则或面积口径的完整性核对。\n3. 本次仅回答了账单结清状态，未查看维修工单等其他事实。\n\n以上均为只读查询结果，未执行任何减免、调账或催缴操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 5225,
+        "tool_calls": 3,
+        "model_calls": 2,
+        "total_tokens": 5232,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H05",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 4,
+      "correctness_rate": 0.75,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          },
+          {
+            "field": "paid_total",
+            "value": "34560.00",
+            "expected": "34560.00"
+          }
+        ],
+        "problems": [
+          "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "detail": "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H05-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H05-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        },
+        {
+          "assertion_id": "H05-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H05-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H05",
+        "status": "ok",
+        "answer": "**结论：A-301 尚欠 18,036.00 元，对应 2026 年 10 月账单 `inv_2026_10`。** 截至本次查询，这是该租约唯一未结清的账单。\n\n**依据（来源：billing.statement.read / billing.arrears.calculate，租约 lease_xh_a301_2025，币种 CNY）**\n- 开票总额：52,596.00 元；已收总额：34,560.00 元；未收总额：18,036.00 元；两个工具读数一致。\n- 未结清账单仅有 `inv_2026_10`（账期 2026-10-01 至 2026-10-31）：总额 18,036.00 元，未收 18,036.00 元。明细为租金 15,876.00 元（120 单位 × 132.30）和物业费 2,160.00 元（120 × 18.00）。\n- 已结清：`inv_2026_08`（17,280.00，未收 0.00）、`inv_2026_09`（17,280.00，未收 0.00）；对应有效付款 `pay_2026_08_28`（17,280.00，confirmed）、`pay_2026_09_28`（17,280.00，confirmed）。\n\n**待确认（异常提示）**\n- `inv_2026_10` 的租金单价为 132.30，而 8、9 月为 126.00，工具记录该期间的租金差异 `rent_variance` = 756.00 元（`rent_variance_total` 同为 756.00）。是否需要复核这一调价依据，请与计费规则 `rule_xh_a301_rent_2026` 的适用条款核对；我不对差异成因作推断。\n\n以上均为只读查询结果，未执行任何催缴、调账或减免操作。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4143,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 3713,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H06",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 3,
+      "correctness_rate": 0.3333,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H06-N:18036.00",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H06-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "应被拒绝，实际 status=failed"
+        },
+        {
+          "assertion_id": "H06-O:code",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "期望错误码 permission_denied，实际 ['insufficient_evidence: 问题涉及的领域 billing（账单/费用） 没有取得任何事实（查询失败：相关工具调用失败）；其他领域的事实回答不了这个问题，不能算取证']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H06",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "single_agent",
+        "latency_ms": 6130,
+        "tool_calls": 1,
+        "model_calls": 3,
+        "total_tokens": 5113,
+        "errors": [
+          "insufficient_evidence: 问题涉及的领域 billing（账单/费用） 没有取得任何事实（查询失败：相关工具调用失败）；其他领域的事实回答不了这个问题，不能算取证"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [],
+            "served_model_mismatch": null
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H07",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "answer_check": {
+        "status": "incomplete",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "17280.00",
+          "18.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "51840.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [
+          "51840.00"
+        ],
+        "detail": "答案未提及这些金额: 51840.00"
+      },
+      "fund_check": {
+        "status": "unverified",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "叙述没有把金额绑定到应收/已收/未收字段，无法核对"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H07-FN: 叙述没有把金额绑定到应收/已收/未收字段，无法核对",
+        "H07-AN: 答案未提及这些金额: 51840.00"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "H07-F:outstanding_total",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 outstanding_total=18036.00，实际 17280.00"
+        },
+        {
+          "assertion_id": "H07-FN",
+          "kind": "fund",
+          "passed": null,
+          "detail": "叙述没有把金额绑定到应收/已收/未收字段，无法核对"
+        },
+        {
+          "assertion_id": "H07-AN",
+          "kind": "answer",
+          "passed": null,
+          "detail": "答案未提及这些金额: 51840.00"
+        },
+        {
+          "assertion_id": "H07-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H07",
+        "status": "ok",
+        "answer": "## 结论\n\n**一致。** A-301 十月（2026-10-01 至 2026-10-31）账单租金为 **15,120.00 CNY**，与合同 2026 年度租金档位单价 **126.0000 CNY/㎡** 匹配，工具给出的租金偏差 `rent_variance = 0.00`。\n\n## 依据\n\n**合同档位**（`lease__lookup`，lease_xh_a301_2025 / XH-A301-2025-01，状态 active，2025-01-01 至 2027-12-31）：\n- 2025 年：rule_xh_a301_rent_2025，单价 120.0000 CNY/㎡\n- 2026 年：rule_xh_a301_rent_2026，单价 126.0000 CNY/㎡ ← 十月适用\n- 2027 年：rule_xh_a301_rent_2027，单价 132.3000 CNY/㎡\n- 物业费：rule_xh_a301_pf_all，单价 18.0000 CNY/㎡（计费方式均为 per_sqm）\n\n**十月账单**（`billing__statement__read`，inv_2026_10）：\n- 租金明细 itm_inv10_rent：金额 15,120.00，数量 120.0000，单价 126.0000（charge_type = rent）\n- 物业费明细 itm_inv10_pf：金额 2,160.00，数量 120.0000，单价 18.0000\n- 账单合计 17,280.00，`expected_rent` 15,120.00，`rent_variance` 0.00\n- 同一单价在 8 月（inv_2026_08）、9 月（inv_2026_09）账单中一致，三期 `rent_variance_total` 均为 0.00\n\n**收款情况**（附注）：inv_2026_10 尚未结清，`outstanding` 17,280.00；已确认付款为 pay_2026_08_28、pay_2026_09_28 各 17,280.00，`paid_total` 34,560.00。\n\n## 待确认\n\n- 合同附件 **doc_xh_a301_annex_b 在系统中缺失**（`missing_document_ids`），已归档的仅有 doc_xh_a301_contract。若\"档位\"含附件中的阶梯/特殊约定条款，则该部分未能核对，建议补齐附件后再确认。\n- 本次仅核对 2026 年 10 月。若需核对其他月份或全部账单，需另行取数。\n\n以上均为只读查询结果，未执行任何减免、调账或催缴操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "51840.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "17280.00",
+          "rent_variance_total": "0.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 6032,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 5188,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "17280.00",
+          "18.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "51840.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H08",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "incomplete",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [
+          "34560.00",
+          "52596.00"
+        ],
+        "detail": "答案未提及这些金额: 34560.00, 52596.00"
+      },
+      "fund_check": {
+        "status": "verified",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [],
+        "detail": "字段金额与工具事实一致"
+      },
+      "answer_verified": true,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H08-AN: 答案未提及这些金额: 34560.00, 52596.00"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "H08-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H08-FN",
+          "kind": "fund",
+          "passed": true,
+          "detail": "字段金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H08-AN",
+          "kind": "answer",
+          "passed": null,
+          "detail": "答案未提及这些金额: 34560.00, 52596.00"
+        },
+        {
+          "assertion_id": "H08-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H08",
+        "status": "ok",
+        "answer": "## 结论\n\n**不一致。** A-301 十月（2026-10）账单的租金单价采用了 2027 年的合同档位 132.30 元/㎡，而该月应适用 2026 年的 126.00 元/㎡，因此租金金额偏高 **756.00 元**。\n\n## 依据\n\n**合同档位（`lease.lookup` / lease_xh_a301_2025）**\n| 规则 | 计费方式 | 单价（元/㎡） | 有效期 |\n|---|---|---|---|\n| rule_xh_a301_rent_2025 | per_sqm | 120.0000 | 2025-01-01 ~ 2025-12-31 |\n| **rule_xh_a301_rent_2026** | per_sqm | **126.0000** | 2026-01-01 ~ 2026-12-31 |\n| rule_xh_a301_rent_2027 | per_sqm | 132.3000 | 2027-01-01 ~ 2027-12-31 |\n| rule_xh_a301_pf_all | per_sqm | 18.0000 | 2025-01-01 ~ 2027-12-31 |\n\n**十月账单（`billing.statement.read` / inv_2026_10，期间 2026-10-01 ~ 2026-10-31）**\n- 租金明细：itm_inv10_rent，数量 120.0000 ㎡ × 单价 **132.3000** = **15876.00 元**\n- 合同档位下的应计租金：expected_rent = **15120.00 元**（工具输出）\n- 租金偏差：rent_variance = **756.00 元**（工具输出）\n- 物业费明细：itm_inv10_pf 2160.00 元，单价 18.0000，与合同规则一致\n- 账单合计 18036.00 元，未收 18036.00 元（outstanding_invoice_ids: inv_2026_10）\n\n**对比佐证**：八月、九月账单（inv_2026_08、inv_2026_09）的租金单价均为 126.0000、金额 15120.00、偏差 0.00；这两张账单已分别由 pay_2026_08_28 和 pay_2026_09_28 全额付清。只有十月账单的单价跳到了 132.3000，而这正是 2027 年的档位单价。\n\n## 待确认\n\n1. **`doc_xh_a301_annex_b` 缺失**：租约记录将该附件列为 missing_document_ids，它可能是补充协议；若其中另有价格调整约定，会影响“应以哪个档位为准”的判定。当前结论仅基于租约中已列示的规则表。\n2. **“十月”的口径**：账单返回的记录只覆盖 2026-08 至 2026-10。若要核对 **2025 年 10 月**，本次工具输出中没有该期账单，无法核对，需要补充取数。\n3. 偏差成因（是费率适用错误，还是其他安排）无法从只读数据判定。\n\n## 说明\n\n以上均为只读查询结果，我未执行任何调账、减免或催缴操作；上述未收金额仅作事实呈现。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 6668,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 5316,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H09",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H09-F:lease_period",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_period=2025-01-01 至 2027-12-31，实际 2025-01-01 至 2027-12-31"
+        },
+        {
+          "assertion_id": "H09-F:lease_status",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_status=active，实际 active"
+        },
+        {
+          "assertion_id": "H09-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H09",
+        "status": "ok",
+        "answer": "**结论：A-301 的租期为 2025-01-01 至 2027-12-31。**\n\n依据（来自 `lease.lookup`，记录 `lease_xh_a301_2025`）：\n- 商铺：A-301（unit_id: unit_xh_a301），项目 prj_xinghui\n- 租约编号：XH-A301-2025-01\n- 起租日：2025-01-01\n- 到期日：2027-12-31\n- 状态：active（生效中）\n\n补充信息（同一条工具记录）：租金分段为 2025 年 120.00/㎡、2026 年 126.00/㎡、2027 年 132.30/㎡，物业费 18.00/㎡（2025-01-01 至 2027-12-31），保证金 40,000.00 CNY。\n\n待确认：\n- 引用文档中 `doc_xh_a301_annex_b` 标记为缺失（missing_document_ids），如需核对附件 B 条款，目前无法从已存文档确认。\n- 本次未查询账单与工单，租期外的实际履约情况不在结论范围内。\n\n说明：首次调用因同时传入 lease_id 与 unit_code 被判为参数无效，改为仅按 lease_id 查询后成功。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4898,
+        "tool_calls": 1,
+        "model_calls": 3,
+        "total_tokens": 5089,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H10",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H10-F:lease_period",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_period=2025-03-01 至 2027-02-28，实际 2025-03-01 至 2027-02-28"
+        },
+        {
+          "assertion_id": "H10-F:lease_status",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 lease_status=active，实际 active"
+        },
+        {
+          "assertion_id": "H10-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H10",
+        "status": "ok",
+        "answer": "**结论：A-302（租约 `lease_xh_a302_2025`，租约编号 XH-A302-2025-01）的租期为 2025-03-01 至 2027-02-28，当前状态为 active。**\n\n依据：`lease.lookup` 返回的记录（lease_id = `lease_xh_a302_2025`，unit_code = A-302）：\n- 起始日（start_date）：2025-03-01\n- 到期日（end_date）：2027-02-28\n- 租约状态（status）：active\n- 关联方：项目 `prj_xinghui`，租户 `ten_xh_wenju`，单元 `unit_xh_a302`；押金 30,000.00 CNY\n\n说明与待确认：\n- 首次调用因同时传入 lease_id 与 unit_code 被判定为 `invalid_tool_arguments`；仅用 lease_id 重试后成功，上述数据即来自该次成功结果。\n- 该租约记录中 `document_ids`、`signed_document_ids`、`draft_document_ids`、`missing_document_ids` 均为空数组，`rules` 为空——即当前无关联文档与收费规则可供核对，租期条款本身也无合同文本佐证。如需以合同原文确认，请另行提供文档来源。\n- 此处租期为工具返回的日期事实；是否已续租、有无免租期/装修期等附加期限，本次数据未包含，属待确认项。",
+        "facts": {
+          "lease_period": "2025-03-01 至 2027-02-28",
+          "lease_status": "active",
+          "unit_code": "A-302",
+          "lease_id": "lease_xh_a302_2025",
+          "missing_document_ids": []
+        },
+        "evidence_ids": [
+          "lease_xh_a302_2025",
+          "unit_xh_a302",
+          "ten_xh_wenju"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4429,
+        "tool_calls": 1,
+        "model_calls": 3,
+        "total_tokens": 4787,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "30000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H11",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 3,
+      "correctness_rate": 0.3333,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H11-N:2028-05-31",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H11-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "应被拒绝，实际 status=failed"
+        },
+        {
+          "assertion_id": "H11-O:code",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "期望错误码 project_scope_denied，实际 ['insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H11",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "single_agent",
+        "latency_ms": 5156,
+        "tool_calls": 1,
+        "model_calls": 3,
+        "total_tokens": 4674,
+        "errors": [
+          "insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [],
+            "served_model_mismatch": null
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H12",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 3,
+      "correctness_rate": 0.3333,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H12-N:2027-12-31",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H12-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "应被拒绝，实际 status=failed"
+        },
+        {
+          "assertion_id": "H12-O:code",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "期望错误码 permission_denied，实际 ['insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H12",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "single_agent",
+        "latency_ms": 3922,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 2546,
+        "errors": [
+          "insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [],
+            "served_model_mismatch": null
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H13",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 3,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H13-F:open_count",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 open_count=1，实际 1"
+        },
+        {
+          "assertion_id": "H13-F:work_order_count",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 work_order_count=4，实际 4"
+        },
+        {
+          "assertion_id": "H13-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H13",
+        "status": "ok",
+        "answer": "**结论：A-301（lease_xh_a301_2025）共有 4 条维修工单；其中 1 条未关闭，3 条已关闭。**\n\n依据：工具 `property.work_orders.read`，查询 lease_id = lease_xh_a301_2025。\n\n| 工单号 | 类别 | 标题 | 报修时间 | 状态 | 完成时间 |\n|---|---|---|---|---|---|\n| wo_2026_07_12 | hvac | 空调制冷不足 | 2026-07-12 13:20 | closed | 2026-07-15 17:00 |\n| wo_2026_08_18 | hvac | 空调再次停机 | 2026-08-18 11:05 | closed | 2026-08-22 16:30 |\n| wo_2026_09_25 | hvac | 空调异味并伴有噪音 | 2026-09-25 14:40 | **in_progress** | 尚无 |\n| wo_2026_10_20 | electrical | 插座跳闸 | 2026-10-20 09:15 | closed | 2026-10-20 15:00 |\n\n未关闭的那条工单是 **wo_2026_09_25**，属于 HVAC 类，优先级为 high，已经报修且至今未完成；截至工具数据，它没有完成时间。\n\n待确认：本次查询按 lease_id 取数，返回结果中的 unit_id 为空，因此没有独立核验该租约与“A-301”商铺代码是否一致；如果需要确认，可以再按 unit_code 查一次租约档案。",
+        "facts": {
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "single_agent",
+        "latency_ms": 3205,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3580,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "1.00",
+          "4.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H14",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H14-F:work_order_count",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 work_order_count=3，实际 4"
+        },
+        {
+          "assertion_id": "H14-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H14",
+        "status": "ok",
+        "answer": "## 结论\n\nA-301（租约 lease_xh_a301_2025）的空调相关报修共有 **3 条**，工单分类均为 `hvac`；其中 2 条已关闭，1 条仍在处理中。\n\n## 依据（来自 `property.work_orders.read`，按 lease_id=lease_xh_a301_2025 查询）\n\n| 工单号 | 标题 | 分类 | 优先级 | 报修时间 | 完成时间 | 状态 |\n|---|---|---|---|---|---|---|\n| wo_2026_07_12 | 空调制冷不足 | hvac | normal | 2026-07-12 13:20 | 2026-07-15 17:00 | closed |\n| wo_2026_08_18 | 空调再次停机 | hvac | high | 2026-08-18 11:05 | 2026-08-22 16:30 | closed |\n| wo_2026_09_25 | 空调异味并伴有噪音 | hvac | high | 2026-09-25 14:40 | —（null） | in_progress |\n\n同一批数据共返回 4 条工单，其中另一条是 `wo_2026_10_20`「插座跳闸」（category: electrical，已关闭），不属于空调相关，因此未计入。\n\n## 补充说明\n\n- 工具返回的汇总字段为 `work_order_count: 4`、`open_count: 1`，与上表的明细一致：未结工单是 wo_2026_09_25。\n- 租约信息用于确认对应关系：`lease.lookup` 显示该租约对应 unit_code **A-301**、unit_id `unit_xh_a301`、状态 active。\n- 待确认：`lease.lookup` 显示缺少文档 `doc_xh_a301_annex_b`（附件B），目前尚未看到其内容；该缺失不影响本次工单计数，但如果需要核对空调维保责任归属，还需查阅该附件。\n- 本系统仅提供只读查询，未对上述工单做任何派单、催办或修改。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4968,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 4323,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "4.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H15",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 4,
+      "correctness_total": 5,
+      "correctness_rate": 0.8,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "paid_total",
+            "value": "34560.00",
+            "expected": "34560.00"
+          },
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          },
+          {
+            "field": "invoiced_total",
+            "value": "15120.00",
+            "expected": "52596.00"
+          }
+        ],
+        "problems": [
+          "字段 invoiced_total 写成了 15120.00，可信值为 52596.00",
+          "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "detail": "字段 invoiced_total 写成了 15120.00，可信值为 52596.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H15-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H15-F:work_order_count",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 work_order_count=4，实际 4"
+        },
+        {
+          "assertion_id": "H15-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "字段 invoiced_total 写成了 15120.00，可信值为 52596.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        },
+        {
+          "assertion_id": "H15-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H15-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H15",
+        "status": "ok",
+        "answer": "## 核对结论\n\n### 1. 空调维修工单：确实存在多次报修，目前仍有 1 单在处理中\n\n| 工单号 | 报修时间 | 事项 | 状态 | 完成时间 |\n|---|---|---|---|---|\n| wo_2026_07_12 | 2026-07-12 | 空调制冷不足 | 已关闭 | 2026-07-15 |\n| wo_2026_08_18 | 2026-08-18 | 空调再次停机 | 已关闭 | 2026-08-22 |\n| wo_2026_09_25 | 2026-09-25 | 空调异味并伴有噪音 | 处理中 | 未完成 |\n| wo_2026_10_20 | 2026-10-20 | 插座跳闸 | 已关闭 | 2026-10-20 |\n\n依据：`property.work_orders.read` 返回该租约共 4 条工单，其中空调类 3 条、未关闭 1 条。前两次空调维修虽已关闭，但后续再次报修，说明“多次维修”情况在工单记录中成立；是否属于同一故障根因，当前工单摘要未说明。\n\n### 2. 账单：8、9 月已结清；10 月账单未结清，并存在租金差异\n\n`billing.statement.read` 与 `billing.arrears.calculate` 显示：\n\n- 已开票总额：CNY 52,596.00\n- 已收总额：CNY 34,560.00\n- 未收总额：CNY 18,036.00\n- 未结清账单：`inv_2026_10`\n\n| 账单 | 期间 | 租金 | 物业费 | 账单合计 | 未收金额 | 租金差异 |\n|---|---|---|---|---|---|---|\n| inv_2026_08 | 2026-08 | 15,120.00 | 2,160.00 | 17,280.00 | 0.00 | 0.00 |\n| inv_2026_09 | 2026-09 | 15,120.00 | 2,160.00 | 17,280.00 | 0.00 | 0.00 |\n| inv_2026_10 | 2026-10 | 15,876.00 | 2,160.00 | 18,036.00 | 18,036.00 | 756.00 |\n\n`inv_2026_10` 的租金单价为 **132.3000**，账单记录中的“应收租金”为 **15,120.00**，因此形成 **756.00** 的租金差异。\n\n### 3. 租金差异与租约费率存在明显不一致\n\n`lease.lookup` 显示：\n\n- `rule_xh_a301_rent_2026`：有效期 **2026-01-01 至 2026-12-31**，单价 **126.0000**\n- `rule_xh_a301_rent_2027`：有效期 **2027-01-01 至 2027-12-31**，单价 **132.3000**\n- `rule_xh_a301_pf_all`：物业费单价 **18.0000**\n\n因此，`inv_2026_10` 对应的是 **2026 年 10 月**，但账单实际使用的租金单价为 2027 年适用的 **132.3000**，与 2026 年适用单价 **126.0000** 不一致。这与“租金金额有争议”的记录相符。\n\n## 待确认\n\n1. `inv_2026_10` 为何提前使用 2027 年租金单价，工具输出未给出原因。\n2. 租约存在缺失文档 `doc_xh_a301_annex_b`，无法确认附件是否包含租金调整或空调维修责任等特别约定。\n3. 当前只有工单摘要，无法确认三次空调故障是否属于同一根因，以及前两次关闭是否代表问题已彻底解决。\n\n本次仅完成只读核对，未执行任何减免、调账、催缴或派单操作。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "work_order_count": "4",
+          "open_count": "1",
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "single_agent",
+        "latency_ms": 14550,
+        "tool_calls": 5,
+        "model_calls": 3,
+        "total_tokens": 11002,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 invoiced_total 写成了 15120.00，可信值为 52596.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H16",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 3,
+      "correctness_rate": 0.3333,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H16-N:wo_2026_07_12",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H16-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "应被拒绝，实际 status=failed"
+        },
+        {
+          "assertion_id": "H16-O:code",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "期望错误码 project_scope_denied，实际 ['insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H16",
+        "status": "failed",
+        "answer": "",
+        "facts": {},
+        "evidence_ids": [],
+        "route": "single_agent",
+        "latency_ms": 5656,
+        "tool_calls": 2,
+        "model_calls": 3,
+        "total_tokens": 5352,
+        "errors": [
+          "insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证）"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [],
+            "served_model_mismatch": null
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H17",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H17-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p12#5.2']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H17",
+        "status": "ok",
+        "answer": "**结论：合同期 2025-01-01 至 2027-12-31 内，租金按“每平方米单价”分三个年度档递增；物业费单价在三年内保持不变。**\n\n## 依据：lease.lookup 返回的收费规则\n\n| 规则 ID | 费用类型 | 计费方式 | 单价（元/㎡） | 生效期间 |\n|---|---|---|---|---|\n| rule_xh_a301_rent_2025 | 租金 | per_sqm | 120.0000 | 2025-01-01 ~ 2025-12-31 |\n| rule_xh_a301_rent_2026 | 租金 | per_sqm | 126.0000 | 2026-01-01 ~ 2026-12-31 |\n| rule_xh_a301_rent_2027 | 租金 | per_sqm | 132.3000 | 2027-01-01 ~ 2027-12-31 |\n| rule_xh_a301_pf_all | 物业费 | per_sqm | 18.0000 | 2025-01-01 ~ 2027-12-31 |\n\n租约头信息（来自同一工具返回，lease_id 为 lease_xh_a301_2025，租约编号为 XH-A301-2025-01，商铺为 A-301，状态为 active）：\n- 起租日 2025-01-01，到期日 2027-12-31\n- 币种 CNY，保证金 40000.00\n- 引用文档：doc_xh_a301_contract（已签署）\n\n## 说明与待确认\n\n- 上述递增表现为**年度阶梯单价**（120 → 126 → 132.3 元/㎡），每个自然年度适用一档，跨年时按对应规则切换。\n- **递增比例或递增条款正文**：需要查阅合同文本 doc_xh_a301_contract 才能确认合同原文表述；根据规则要求，本次没有自行计算百分比。\n- **附件缺失**：工具返回的 missing_document_ids 中包含 `doc_xh_a301_annex_b`，与租金递增相关的附件条款可能不完整，建议补齐后再核对。\n- 计租面积未在本次返回中给出，因此未能核算各年度月租金总额；如需该金额，请指示继续查取明细。\n\n本次仅为只读查询，未做任何减免、调账或修改性操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4052,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3734,
+        "errors": [
+          "部分取证：问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具），结果只回答了一部分"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H18",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 2,
+      "correctness_rate": 0.5,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "unverified",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "叙述没有把金额绑定到应收/已收/未收字段，无法核对"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H18-FN: 叙述没有把金额绑定到应收/已收/未收字段，无法核对"
+      ],
+      "assertions": [
+        {
+          "assertion_id": "H18-FN",
+          "kind": "fund",
+          "passed": null,
+          "detail": "叙述没有把金额绑定到应收/已收/未收字段，无法核对"
+        },
+        {
+          "assertion_id": "H18-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H18-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p20#7.1']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H18",
+        "status": "ok",
+        "answer": "## 结论\n\n**现有工具无法回答“租金减免需要什么审批流程”。** 本系统提供的 4 个只读工具只覆盖租约条款、账单与核销、维修工单三类事实，均不包含审批流程或审批权限的配置数据。`lease.lookup` 对 `lease_xh_a301_2025` 返回的字段只有租期、状态、收费规则和文档引用，没有审批条款。\n\n因此，审批层级、所需单据、审批人和留档要求都属于**待确认**，需要到以下来源核实：\n- 已签署合同 `doc_xh_a301_contract`（系统中只有文档 ID，没有正文）；\n- 缺失附件 `doc_xh_a301_annex_b`（`lease.lookup` 的 `missing_document_ids` 中列出，可能包含补充条款）；\n- 项目或公司的减免审批制度（不在本工具范围内）。\n\n## 顺带发现：本次减免前可能先要处理一项计价问题\n\n`billing.statement.read` 显示，`inv_2026_10`（2026-10-01～2026-10-31）的 `rent_variance = 756.00`，该期租金明细 `itm_inv10_rent` 按单价 **132.3000** 计得 15876.00；但 `lease.lookup` 中 2026 年适用的 `rule_xh_a301_rent_2026` 单价为 **126.0000**，而 132.3000 对应的是 2027-01-01 起生效的 `rule_xh_a301_rent_2027`。\n\n也就是说，这笔差异看起来是**适用规则或单价区间取错**，而不是需要走减免审批的商业让步。若核实确为计价错误，通常应按账单更正处理，而不是按减免审批处理。该判断目前仍属推断，需业务确认；本系统只能查询，不能变更。\n\n## 该租约与账单现状（工具事实）\n\n| 项目 | 值 | 来源 |\n|---|---|---|\n| 租约状态 | active，2025-01-01 至 2027-12-31 | lease.lookup |\n| 单元 | A-301 / `unit_xh_a301`，租户 `ten_xh_yunduan` | lease.lookup |\n| 租金单价 | 2025：120.0000；2026：126.0000；2027：132.3000（per_sqm） | lease.lookup |\n| 物业费单价 | 18.0000（2025-01-01 至 2027-12-31） | lease.lookup |\n| 已开票合计、已收、未收 | 52596.00、34560.00、18036.00 | billing.statement.read |\n| 未收账单 | `inv_2026_10`，outstanding 18036.00 | billing.statement.read |\n| 有效付款 | `pay_2026_08_28` 17280.00、`pay_2026_09_28` 17280.00（均 confirmed） | billing.statement.read |\n\n本次未查询维修工单，因为既未提供 unit_id，也与审批流程无关；如需，我可以再查。\n\n## 待确认清单\n\n1. 租金减免的审批层级、审批人及金额分档权限；\n2. 需提交的材料（申请函、经营困难证明、补充协议等）及是否需签约主体盖章；\n3. 减免是否需同步调整 `rule_xh_a301_rent_*` 收费规则，以及是否改变账单重开规则；\n4. `inv_2026_10` 中 756.00 的差额究竟属于计价错误更正还是减免范围。\n\n本系统为只读，未执行任何减免、调账、催缴或派单操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 11130,
+        "tool_calls": 2,
+        "model_calls": 3,
+        "total_tokens": 8515,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H19",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H19-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_a301_contract#v1#p14#6.1']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H19",
+        "status": "ok",
+        "answer": "**结论：合同（租约 XH-A301-2025-01）约定物业费标准为每平方米 18.00 元/㎡，适用于 2025-01-01 至 2027-12-31 整个租期。**\n\n依据：\n- 工具 `lease.lookup`（lease_id = lease_xh_a301_2025）返回的收费规则 `rule_xh_a301_pf_all`：\n  - 收费类型 `property_fee`；计算方式 `per_sqm`，即按面积计费\n  - 单价 `18.0000`（币种 CNY）\n  - 计费起止期间为 2025-01-01 至 2027-12-31\n- 该租约对应的商铺为 A-301（unit_xh_a301），租期 2025-01-01 至 2027-12-31，状态为 active（生效中）。\n\n待确认：\n- 工具返回的 `missing_document_ids` 中列出了 `doc_xh_a301_annex_b`，即附件 B 缺失；因此，“合同正文与附件中对物业费的完整表述”无法直接核对，上述标准可能不包含附件 B 中的补充约定。\n- 该规则未说明物业费是否含税，也未说明每月是否还有其他附加项。如需要这些内容，请另行确认。\n\n注：本次仅进行只读查询，未执行任何计费、调账或减免操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 3061,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3462,
+        "errors": [
+          "部分取证：问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具），结果只回答了一部分"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H20",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H20-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['doc_xh_property_policy#v1#p1#3.1']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H20",
+        "status": "ok",
+        "answer": "## 结论\n\n**在目前可读取的数据中，找不到关于空调故障响应时限的明确规定**，因此无法给出具体的时限数字，也不能把它当作“已核实”的事实。\n\n## 依据\n\n1. **租约条款查询（lease.lookup，租约 lease_xh_a301_2025、商铺 A-301）**：返回结果只包含租期、保证金和收费规则：\n   - 租金规则 `rule_xh_a301_rent_2025/2026/2027`（按平米计算）\n   - 物业费规则 `rule_xh_a301_pf_all`（按平米计算，18.0000）\n   - 全部规则中**没有任何服务响应时限类条款**（例如工单响应/到场/修复时限）的字段或规则。\n2. **引用文档状态**：租约引用的文档为 `doc_xh_a301_contract`（已签署）；但 **`doc_xh_a301_annex_b` 处于 missing_document_ids（缺失）状态**，当前工具无法取到它的内容。服务响应时限通常放在这类附件或服务标准条款里，因此这部分**无法核对**。\n3. **工单记录（property.work_orders.read，按 category=空调 过滤）**：work_order_count = 0、open_count = 0，没有历史工单，**无法根据既往记录推算实际响应时效**。这是一次成功调用得到的合法零结果，不能作为“已达到某时限”的证据。\n\n## 待确认\n\n- 空调故障（HVAC）的响应时限、到场时限与修复时限的具体规定及出处条款编号。\n- 缺失附件 `doc_xh_a301_annex_b` 中是否包含物业服务标准或 SLA 条款，需先补充文档或从其他系统调阅。\n- 是否存在项目级（prj_xinghui）统一物业服务标准，本租约条款中未体现。\n\n说明：本次仅做只读查询，未执行任何派单、催办或修改操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "work_order_count": "0",
+          "open_count": "0"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 6205,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 4150,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H21",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 2,
+      "correctness_total": 2,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H21-N:押金必须",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H21-N:保证金收取",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H21",
+        "status": "ok",
+        "answer": "## 结论\n\n租约记录中**押金金额为 40,000.00 CNY**，这是该租约当前显示的唯一押金条款事实。关于押金的**支付时间、退还条件、扣减规则等具体约定条款**，本次工具返回的数据中没有对应字段，无法确认。\n\n## 依据\n\n来自 `lease__lookup({lease_id: \"lease_xh_a301_2025\"})` 的返回记录（租约号 XH-A301-2025-01，商铺 A-301，状态 active，有效期 2025-01-01 至 2027-12-31）：\n\n- `deposit_amount`: \"40000.00\"，币种 CNY\n- 收费规则 `rules` 中仅列出 `rent`（2025 年 120.0000/㎡、2026 年 126.0000/㎡、2027 年 132.3000/㎡）与 `property_fee`（18.0000/㎡）三类，**没有押金类收费规则**\n- 引用文档：`document_ids` / `signed_document_ids` 为 `doc_xh_a301_contract`\n\n## 待确认\n\n1. **押金条款正文**：工具只返回了合同文档编号 `doc_xh_a301_contract`，未返回条款文本，因此押金是否分期、何时缴纳、退还与扣减条件均无法从本次输出确认。\n2. **附件缺失**：`missing_document_ids` 中记录 `doc_xh_a301_annex_b`（附件 B）缺失，押金相关约定可能在该附件中，需补齐后方可核对。\n3. 押金是否已实际收取、是否计息等，属于账单/核销数据范围，本次未查询；如需可另行按租约读取账单。\n\n以上均为只读查询结果，未对押金做任何调整或操作。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4416,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3700,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H22",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 1,
+      "correctness_rate": 1.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H22-F:missing_document_ids",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 missing_document_ids=['doc_xh_a301_annex_b']，实际 ['doc_xh_a301_annex_b']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H22",
+        "status": "ok",
+        "answer": "## 结论\n\n**无法确认。** 系统中没有附件B 的内容：租约查询结果显示附件B 属于缺失文档。\n\n## 依据\n\n来自 `lease__lookup`（lease_id = `lease_xh_a301_2025`）：\n\n- `document_ids`: `[\"doc_xh_a301_contract\"]` — 仅主合同在系统中\n- `missing_document_ids`: `[\"doc_xh_a301_annex_b\"]` — **附件B 缺失**\n- `signed_document_ids`: `[\"doc_xh_a301_contract\"]`\n\n也就是说，主合同已在系统中，但附件B 没有可供读取的文档内容，因此无法从中确认是否存在免租期约定（有无、期间、适用范围均无从判断）。\n\n## 补充说明\n\n工具返回的收费规则列表中**没有**任何免租期、免租金额类的规则（仅 rent 2025/2026/2027 三档与 property_fee 一条），但这只是收费规则表，**不能替代附件B**，也不能据此推断附件B 无免租条款。\n\n## 待确认\n\n1. 附件B（`doc_xh_a301_annex_b`）原件是否签署、是否应上传归档？需补齐文档后才能核对免租期条款。\n2. 免租期是否存在、具体区间、适用费用类型（租金或物业费），目前均无数据支撑。\n\n## 备注\n\n本次仅执行只读查询，未对租约、账单或文档做任何修改。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 5747,
+        "tool_calls": 1,
+        "model_calls": 3,
+        "total_tokens": 5469,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H23",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 4,
+      "correctness_rate": 0.75,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "52596.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [
+          "字段 outstanding_total 写成了 52596.00，可信值为 18036.00"
+        ],
+        "detail": "字段 outstanding_total 写成了 52596.00，可信值为 18036.00"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H23-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H23-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "字段 outstanding_total 写成了 52596.00，可信值为 18036.00"
+        },
+        {
+          "assertion_id": "H23-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H23-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H23",
+        "status": "ok",
+        "answer": "## 结论\n\n**1. 租金“金额不一致”的投诉成立：这是计费错误，不是租户误解。**\n- 工具 `billing.statement.read` 显示，最近三期账单的租金单价不一致：\n  - `inv_2026_08`：120 平方米 × 126.0000 元/平方米 = 15120.00，`rent_variance` 0.00\n  - `inv_2026_09`：120 平方米 × 126.0000 元/平方米 = 15120.00，`rent_variance` 0.00\n  - `inv_2026_10`：120 平方米 × **132.3000** 元/平方米 = **15876.00**，`rent_variance` **756.00**\n- 工具 `lease.lookup`（租约 lease_xh_a301_2025，商铺 A-301）中的计费规则为：\n  - `rule_xh_a301_rent_2026`：126.0000 元/平方米，有效期 2026-01-01 至 2026-12-31\n  - `rule_xh_a301_rent_2027`：132.3000 元/平方米，有效期 **2027-01-01** 起\n- 即：2026 年 10 月账单误用了 2027 年的租金单价，单月多计 756.00。这与 `statement` 返回的 `rent_variance_total: 756.00` 一致。\n\n**2. 空调问题的投诉基本成立：3 次 HVAC 工单中有 1 次仍未解决。**\n依据 `property.work_orders.read`（共 4 条工单，`open_count` 1）：\n- `wo_2026_07_12` 空调制冷不足：2026-07-12 报修，2026-07-15 已完成（closed）\n- `wo_2026_08_18` 空调再次停机：2026-08-18 报修，2026-08-22 已完成（closed）\n- `wo_2026_09_25` 空调异味并伴有噪音：2026-09-25 报修，`resolved_at` 为 null，**status = in_progress**\n- `wo_2026_10_20` 插座跳闸（electrical）：2026-10-20 当日已完成（closed，与空调无关）\n\n## 依据汇总（均来自工具输出）\n\n| 项目 | 数值 |\n|---|---|\n| 已开票总额 | 52596.00 CNY |\n| 已收（`paid_total`，2 笔 confirmed：`pay_2026_08_28` 17280.00、`pay_2026_09_28` 17280.00） | 34560.00 CNY |\n| 未收（`billing.arrears.calculate`） | 18036.00 CNY，未收账单 `inv_2026_10` |\n| 租金差异合计 | 756.00 CNY |\n| 押金 | 40000.00 CNY（`lease.lookup`） |\n\n- `billing.arrears.calculate` 与 `billing.statement.read` 的应收/已收/未收结果一致（52596.00 / 34560.00 / 18036.00）。\n- 8 月、9 月的账单均已全额由对应付款结清（`outstanding` 0.00）；10 月账单 18036.00 全额未付，其中含 756.00 的计费差异。\n\n## 待确认\n\n1. **10 月多计 756.00 的更正路径**：本系统只读，我未做任何减免、调账或冲销操作。是否按 `rule_xh_a301_rent_2026` 将 `inv_2026_10` 租金更正为 15120.00，需由计费/审批流程处理。\n2. **减免诉求的合同依据**：本次 `lease.lookup` 返回的规则中未见租金减免、免租期或空调故障补偿条款；且合同附件 **`doc_xh_a301_annex_b` 标记为缺失**（`missing_document_ids`），可能载有相关约定，需补齐附件后再判断减免成立与否。\n3. **未结工单 `wo_2026_09_25` 的处理时限与责任归属**：工具只给出状态 in_progress，无预计完成时间、维修结论或是否属结构性/设备缺陷的判定信息，因此无法据此确认“多次维修未解决”是否构成减免事由。\n4. **欠费与实际权利的对应关系**：未收 18036.00 与 756.00 差异不一致，催缴或核销口径需财务确认（如是否先按更正后金额重开账单）。\n\n以上未执行任何减免、调账、催缴或派单操作。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "work_order_count": "4",
+          "open_count": "1",
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 10449,
+        "tool_calls": 4,
+        "model_calls": 3,
+        "total_tokens": 10208,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 52596.00，可信值为 18036.00"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H24",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 3,
+      "correctness_total": 5,
+      "correctness_rate": 0.6,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "verified",
+        "bound_fields": [
+          {
+            "field": "paid_total",
+            "value": "34560.00",
+            "expected": "34560.00"
+          },
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [],
+        "detail": "字段金额与工具事实一致"
+      },
+      "answer_verified": true,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H24-FN",
+          "kind": "fund",
+          "passed": true,
+          "detail": "字段金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H24-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H24-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H24-A:status",
+          "kind": "approval",
+          "passed": false,
+          "detail": "期望 approval_status=unavailable，实际 None"
+        },
+        {
+          "assertion_id": "H24-A:version",
+          "kind": "approval",
+          "passed": false,
+          "detail": "期望草案版本 2，实际 None"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H24",
+        "status": "ok",
+        "answer": "## 结论\n\n**租户“租金金额不一致”的诉求成立，但性质是计费错误（多计 756.00 元），不是租约约定发生变化，因此应按“账单更正/调账”处理，而不是按商业“减免”处理。** 目前系统内所有未收款都集中在 10 月这张账单上，金额本身就是争议点，建议先更正再谈收款。\n\n## 依据\n\n**1. 差异定位（billing.statement.read / lease.lookup）**\n\n| 账单 | 租金单价 | 租金金额 | 预期租金 | 差异 |\n|---|---|---|---|---|\n| inv_2026_08 | 126.0000 元/㎡ × 120 | 15120.00 | 15120.00 | 0.00 |\n| inv_2026_09 | 126.0000 元/㎡ × 120 | 15120.00 | 15120.00 | 0.00 |\n| inv_2026_10 | **132.3000** 元/㎡ × 120 | 15876.00 | 15120.00 | **756.00** |\n\n- 租约 `lease_xh_a301_2025`（XH-A301-2025-01，unit A-301 / unit_xh_a301，2025-01-01 至 2027-12-31，状态 active）的计费规则为：`rule_xh_a301_rent_2026` = 126.0000 元/㎡，有效期为 **2026-01-01 至 2026-12-31**；`rule_xh_a301_rent_2027` = 132.3000 元/㎡，有效期为 **2027-01-01 起**。\n- `inv_2026_10` 计费期为 2026-10-01 至 2026-10-31，却使用了 132.3000 元/㎡，即**提前一个年度套用了 2027 年单价**（明细 `itm_inv10_rent`）。这就是差异 756.00 元（`rent_variance`、`rent_variance_total` 均为 756.00）的全部来源。\n- 物业费 `itm_inv10_pf` 为 2160.00（120 × 18.0000，对应 `rule_xh_a301_pf_all`），**无差异，不应调整**。\n\n**2. 应收/未收（billing.arrears.calculate）**\n- 已开票合计 52596.00，已收 34560.00（`pay_2026_08_28` 17280.00、`pay_2026_09_28` 17280.00，均 confirmed），未收 **18036.00**，未收账单仅 `inv_2026_10`。\n\n**3. 工单事实（property.work_orders.read）**\n- 共 4 条：`wo_2026_07_12`（hvac，已关闭）、`wo_2026_08_18`（hvac，高，已关闭）、**`wo_2026_09_25`（hvac，高，“空调异味并伴有噪音”，2026-09-25 报修，状态 in_progress，未解决）**、`wo_2026_10_20`（electrical，已关闭）。open_count = 1。\n\n## 建议处理方案（均需按审批流程执行，本系统只读，不代执行）\n\n1. **先更正、不谈减免**：以 `rule_xh_a301_rent_2026` 为依据，对 `inv_2026_10` 的租金明细 `itm_inv10_rent` 出具冲正/调账，冲减金额 756.00 元；物业费明细不动。若客户已按错误金额付款，再按更正后账单多退少补。\n2. **争议与非争议款分开处理**：`inv_2026_10` 未收 18036.00 中仅 756.00 为争议部分，其余款项不应因争议整体挂账，按账单到期日正常计收（到期日字段本次工具未返回，需另行取得）。\n3. **工单与服务补偿分开立账**：`wo_2026_09_25` 仍未关闭，属独立事实。若租户据此另主张服务瑕疵补偿，应走独立的减免/补偿审批，**不得直接冲抵租金**，也不应与本次计费更正混为一笔。\n4. 更正后向租户书面说明差异原因（提前套用 2027 年单价），避免同类错误在后续期间重演。\n\n## 审批要求\n\n- **调账/账单更正**：属于对已开票金额的修改，须经账单调整审批后方可由计费岗执行，一线客服无权直接改数；审批须附依据链：`inv_2026_10`、`itm_inv10_rent`、`rule_xh_a301_rent_2026`（126.0000，2026 年度）与 `rule_xh_a301_rent_2027`（132.3000，2027 年度）。\n- **若租户不接受更正、坚持“减免”**：则转为商业减免事项，需单独提交减免审批并说明金额与理由；本次差异 756.00 元对应的审批层级/权限矩阵未在工具中返回，**待确认**。\n- 审批流程可保存草案，但批准本身不代表已完成实际调账或减免执行。\n\n## 待确认\n\n1. 公司调账/减免的审批权限矩阵与金额门槛（本次工具无相应数据）。\n2. `doc_xh_a301_annex_b`（租赁合同附件 B）在租约记录中为 missing_document_ids，若减免/调整条款载于该附件，需补齐后再定审批依据。\n3. `inv_2026_10` 的账单到期日、是否已发出催缴（工具未返回）。\n4. 租户主张的具体减免金额与理由明细（当前仅有口头“金额不一致并要求减免”，未提供金额）。\n5. `wo_2026_09_25` 的预计修复时间与责任认定（工单仅有报修与状态，无处理结论）。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "work_order_count": "4",
+          "open_count": "1",
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 15479,
+        "tool_calls": 4,
+        "model_calls": 3,
+        "total_tokens": 11240,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H25",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": null,
+      "applicable": false,
+      "correctness_passed": 0,
+      "correctness_total": 0,
+      "correctness_rate": null,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H25: 该题声明为人工评定（scorable=false），不参与自动通过率"
+      ],
+      "assertions": [],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H25",
+        "status": "ok",
+        "answer": "## 结论\n\n**无法确定 A-301 减免草案的审批人，也无法判断“能不能自己批”。** 当前可用的工具中，只有账单与核销查询工具（`billing.statement.read`、`billing.arrears.calculate`），没有任何审批流程、审批矩阵或减免草案记录的数据源。因此，无论审批人还是自批权限，都不能从现有工具输出中得出；我不会凭常识替你们指定。\n\n## 已取得的依据（仅账单事实）\n\n来自 `billing.statement.read`（lease_id = `lease_xh_a301_2025`，status: ok）：\n\n| 项目 | 数值 | 来源记录 |\n|---|---|---|\n| 开票总额 | 52,596.00 CNY | 该租约账单汇总 |\n| 已收 | 34,560.00 CNY | pay_2026_08_28（17,280.00，confirmed）、pay_2026_09_28（17,280.00，confirmed） |\n| 未收 | 18,036.00 CNY | inv_2026_10（period 2026-10-01 至 2026-10-31） |\n| 租金差异 | 756.00 CNY | inv_2026_10 的 rent_variance（单价 132.3000，其余月份为 126.0000） |\n\n来自 `billing.arrears.calculate`：outstanding_total = 18,036.00 CNY，outstanding_invoice_ids = [\"inv_2026_10\"]，与账单读取一致。\n\n这些只是金额和欠费事实，**与“谁有权审批减免”无关**；工具输出中也没有出现任何减免草案（draft）记录，因此无法确认该草案是否存在、处于什么状态、涉及多少金额。\n\n## 待确认\n\n1. **审批人**：需查阅审批矩阵或授权制度（按减免金额区间、物业或项目负责人层级）。此项没有对应的查询工具。\n2. **能否自批**：取决于该发起人角色是否同时具备审批权限。现有数据源无法给出角色信息，也无法给出发起人信息。\n3. **草案本身**：草案编号、金额、期限、发起人、当前节点，工具中均无记录。\n\n## 说明\n\n本系统对业务数据仅提供只读能力；即使后续走独立审批流程，保存下来的也只是审批草案（且非本人审批），批准本身也不等于减免已经实际执行，实际执行需要另行确认。建议向审批制度或审批矩阵的持有方（如风控或财务授权管理）核实上述三项。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 7282,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 4297,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H26",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": null,
+      "applicable": false,
+      "correctness_passed": 0,
+      "correctness_total": 0,
+      "correctness_rate": null,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [
+        "H26: 该题声明为人工评定（scorable=false），不参与自动通过率"
+      ],
+      "assertions": [],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H26",
+        "status": "ok",
+        "answer": "## 结论\n\n**我不能批准减免，也无法判断“可以批准”。** 本系统只提供只读的账单和欠费查询，没有减免申请、审批规则或审批权限相关工具；此外，你没有提供拟减免的金额、依据和适用账期，因此没有可核对的审批对象。\n\n只读工具能确认的是：该租约当前存在一笔未收账单，并且该账单的租金高于应缴标准；不过，“租金高于应缴标准”并不等于“减免可以批准”。\n\n## 依据（billing.statement.read / billing.arrears.calculate）\n\n| 账期 | 租金 | 物业费 | 合计 | 未收 | 租金差异 |\n|---|---|---|---|---|---|\n| inv_2026_08（2026-08-01~08-31） | 15,120.00（126.00 × 120） | 2,160.00 | 17,280.00 | 0.00 | 0.00 |\n| inv_2026_09（2026-09-01~09-30） | 15,120.00（126.00 × 120） | 2,160.00 | 17,280.00 | 0.00 | 0.00 |\n| inv_2026_10（2026-10-01~10-31） | 15,876.00（**132.30** × 120） | 2,160.00 | 18,036.00 | **18,036.00** | **756.00** |\n\n- 汇总（两工具结果一致）：应收 52,596.00；已收 34,560.00（pay_2026_08_28、pay_2026_09_28 均 confirmed）；未收 18,036.00，对应 `outstanding_invoice_ids = [inv_2026_10]`；租金差异合计 756.00。\n- 即：8、9 月已结清；10 月账单整月未收，且该账单租金单价为 132.30，高于应缴的 126.00，差异 756.00（依据 `rule_xh_a301_rent_2026` / inv_2026_10 的 `rent_variance`）。\n\n## 待确认（缺失信息，不用推测填补）\n\n1. 减免申请本身：减免金额、减免对象（租金 / 物业费 / 其他）、适用账期或账单号。\n2. 减免理由与依据（是否针对上述 756.00 单价差异；8、9 月无差异，因此不涉及）。\n3. 审批权限与流程归属：本次只读到账单与欠费事实，没有任何审批状态、审批链或额度信息。\n4. 若减免针对 10 月整月租金，则需核对合同约定条款与是否有其他调整文件；当前工具中没有合同条款级数据。\n\n## 说明\n\n- 若你们讨论的是“756.00 的租金差异”，数据支持“10 月账单租金按 132.30 计，而应缴标准为 126.00”，可以作为减免或调账的事实依据；但是否批准、批准多少，需由有权限的审批流程判断。\n- 未对 18,036.00 做任何处理：本系统只读，我不会执行减免、调账或催缴，也没有声称已执行。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 7155,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 4347,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H27",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 1,
+      "correctness_rate": 0.0,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H27-O",
+          "kind": "outcome",
+          "passed": false,
+          "detail": "应明确失败，实际 status=ok"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H27",
+        "status": "ok",
+        "answer": "## 结论（租约 XH-A301-2025-01，商铺 A-301，租户 ten_xh_yunduan，状态 active）\n\n1. **有 1 张账单未结清：** `inv_2026_10`（2026-10-01 至 2026-10-31），未收金额 **18,036.00 CNY**。\n2. **该账单存在租金差异 756.00：** 按租约规则，2026 年租金单价应为 126.0000/㎡，但账单实际按 **132.3000/㎡** 计价，而 132.3000/㎡ 是 2027 年才生效的单价。建议核实是否计价规则适用错误以及是否需调账。\n3. **有 1 个未关闭工单：** 2026-09-25 报修的“空调异味并伴有噪音”（hvac，高优先级）至今 `in_progress`，尚未解决；且同一铺位 7 月、8 月已有两次空调类工单。\n4. **文档缺件：** 合同附件 `doc_xh_a301_annex_b` 在系统中标记为缺失，只有主合同 `doc_xh_a301_contract` 为已签。\n\n## 依据\n\n**租约（`lease.lookup`）**\n- 租期 2025-01-01 至 2027-12-31；押金 40,000.00 CNY；币种 CNY。\n- 租金规则：2025 年 120.0000/㎡、**2026 年 126.0000/㎡**、2027 年 132.3000/㎡；物业费 18.0000/㎡（2025–2027 全期）。\n\n**账单（`billing.statement.read`）**\n| 账单 | 期间 | 租金 | 物业费 | 合计 | 未收 | 租金差异 |\n|---|---|---|---|---|---|---|\n| inv_2026_08 | 2026-08 | 15,120.00 | 2,160.00 | 17,280.00 | 0.00 | 0.00 |\n| inv_2026_09 | 2026-09 | 15,120.00 | 2,160.00 | 17,280.00 | 0.00 | 0.00 |\n| inv_2026_10 | 2026-10 | 15,876.00 | 2,160.00 | 18,036.00 | **18,036.00** | **756.00** |\n\n- 开票合计 52,596.00；已收 34,560.00（`pay_2026_08_28` 17,280.00、`pay_2026_09_28` 17,280.00，均 confirmed）；未收合计 **18,036.00**。\n- `billing.arrears.calculate` 结果一致：未收 18,036.00，未收账单仅 `inv_2026_10`。\n\n**工单（`property.work_orders.read`）**：共 4 条，未结 1 条\n- wo_2026_07_12 空调制冷不足（closed，2026-07-15 解决）\n- wo_2026_08_18 空调再次停机（high，closed，2026-08-22 解决）\n- **wo_2026_09_25 空调异味并伴有噪音（high，in_progress，未解决）**\n- wo_2026_10_20 插座跳闸（closed，当日解决）\n\n## 待确认\n- 账单只覆盖 2026-08 至 2026-10，**2026-10 之后及 2025 年的账单未在本次结果中体现**；若需全周期核对，请说明范围。\n- `inv_2026_10` 的 756.00 租金差异属计价异常还是合同变更所致，需业务方确认（本次仅比对规则，未做任何调整）。\n- 缺失附件 `doc_xh_a301_annex_b` 的内容与影响范围不明。\n- 你的需求是“帮我看看”，未给具体目标；以上为账单、工单、文档三项概览。如需针对某一项（例如欠费明细、空调问题跟进、缺件补录）深入，请指明。\n\n（说明：以上均为只读查询结果，未执行任何减免、调账、催缴或派单操作。）",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "work_order_count": "4",
+          "open_count": "1"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "wo_2026_07_12",
+          "wo_2026_08_18",
+          "wo_2026_09_25",
+          "wo_2026_10_20"
+        ],
+        "route": "single_agent",
+        "latency_ms": 7291,
+        "tool_calls": 4,
+        "model_calls": 2,
+        "total_tokens": 6348,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "1.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "4.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H28",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 2,
+      "correctness_total": 2,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H28-N:18036.00",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        },
+        {
+          "assertion_id": "H28-N:52596.00",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H28",
+        "status": "ok",
+        "answer": "## 结论\n\n根据账单与核销数据，A-302 目前的**未收金额为 0.00 元**，也就是工具计算出的欠款为零。但需要注意：这个“零”是因为系统里**完全没有生成任何账单**才出现，因此不能据此认定该商铺“确实不欠款”。\n\n## 依据\n\n**1. 租约（工具 `lease.lookup`，lease_id = lease_xh_a302_2025）**\n- 租约编号：XH-A302-2025-01；商铺：A-302（unit_id: unit_xh_a302）；租户：ten_xh_wenju\n- 状态：active；租期：2025-03-01 至 2027-02-28\n- 保证金：30,000.00 CNY\n- 收费规则（rules）：**返回为空**\n- 关联文档：无（document_ids、signed_document_ids、draft_document_ids、missing_document_ids 都为空）\n\n**2. 欠费计算（工具 `billing.arrears.calculate`，lease_id = lease_xh_a302_2025）**\n- 应收（invoiced_total）：0.00\n- 已收（paid_total）：0.00\n- 未收（outstanding_total）：**0.00**\n- 未结清账单编号（outstanding_invoice_ids）：空\n\n**3. 账单明细（工具 `billing.statement.read`，lease_id = lease_xh_a302_2025）**\n- invoices：[]（没有任何账单）\n- payments：[]（没有任何付款记录）\n- rent_variance_total：0.00\n\n## 待确认\n\n- **该租约在系统中没有任何收费规则，也没有任何账单记录**，而租期从 2025-03-01 起已生效、状态为 active。因此，未收金额 0.00 更可能表示**账单尚未录入或尚未生成**，而不是“已核对确认无欠款”。建议先核实该租约的计费规则与应收账单是否已在系统中建档，再判断实际欠费。\n- 租约的签署文档、关联文档列表都为空；如果这些文档尚未归档，也无法通过文档核对租金标准。\n- 本次没有查询维修工单，因为这与欠费金额无关；如果也需要核对工单相关费用，可以另行查询。\n\n说明：以上金额、日期、状态都直接来自上述工具返回的结构化数据，未做任何推算；本系统为只读，未执行任何减免、调账或催缴操作。",
+        "facts": {
+          "invoiced_total": "0.00",
+          "paid_total": "0.00",
+          "outstanding_total": "0.00",
+          "lease_period": "2025-03-01 至 2027-02-28",
+          "lease_status": "active",
+          "unit_code": "A-302",
+          "lease_id": "lease_xh_a302_2025",
+          "missing_document_ids": [],
+          "rent_variance_total": "0.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a302_2025",
+          "unit_xh_a302",
+          "ten_xh_wenju"
+        ],
+        "route": "single_agent",
+        "latency_ms": 7126,
+        "tool_calls": 3,
+        "model_calls": 3,
+        "total_tokens": 5941,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "30000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H29",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": true,
+      "applicable": true,
+      "correctness_passed": 1,
+      "correctness_total": 1,
+      "correctness_rate": 1.0,
+      "answer_check": null,
+      "fund_check": null,
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic",
+          "fanout"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H29-N:已冲抵",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H29",
+        "status": "ok",
+        "answer": "**结论：没有发现 A-302 的账单被 A-301 的付款冲抵过。**\n\n依据如下：\n\n- `lease.lookup` 确认 `lease_xh_a302_2025` 对应商铺 **A-302**，该租约处于有效状态。\n- `billing.statement.read` 查询该租约显示：`invoiced_total = 0.00`、`paid_total = 0.00`、`outstanding_total = 0.00`，且 `payments` 为空，没有收取任何付款或冲抵记录。\n- `billing.arrears.calculate` 结果一致：应收、已收、未收均为 `0.00`。\n\n因此，在 A-302 的账单记录中，不存在由 A-301 付款进行冲抵的记录。\n\n**待确认：** 通过商铺代码查询 A-301 的租约时，`lease.lookup` 返回 `invalid_tool_arguments`，未能取得 A-301 自身的付款流水；但不影响“A-302 侧无冲抵记录”的结论。",
+        "facts": {
+          "lease_period": "2025-03-01 至 2027-02-28",
+          "lease_status": "active",
+          "unit_code": "A-302",
+          "lease_id": "lease_xh_a302_2025",
+          "missing_document_ids": [],
+          "invoiced_total": "0.00",
+          "paid_total": "0.00",
+          "outstanding_total": "0.00",
+          "rent_variance_total": "0.00"
+        },
+        "evidence_ids": [
+          "lease_xh_a302_2025",
+          "unit_xh_a302",
+          "ten_xh_wenju"
+        ],
+        "route": "single_agent",
+        "latency_ms": 16079,
+        "tool_calls": 3,
+        "model_calls": 3,
+        "total_tokens": 8570,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "30000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H30",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 0,
+      "correctness_total": 2,
+      "correctness_rate": 0.0,
+      "answer_check": {
+        "status": "not_checkable",
+        "trusted_amounts": [],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "本次没有可核对的金额事实（例如工单类结论）"
+      },
+      "fund_check": {
+        "status": "not_checkable",
+        "bound_fields": [],
+        "problems": [],
+        "detail": "本次没有资金结论可校验"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H30-F:work_order_count",
+          "kind": "facts",
+          "passed": false,
+          "detail": "期望 work_order_count=1，实际 0"
+        },
+        {
+          "assertion_id": "H30-E",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "缺少证据: ['wo_2026_10_20']"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H30",
+        "status": "ok",
+        "answer": "**结论：A-301 的电气类报修有 0 条。**\n\n依据：\n- `lease.lookup` 确认租约 `lease_xh_a301_2025` 对应商铺 **A-301**。\n- `property.work_orders.read` 以该租约查询电气类工单，返回 `work_order_count: 0`、`open_count: 0`，无工单记录。",
+        "facts": {
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ],
+          "work_order_count": "0",
+          "open_count": "0"
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2026",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 3225,
+        "tool_calls": 2,
+        "model_calls": 2,
+        "total_tokens": 3907,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "18.00",
+          "40000.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H31",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 7,
+      "correctness_total": 8,
+      "correctness_rate": 0.875,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "verified",
+        "bound_fields": [
+          {
+            "field": "invoiced_total",
+            "value": "52596.00",
+            "expected": "52596.00"
+          },
+          {
+            "field": "paid_total",
+            "value": "34560.00",
+            "expected": "34560.00"
+          },
+          {
+            "field": "outstanding_total",
+            "value": "18036.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [],
+        "detail": "字段金额与工具事实一致"
+      },
+      "answer_verified": true,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H31-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H31-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H31-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H31-FN",
+          "kind": "fund",
+          "passed": true,
+          "detail": "字段金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H31-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H31-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H31-N:约 ",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "答案中出现禁用内容: 约 "
+        },
+        {
+          "assertion_id": "H31-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H31",
+        "status": "ok",
+        "answer": "根据 billing.arrears.calculate（租约 lease_xh_a301_2025）的结果，A-301 目前的应收为 52,596.00 元、已收为 34,560.00 元、未收为 18,036.00 元（未收对应账单 inv_2026_10，币种为 CNY）。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00"
+        },
+        "evidence_ids": [
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002"
+        ],
+        "route": "single_agent",
+        "latency_ms": 2245,
+        "tool_calls": 1,
+        "model_calls": 2,
+        "total_tokens": 3031,
+        "errors": [],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "18036.00",
+          "34560.00",
+          "52596.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    },
+    {
+      "case_id": "H32",
+      "baseline": "B_single_agent",
+      "split": "heldout",
+      "passed": false,
+      "applicable": true,
+      "correctness_passed": 6,
+      "correctness_total": 8,
+      "correctness_rate": 0.75,
+      "answer_check": {
+        "status": "consistent",
+        "trusted_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "unverified_amounts": [],
+        "missing_amounts": [],
+        "detail": "答案金额与工具事实一致"
+      },
+      "fund_check": {
+        "status": "mismatch",
+        "bound_fields": [
+          {
+            "field": "outstanding_total",
+            "value": "0.00",
+            "expected": "18036.00"
+          }
+        ],
+        "problems": [
+          "字段 outstanding_total 写成了 0.00，可信值为 18036.00",
+          "答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "detail": "字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+      },
+      "answer_verified": false,
+      "efficiency": {
+        "route": "single_agent",
+        "allowed_routes": [
+          "deterministic"
+        ],
+        "route_in_allowed": false,
+        "routed_by": "efficiency_only"
+      },
+      "manual_queue": [],
+      "assertions": [
+        {
+          "assertion_id": "H32-F:invoiced_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 invoiced_total=52596.00，实际 52596.00"
+        },
+        {
+          "assertion_id": "H32-F:outstanding_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 outstanding_total=18036.00，实际 18036.00"
+        },
+        {
+          "assertion_id": "H32-F:paid_total",
+          "kind": "facts",
+          "passed": true,
+          "detail": "期望 paid_total=34560.00，实际 34560.00"
+        },
+        {
+          "assertion_id": "H32-FN",
+          "kind": "fund",
+          "passed": false,
+          "detail": "字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        },
+        {
+          "assertion_id": "H32-AN",
+          "kind": "answer",
+          "passed": true,
+          "detail": "答案金额与工具事实一致"
+        },
+        {
+          "assertion_id": "H32-E",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "证据齐全"
+        },
+        {
+          "assertion_id": "H32-N:约 ",
+          "kind": "evidence",
+          "passed": false,
+          "detail": "答案中出现禁用内容: 约 "
+        },
+        {
+          "assertion_id": "H32-N:大约",
+          "kind": "evidence",
+          "passed": true,
+          "detail": "未出现禁用内容"
+        }
+      ],
+      "result": {
+        "baseline": "B_single_agent",
+        "case_id": "H32",
+        "status": "ok",
+        "answer": "## 结论（A-301，租约 lease_xh_a301_2025）\n\n| 项目 | 金额（CNY） | 依据 |\n|---|---|---|\n| 已收（有效核销） | **34,560.00** | `billing.statement.read` / `billing.arrears.calculate`：`paid_total` |\n| 未收（应收未收） | **18,036.00** | 同上：`outstanding_total`，对应欠缴账单 `inv_2026_10` |\n| 已开票合计 | 52,596.00 | 同上：`invoiced_total` |\n\n## 依据明细\n\n**有效付款（2 笔，状态均为 confirmed）** — 来自 `billing.statement.read` 的 `payments` 字段：\n- `pay_2026_08_28`：17,280.00，2026-08-28 10:12 确认\n- `pay_2026_09_28`：17,280.00，2026-09-28 15:40 确认\n\n**各账单状态** — 来自 `billing.statement.read` 的 `invoices` 字段：\n- `inv_2026_08`（2026-08-01 ~ 08-31）：合计 17,280.00，未收 0.00\n- `inv_2026_09`（2026-09-01 ~ 09-30）：合计 17,280.00，未收 0.00\n- `inv_2026_10`（2026-10-01 ~ 10-31）：合计 18,036.00，**未收 18,036.00**（租金 15,876.00 + 物业费 2,160.00，无核销记录）\n\n## 待确认\n\n1. `inv_2026_10` 的租金按单价 132.3000 元/㎡ 计，而该期落在 2026 年内；租约规则 `rule_xh_a301_rent_2026` 的单价为 126.0000 元/㎡，132.3000 元/㎡ 对应 2027 年生效的 `rule_xh_a301_rent_2027`。工具同时显示该期 `rent_variance` 为 756.00（`rent_variance_total` 亦为 756.00）。该差异原因需业务侧核实，本系统只读、未做调整。\n2. 租约文件 `doc_xh_a301_annex_b` 在 `lease.lookup` 中标记为缺失（`missing_document_ids`），若需核对计费附件条款，建议补齐。\n\n说明：以上仅为账单与核销数据查询结果，系统只读，未执行任何减免、调账或催缴操作。",
+        "facts": {
+          "invoiced_total": "52596.00",
+          "paid_total": "34560.00",
+          "outstanding_total": "18036.00",
+          "rent_variance_total": "756.00",
+          "lease_period": "2025-01-01 至 2027-12-31",
+          "lease_status": "active",
+          "unit_code": "A-301",
+          "lease_id": "lease_xh_a301_2025",
+          "missing_document_ids": [
+            "doc_xh_a301_annex_b"
+          ]
+        },
+        "evidence_ids": [
+          "lease_xh_a301_2025",
+          "inv_2026_08",
+          "itm_inv08_rent",
+          "itm_inv08_pf",
+          "rule_xh_a301_rent_2026",
+          "inv_2026_09",
+          "itm_inv09_rent",
+          "itm_inv09_pf",
+          "inv_2026_10",
+          "itm_inv10_rent",
+          "itm_inv10_pf",
+          "pay_2026_08_28",
+          "pay_2026_09_28",
+          "alloc_001",
+          "alloc_002",
+          "unit_xh_a301",
+          "ten_xh_yunduan",
+          "rule_xh_a301_rent_2025",
+          "rule_xh_a301_rent_2027",
+          "rule_xh_a301_pf_all",
+          "doc_xh_a301_contract"
+        ],
+        "route": "single_agent",
+        "latency_ms": 4498,
+        "tool_calls": 3,
+        "model_calls": 2,
+        "total_tokens": 5342,
+        "errors": [
+          "资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0，但未收金额为 18036.00，结论与工具事实矛盾"
+        ],
+        "approval_status": null,
+        "approval_draft_version": null,
+        "verified_amounts": [
+          "0.00",
+          "120.00",
+          "126.00",
+          "132.30",
+          "15120.00",
+          "15876.00",
+          "17280.00",
+          "18.00",
+          "18036.00",
+          "2160.00",
+          "34560.00",
+          "40000.00",
+          "52596.00",
+          "756.00"
+        ],
+        "models_by_agent": {
+          "single": {
+            "provider": "deepseek",
+            "model_name": "deepseek-flash",
+            "temperature": 0.0,
+            "max_tokens": 1024,
+            "timeout_seconds": 60.0,
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "api_key_env_present": true,
+            "client_is_shared": false,
+            "config_source": "single.yaml",
+            "served_models": [
+              "deepseek-flash"
+            ],
+            "served_model_mismatch": false
+          }
+        }
+      }
+    }
+  ]
+}

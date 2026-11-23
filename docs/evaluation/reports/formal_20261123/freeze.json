@@ -1,0 +1,27 @@
+{
+  "frozen_at": "2026-11-23T13:54:34+00:00",
+  "code_commit": "c6037fe0359973ae0378fcc4167e08471f2faa14",
+  "worktree": "clean",
+  "files": {
+    "app/agents/billing/prompts/system.md": "6d13d2a8b32a37f7df1c920d44c0d982aa19a65d9a978d4f2a6496979cc32057",
+    "app/agents/compliance/prompts/system.md": "3cce212dbeaa01923c313134a713050a459617f3d3dbd4c3828c5aa25686324a",
+    "app/agents/lease/prompts/system.md": "b7b47283c7c7c2d37ffed5207af8700bc0dd9b9fccf66e8c4f8020aeed91fc54",
+    "app/agents/property/prompts/system.md": "245627932892df2e699f1083d0d010598ec2da678a5e1c732c9b01c09021f52a",
+    "app/agents/single/prompts/system.md": "4075f61278affd14083d1c54eac0cdf17290241a7227ac64e43f91e00d664edf",
+    "app/config/agents/billing.yaml": "47c2d674c700fa2e117850ee4eee4d4588ccebbfb7e0bb5daab27f48668ef798",
+    "app/config/agents/compliance.yaml": "6399d473a5430aa31179a4bcb7e9e834b79552c011decc796c3c2511fde0134a",
+    "app/config/agents/lease.yaml": "51239d87b274e3fbff6c93564fc6fa228dc510e8887e60e977ac198aae8d75bb",
+    "app/config/agents/property.yaml": "1e2c287cd273e656d5f4588761328956faea87e2747c89e4e24fe7b2a06eb59c",
+    "app/config/agents/single.yaml": "dd67544f2934b041bd53a38dc0aca7aa8cf1f6d28d108b81b11b73701023076d",
+    "app/config/planner.yaml": "f14cb75738dfb263ae16968ba2a787a17371dba3291b4aa25b70e44fec5cd1cb",
+    "app/orchestration/prompts/supervisor_system.md": "9b9a7ac0c453356ccc8f1c5c522f0247c408e8880607bcb1a685aca5e384a982"
+  },
+  "reps": 5,
+  "split": "heldout",
+  "groups": [
+    "A_deterministic",
+    "B_single_agent",
+    "C_rule",
+    "C_hybrid"
+  ]
+}

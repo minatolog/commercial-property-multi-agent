@@ -1,0 +1,136 @@
+# 评测报告
+
+- 数据切分：`heldout`
+- 用例文件：`docs\evaluation\cases\heldout_v3.jsonl`（sha256 `cf22fd467992f6c2…`）
+- fixture sha256：`bcff5ce93b9b815c…`
+- 代码提交：`c6037fe0359973ae0378fcc4167e08471f2faa14`（工作区 dirty）
+- 评分规则：`scoring-v3.3`
+- 模型：`deepseek` / `deepseek-flash`
+- 生成时间：`2026-11-23T14:04:15.935026+00:00`
+
+> 模型按各 Agent 自己的 YAML 配置创建（provider/model 为合集，逐 Agent 明细见 bindings.models_by_agent）；model_name 为配置名，服务端实际应答模型见 models_by_agent.*.served_models；token 与延迟来自实际调用；成本未内置定价，故不换算金额
+
+## 汇总
+
+| 基线 | 用例 | 通过 | 通过率 | 自动断言通过率 | 路由命中（效率） | 工具调用 | 模型调用 | token | 成本 | P50 延迟(ms) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B_single_agent | 32 | 11/30 | 0.3667 | 0.6436 | 0/32 | 67 | 82 | 188779 | n/a（未内置定价） | 6156 |
+| C_multi_agent | 32 | 19/30 | 0.6333 | 0.8365 | 27/32 | 75 | 80 | 152788 | n/a（未内置定价） | 5026 |
+
+> 路由命中只作效率指标；自动断言通过率不含人工量表（rubric）。
+
+## 指标分解（工具事实 / 资金结论 / 金额接地）
+
+| 基线 | 工具事实断言 | 工具事实通过率 | 资金结论断言 | 资金结论通过率 | 未验证题 | 金额接地（辅助） |
+|---|---|---|---|---|---|---|
+| B_single_agent | 33 | 0.9091 | 11 | 0.7273 | 1 | 8/8 |
+| C_multi_agent | 33 | 0.9091 | 13 | 0.5385 | 1 | 14/14 |
+
+> 工具事实准确率回答"取数对不对"；资金结论通过率回答"用户读到的应收/已收/未收对不对"；未验证题表示叙述没有把金额绑定到字段（**不算通过**）；金额接地是辅助检查，不能单独证明答案准确。
+
+## 各 Agent 实际模型（models_by_agent）
+
+### B_single_agent
+
+| Agent | provider | 配置模型名 | 实际应答模型 | temperature | max_tokens | timeout(s) | 共享客户端 | 配置来源 |
+|---|---|---|---|---|---|---|---|---|
+| single | deepseek | deepseek-flash | deepseek-flash | 0.0 | 1024 | 60.0 | 否 | single.yaml |
+
+### C_multi_agent
+
+| Agent | provider | 配置模型名 | 实际应答模型 | temperature | max_tokens | timeout(s) | 共享客户端 | 配置来源 |
+|---|---|---|---|---|---|---|---|---|
+| billing | deepseek | deepseek-flash | deepseek-flash | None | 1024 | 20.0 | 是 | billing.yaml |
+| lease | deepseek | deepseek-flash | deepseek-flash | 0.1 | 2048 | 30.0 | 否 | lease.yaml |
+| property | deepseek | deepseek-flash | deepseek-flash | None | 1024 | 20.0 | 是 | property.yaml |
+| single | deepseek | deepseek-flash | 未记录 | 0.0 | 1024 | 60.0 | 否 | single.yaml |
+
+## B_single_agent
+
+| 用例 | 通过 | 自动断言 | 路由 | 延迟(ms) | 工具调用 | 失败原因 |
+|---|---|---|---|---|---|---|
+| H01 | ❌ | 8/9 | single_agent | 8038 | 3 | - |
+| H02 | ❌ | 8/9 | single_agent | 8406 | 3 | - |
+| H03 | ❌ | 8/9 | single_agent | 4690 | 2 | - |
+| H04 | ❌ | 7/8 | single_agent | 7482 | 3 | 资金结论与工具事实矛盾，已标记为待人工核对: 字段 paid_total 写成了 15876.00，可信值为 34560.00；答案声称已结清/未收 0，但未收 |
+| H05 | ✅ | 4/4 | single_agent | 4268 | 2 | - |
+| H06 | ❌ | 1/3 | single_agent | 6760 | 1 | insufficient_evidence: 问题涉及的领域 billing（账单/费用） 没有取得任何事实（查询失败：相关工具调用失败）；其他领域的事实回答不 |
+| H07 | ❌ | 2/3 | single_agent | 6156 | 2 | - |
+| H08 | ✅ | 3/3 | single_agent | 8385 | 2 | - |
+| H09 | ✅ | 3/3 | single_agent | 4810 | 1 | - |
+| H10 | ✅ | 3/3 | single_agent | 3722 | 1 | - |
+| H11 | ❌ | 1/3 | single_agent | 5093 | 1 | insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证） |
+| H12 | ❌ | 1/3 | single_agent | 3374 | 1 | insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证） |
+| H13 | ✅ | 3/3 | single_agent | 6427 | 1 | - |
+| H14 | ❌ | 0/2 | single_agent | 5407 | 2 | - |
+| H15 | ❌ | 2/3 | single_agent | 5974 | 6 | 达到最大轮次 3，未得到最终答案 |
+| H16 | ❌ | 1/3 | single_agent | 5493 | 2 | insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证） |
+| H17 | ❌ | 0/1 | single_agent | 6055 | 1 | 部分取证：问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具），结果只回答了一部分 |
+| H18 | ❌ | 0/2 | single_agent | 6210 | 1 | insufficient_evidence: 问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具）；其他领域的事实回答 |
+| H19 | ❌ | 0/1 | single_agent | 3484 | 1 | 部分取证：问题涉及的领域 billing（账单/费用） 没有取得任何事实（未查询：没有调用该领域的工具），结果只回答了一部分 |
+| H20 | ❌ | 0/1 | single_agent | 7213 | 2 | - |
+| H21 | ✅ | 2/2 | single_agent | 8658 | 2 | - |
+| H22 | ✅ | 1/1 | single_agent | 6759 | 1 | - |
+| H23 | ❌ | 3/4 | single_agent | 15208 | 4 | 资金结论与工具事实矛盾，已标记为待人工核对: 字段 invoiced_total 写成了 756.00，可信值为 52596.00 |
+| H24 | ❌ | 3/5 | single_agent | 20634 | 5 | - |
+| H25 | — | 0/0 | single_agent | 4887 | 0 | insufficient_evidence: 这是有目标的业务查询，但没有取得任何属于本次目标的工具事实（失败、被拒绝或越界的调用都不算取证） |
+| H26 | — | 0/0 | single_agent | 8854 | 2 | - |
+| H27 | ❌ | 0/1 | single_agent | 9117 | 4 | - |
+| H28 | ✅ | 2/2 | single_agent | 6330 | 3 | - |
+| H29 | ✅ | 1/1 | single_agent | 4555 | 3 | 达到最大轮次 3，未得到最终答案 |
+| H30 | ✅ | 2/2 | single_agent | 3249 | 2 | - |
+| H31 | ✅ | 8/8 | single_agent | 1722 | 1 | - |
+| H32 | ❌ | 6/8 | single_agent | 3832 | 2 | 资金结论与工具事实矛盾，已标记为待人工核对: 字段 outstanding_total 写成了 0.00，可信值为 18036.00；答案声称已结清/未收 0， |
+
+人工量表待评：
+
+- H04: H04-AN: 答案未提及这些金额: 52596.00
+- H07: H07-AN: 答案未提及这些金额: 34560.00, 51840.00
+- H08: H08-AN: 答案未提及这些金额: 52596.00
+- H15: H15-FN: 叙述没有把金额绑定到应收/已收/未收字段，无法核对
+- H15: H15-AN: 答案未提及任何金额: 18036.00, 34560.00, 52596.00
+- H25: H25: 该题声明为人工评定（scorable=false），不参与自动通过率
+- H26: H26: 该题声明为人工评定（scorable=false），不参与自动通过率
+
+## C_multi_agent（规划模式：rule）
+
+| 用例 | 通过 | 自动断言 | 路由 | 延迟(ms) | 工具调用 | 失败原因 |
+|---|---|---|---|---|---|---|
+| H01 | ✅ | 9/9 | deterministic | 5026 | 2 | - |
+| H02 | ✅ | 9/9 | deterministic | 5029 | 2 | - |
+| H03 | ❌ | 8/9 | deterministic | 4123 | 2 | - |
+| H04 | ❌ | 8/9 | deterministic | 4653 | 2 | - |
+| H05 | ✅ | 4/4 | deterministic | 4156 | 2 | - |
+| H06 | ✅ | 3/3 | deterministic | 146 | 0 | st_1_billing: permission_denied |
+| H07 | ❌ | 2/4 | fanout | 5933 | 6 | - |
+| H08 | ✅ | 4/4 | fanout | 6762 | 7 | - |
+| H09 | ✅ | 3/3 | deterministic | 3574 | 2 | - |
+| H10 | ✅ | 3/3 | deterministic | 3700 | 2 | - |
+| H11 | ❌ | 1/3 | deterministic | 9171 | 3 | st_1_lease: insufficient_evidence |
+| H12 | ✅ | 3/3 | deterministic | 148 | 0 | st_1_lease: permission_denied |
+| H13 | ✅ | 3/3 | deterministic | 4628 | 1 | - |
+| H14 | ✅ | 2/2 | deterministic | 3696 | 1 | - |
+| H15 | ❌ | 3/5 | fanout | 8047 | 3 | - |
+| H16 | ❌ | 1/3 | deterministic | 9249 | 2 | st_1_property: insufficient_evidence |
+| H17 | ✅ | 1/1 | fanout | 10129 | 3 | st_2_billing: insufficient_evidence |
+| H18 | ❌ | 1/2 | deterministic | 5336 | 2 | - |
+| H19 | ✅ | 3/3 | fanout | 6628 | 4 | - |
+| H20 | ❌ | 0/1 | deterministic | 4985 | 1 | - |
+| H21 | ✅ | 2/2 | deterministic | 7424 | 2 | - |
+| H22 | ✅ | 1/1 | deterministic | 8304 | 4 | - |
+| H23 | ✅ | 4/4 | fanout | 7008 | 10 | - |
+| H24 | ❌ | 4/5 | deterministic | 9631 | 2 | - |
+| H25 | — | 0/0 | clarification | 145 | 0 | - |
+| H26 | — | 0/0 | clarification | 134 | 0 | - |
+| H27 | ✅ | 1/1 | clarification | 137 | 0 | - |
+| H28 | ✅ | 2/2 | deterministic | 4226 | 2 | - |
+| H29 | ✅ | 1/1 | deterministic | 6470 | 2 | - |
+| H30 | ❌ | 1/2 | deterministic | 5236 | 2 | - |
+| H31 | ✅ | 8/8 | deterministic | 2231 | 2 | - |
+| H32 | ❌ | 6/8 | deterministic | 3800 | 2 | - |
+
+人工量表待评：
+
+- H18: H18-FN: 叙述没有把金额绑定到应收/已收/未收字段，无法核对
+- H25: H25: 该题声明为人工评定（scorable=false），不参与自动通过率
+- H26: H26: 该题声明为人工评定（scorable=false），不参与自动通过率
