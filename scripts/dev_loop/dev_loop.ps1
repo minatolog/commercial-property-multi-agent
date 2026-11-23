@@ -25,6 +25,8 @@ param(
     [int]$TestTailLines = 150,
     [switch]$SkipTests,
     [switch]$CoderSkipPermissions,
+    # 仓库外需要读取的目录（例如第三方包源码），编码方与审查方都可访问
+    [string[]]$AddDirs = @(),
     [string]$ClaudeExe = ""
 )
 
@@ -277,6 +279,15 @@ function Invoke-Tests([int]$Round) {
     return @{ Code = $code; Tail = $tail }
 }
 
+# `--add-dir` 后面紧跟的是其它 `--` 选项，不会吞掉后续参数
+$addDirArgs = @()
+# 经 `powershell -File` 调用时，`-AddDirs a,b` 会作为一个字符串传进来，这里再按逗号拆一次
+$AddDirs = @($AddDirs | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+foreach ($d in $AddDirs) {
+    if (-not (Test-Path $d -PathType Container)) { throw "-AddDirs 目录不存在：$d" }
+    $addDirArgs += @("--add-dir", (Resolve-Path $d).Path)
+}
+
 # ---------------------------------------------------------------- 基线
 # 运行前的工作区状态，供审查方区分“本次改动”和“之前就有的未提交改动”
 $BaselineRel = "$RunRel/baseline-git.txt"
@@ -316,7 +327,7 @@ try {
         }
         $coderPrompt = Fill-Template $coderTpl @{ TASK_FILE = $taskRel; ROUND = $round; REVIEW_SECTION = $reviewSection }
 
-        $cArgs = @("-p", "--output-format", "json", "--max-turns", "$CoderMaxTurns")
+        $cArgs = @("-p", "--output-format", "json", "--max-turns", "$CoderMaxTurns") + $addDirArgs
         if ($CoderSkipPermissions) {
             $cArgs += "--dangerously-skip-permissions"
         }
@@ -363,7 +374,7 @@ try {
             TEST_OUTPUT         = $t.Tail
             PREV_REVIEW_SECTION = $prevSection
         }
-        $rArgs = @("-p", "--output-format", "json", "--max-turns", "$ReviewerMaxTurns",
+        $rArgs = @("-p", "--output-format", "json", "--max-turns", "$ReviewerMaxTurns") + $addDirArgs + @(
             "--allowedTools") + $reviewerAllow + @("--disallowedTools", "Edit", "Write", "NotebookEdit") + $denyGit
         if ($ReviewerModel) { $rArgs += @("--model", $ReviewerModel) }
 

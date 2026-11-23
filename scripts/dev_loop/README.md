@@ -72,6 +72,7 @@
 | `-CoderMaxTurns` / `-ReviewerMaxTurns` | 80 / 40 | 单次调用的最大工具轮数 |
 | `-TestCommand` | conda 环境的 unittest | 在 `-TestWorkDir`（默认 `backend`）下执行 |
 | `-SkipTests` | 关 | 不运行测试（例如纯文档任务） |
+| `-AddDirs` | 空 | 仓库外需要读取的目录（例如 `D:nacada\envs\commercial-agent\Lib\site-packages\mcp`），逗号分隔；编码方与审查方都可访问 |
 | `-CoderSkipPermissions` | 关 | 编码方跳过所有权限检查；默认只放行读写文件、git 只读命令和 conda Python |
 
 ## 日志
