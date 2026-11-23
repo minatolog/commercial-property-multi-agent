@@ -52,7 +52,7 @@
 - 用完工具轮数时 CLI 输出 `subtype: "error_max_turns"`、`is_error: true`、带 `session_id`，脚本按预期继续测试与审查。
 - 清空宿主变量后，`claude auth status` 仍显示已登录，审查方可以独立认证。
 
-**仍未验证**：真实 DeepSeek 接口（`deepseek-chat` 模型名与长时间工具调用的兼容性）与真实 Claude 审查。CLI 会在 stderr 提示 `unrecognized_model`，可以忽略；JSON 里的费用估计不准（见“日志”）。
+**仍未验证**：真实 DeepSeek 接口（模型名与长时间工具调用的兼容性）与真实 Claude 审查。CLI 会在 stderr 提示 `unrecognized_model`，可以忽略；JSON 里的费用估计不准（见“日志”）。
 
 ## 用法
 
@@ -67,7 +67,7 @@
 | 参数 | 默认值 | 说明 |
 |---|---|---|
 | `-MaxRounds` | 5 | 最多循环几轮 |
-| `-CoderModel` | `deepseek-chat` | DeepSeek 模型名 |
+| `-CoderModel` | `deepseek-flash` | DeepSeek 模型名（可用名称以 `https://api.deepseek.com/models` 为准；2026-11-23 该 key 只有 `deepseek-flash`、`deepseek-v4-pro`） |
 | `-ReviewerModel` | 空（Claude 默认模型） | 例如 `opus`、`sonnet` |
 | `-CoderMaxTurns` / `-ReviewerMaxTurns` | 80 / 40 | 单次调用的最大工具轮数 |
 | `-TestCommand` | conda 环境的 unittest | 在 `-TestWorkDir`（默认 `backend`）下执行 |

@@ -16,7 +16,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$TaskFile,
     [int]$MaxRounds = 5,
-    [string]$CoderModel = "deepseek-chat",
+    [string]$CoderModel = "deepseek-flash",
     [string]$ReviewerModel = "",
     [int]$CoderMaxTurns = 80,
     [int]$ReviewerMaxTurns = 40,
