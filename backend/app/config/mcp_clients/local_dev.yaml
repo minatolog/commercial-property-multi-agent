@@ -1,0 +1,13 @@
+# 本地开发用 MCP 客户端档案（Task 033A）。
+# 开放全部 5 个只读工具；不包含任何写操作。
+name: local_dev
+enabled: true
+principal_id: principal_ops_xinghui
+allowed_tools:
+  - lease.lookup
+  - billing.statement.read
+  - billing.arrears.calculate
+  - property.work_orders.read
+  - document.search
+budget:
+  max_tool_calls_per_session: 20

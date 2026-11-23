@@ -1,0 +1,12 @@
+# Flowise 客户端档案（Task 033A）。
+# 按 Task 033 Prompt §4.5 的示例：只读、不暴露调账/审批/派单。
+name: flowise
+enabled: true
+principal_id: principal_ops_xinghui
+allowed_tools:
+  - lease.lookup
+  - billing.statement.read
+  - property.work_orders.read
+  - document.search
+budget:
+  max_tool_calls_per_session: 20

@@ -28,6 +28,8 @@ dependencies = [
     # Task 014：演示 API 与轻量页面（展示层，可整体删除而不影响 CLI/评测）
     "fastapi>=0.115,<1",
     "uvicorn>=0.30,<1",
+    # Task 033 MCP 网关，v2 版本线
+    "mcp==2.3.0",
 ]
 
 [project.optional-dependencies]
