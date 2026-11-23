@@ -46,6 +46,8 @@
 ### 2.3 CLI 接 PG
 
 - `--backend postgresql`：连接串**只**从环境变量 `COMMERCIAL_DB_URL` 读取，不接受命令行明文；未设置 → 退出码 2 并提示。连接用只读仓库（035A 的会话级只读仍然生效）。
+- **PG engine 必须用 `app.db.session.create_engine_for` 创建**：035A 的时区修复放在它的连接启动参数里，直接 `sqlalchemy.create_engine` 建的 engine 读出来仍是 UTC（复核时实测）。CLI 测试要断言工单时间带 `+08:00`。
+- CLI 连接的是**已迁移、已有数据**的库（不要在 CLI 里建表或 seed）；测试里先用迁移 + `build_repository_for_engine(..., create_tables=False)` 的同款步骤准备数据。
 - `ask` / `investigate` / `search` 等现有支持 `--backend` 的子命令都能用；报告元数据里如实记录 `backend=postgresql`（不要记录连接串）。
 - **注意**：`backend/migrations/env.py` 会**优先**读取 `COMMERCIAL_DB_URL`，覆盖测试里设置的 URL。所以测试里设置 `COMMERCIAL_DB_URL` 只能用于子进程环境或 `mock.patch.dict(os.environ, ...)` 的局部范围，不得泄漏到其它测试（否则 `test_database_layer` 的 SQLite 迁移测试会去迁移 PG）。这一点在 035C 的文档里也要写明。
 
