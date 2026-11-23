@@ -1,6 +1,6 @@
 # 项目总开发路线与进度表 V1.1
 
-- 更新：2026-11-23，Task 033 MCP 工具网关（stdio 第一版）DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)**有条件通过**（无 P1），P2/P3 已返修并自检，待复查确认；未推送；Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）独立复查有条件通过，返修经 [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认条件已满足，复查新提的 3 项 P3 已再修；2026-11-22 两任务实施；此前 2026-11-21 Task 031 返修与复查条件同步；027–031 成果与返修已提交为 `3be785e`（已在 `origin/main`）。原主体规划由 Task 026 整理。
+- 更新：2026-11-23，Task 033 MCP 工具网关（stdio 第一版）DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)**有条件通过**（无 P1），P2/P3 已返修，[返修确认复查](../reviews/2026-11-23_task033_repair_review.md)条件已满足；未推送；Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）独立复查有条件通过，返修经 [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认条件已满足，复查新提的 3 项 P3 已再修；2026-11-22 两任务实施；此前 2026-11-21 Task 031 返修与复查条件同步；027–031 成果与返修已提交为 `3be785e`（已在 `origin/main`）。原主体规划由 Task 026 整理。
 - 目标与范围：[当前架构基线](../architecture/CURRENT_BASELINE.md)、[Agent-first V1.0](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)。
 - 旧版完整路线与逐次更新：[历史快照](PROJECT_DEVELOPMENT_ROADMAP_legacy_2026-11-09.md)。下表为现状，不用旧版“剩余 9 次 Prompt”等首次规划数字判断进度。
 
@@ -16,7 +16,7 @@
 
 > **2026-11-22 独立复查与返修**：DeepSeek 按 [`REVIEW_TASK032_034_PROMPT.md`](../handoffs/REVIEW_TASK032_034_PROMPT.md) 复查 [Task 032](../reviews/2026-11-22_task032_independent_review.md) 与 [Task 034](../reviews/2026-11-22_task034_independent_review.md)，均为**有条件通过**（无 P1）；Claude Code 返修全部 P2 与可代码化的 P3（不新增付费调用）：610 tests OK（skipped=1）、70 项契约、JS 48 用例 / 185 断言。034 真实对照的实际应答模型改记为“未记录，不可复核”。2026-11-23 DeepSeek [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)：P2 全部关闭、无新 P1/P2；新提 3 项 P3（错误码替换过宽、完成但无结论显示绿色、状态文档旧口径）已再修，JS 增至 48 用例 / 190 断言。
 
-下一步：① 复查确认 032/034 返修（可只看返修差异）；② 复查确认 Task 033 返修（独立复查有条件通过；P2-1 跨项目文档检索改为范围拒绝，影响所有调用 `document.search` 的 Agent，离线 heldout 0 差异）；③ 视需要授权重复测量真实规划对照（同时补实际应答模型证据）；④ Task 033 复查通过后，再按另行决定推进 Streamable HTTP + OAuth。现有网页默认规则演示，不能把命令行模型接入当作网页已经使用 AI。展示修复不关闭下方正式实验、人工量表与 PostgreSQL 实机验收。
+下一步：① 复查确认 032/034 返修（可只看返修差异）；② Task 033 返修已确认（P2-1 跨项目文档检索改为范围拒绝，影响所有调用 `document.search` 的 Agent，离线 heldout 0 差异；`.env` 覆盖 MCP 档案主体为 P3，待另行决定是否让 `mcp-serve` 不读该项）；③ 视需要授权重复测量真实规划对照（同时补实际应答模型证据）；④ Task 033 复查通过后，再按另行决定推进 Streamable HTTP + OAuth。现有网页默认规则演示，不能把命令行模型接入当作网页已经使用 AI。展示修复不关闭下方正式实验、人工量表与 PostgreSQL 实机验收。
 
 ## 1. 项目要交付什么
 
@@ -55,7 +55,7 @@
 | 4 | 正式真实评测与人工量表 | 冻结代码/数据/评分/Prompt/模型/预算与重复次数；同一工具/权限/预算下完成 B/C、配 A 确定性基线；保存全部重复、失败题和人工结果；揭示旧保留题已被开发查看的限制 |
 | 5 | 最终版本复现、演示与交付 | 独立环境按 README 重建运行；完整测试、调查/冲突/审批/失败案例及可插拔回归；文档与结果一致；完成验收后才建议发布 |
 
-工作包 1、2 已按 Prompt 实施并自检，仍需独立复查确认；3 需要可用 PostgreSQL 实例；4 需要有效模型配置、预算和人工评分。生产鉴权、Docker、部署、混合检索为另行决定的扩展，不阻塞现定 P0；MCP 的 stdio 第一版已按 Task 033 实施（已自检、待独立复查），Streamable HTTP + OAuth 仍为扩展；Task 032/033 按用户要求与本任务分开执行。
+工作包 1、2 已按 Prompt 实施并自检，仍需独立复查确认；3 需要可用 PostgreSQL 实例；4 需要有效模型配置、预算和人工评分。生产鉴权、Docker、部署、混合检索为另行决定的扩展，不阻塞现定 P0；MCP 的 stdio 第一版已按 Task 033 实施（独立复查有条件通过，返修经确认复查条件已满足），Streamable HTTP + OAuth 仍为扩展；Task 032/033 按用户要求与本任务分开执行。
 
 ## 4. 评测与完成判断
 
