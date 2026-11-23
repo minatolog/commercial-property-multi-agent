@@ -127,7 +127,7 @@ python -m unittest discover -s tests -p "test_*.py"
 
 ## 5. MCP 网关（Task 033）
 
-把受控只读工具以 MCP 服务开放给外部客户端。**当前是 stdio + 开发模式固定主体的第一版，已实施并自检，待独立复查；未推送，不可用于生产。** 网关是薄协议外壳，`ToolExecutor.execute()` 仍是唯一调用入口，不直接调用工具的 `invoke()`。SDK 为 `mcp==2.3.0`（low-level `Server` 的构造函数回调，不是 v1 装饰器写法）。详见 [Task 033 归档](../docs/prompts/04_agents/2026-11-23_033_mcp_gateway.md) 与 [手动连接证据](../docs/reviews/task033_evidence/stdio_probe.txt)。
+把受控只读工具以 MCP 服务开放给外部客户端。**当前是 stdio + 开发模式固定主体的第一版；[独立复查](../docs/reviews/2026-11-23_task033_independent_review.md)有条件通过，返修已自检、待复查确认；未推送，不可用于生产。** 网关是薄协议外壳，`ToolExecutor.execute()` 仍是唯一调用入口，不直接调用工具的 `invoke()`。SDK 为 `mcp==2.3.0`（low-level `Server` 的构造函数回调，不是 v1 装饰器写法）。详见 [Task 033 归档](../docs/prompts/04_agents/2026-11-23_033_mcp_gateway.md) 与 [手动连接证据](../docs/reviews/task033_evidence/stdio_probe.txt)。
 
 ### 5.1 启动
 
@@ -138,7 +138,7 @@ cd backend
 python -m app.cli mcp-serve --transport stdio --client local_dev
 ```
 
-stdout 只承载 MCP 协议；启动提示“开发模式：固定主体，不可用于生产”与诊断信息只写 stderr。档案不存在、被禁用、列出未注册/非只读工具或工具别名冲突时，进程以退出码 2 结束。
+stdout 只承载 MCP 协议；启动提示（“开发模式：固定主体，不可用于生产”，并打印档案名、实际主体与来源）、被网关预拦截的拒绝记录与其它诊断信息只写 stderr。档案不存在、被禁用、列出未注册/非只读工具、工具别名冲突或主体不存在时，进程以退出码 2 结束。
 
 ### 5.2 客户端档案
 
@@ -157,7 +157,8 @@ stdout 只承载 MCP 协议；启动提示“开发模式：固定主体，不�
 - **身份只来自会话**：`AgentContext` 只能由会话身份与服务端 fixture 主体记录构造；`principal_id`、`permissions`、`project_ids` 等保留键出现在调用参数中直接拒绝（`permission_denied`），不执行工具。
 - **预算按会话**：每个 MCP 连接一个独立 `Budget`，额度来自档案；重连重新计算，不能跨连接共享。
 - **失败不伪装成功**：所有失败返回 `isError: true` 与执行器错误码；网关自身异常只在 stderr 记录堆栈。
-- **开发模式固定主体**：本版没有令牌校验，主体来自档案或 `DEMO_PRINCIPAL_ID`；启动即向 stderr 告警，**不可用于生产**，也不能替代认证。
+- **开发模式固定主体**：本版没有令牌校验，主体来自档案的 `principal_id`；启动环境里有非空的 `DEMO_PRINCIPAL_ID` 时覆盖档案主体，可以换成任意 fixture 主体（包括其它项目的审批人）。启动即向 stderr 告警并打印实际主体与来源，**不可用于生产**，也不能替代认证。
+- **`.env` 也会覆盖档案主体**：CLI 启动时加载仓库根与 `backend/` 的 `.env`，加载时把**空值当作未设置**，所以 `.env` 里写了 `DEMO_PRINCIPAL_ID`，就会覆盖档案主体，即使客户端配置里把它设成空字符串也拦不住。要使用档案主体，请确保 `.env` 里没有这一项，并以启动提示里的“来源”为准（`profile` 或 `env:DEMO_PRINCIPAL_ID`）。
 
 ### 5.4 Flowise 以 stdio 连接
 
@@ -170,8 +171,7 @@ stdout 只承载 MCP 协议；启动提示“开发模式：固定主体，不�
   "cwd": "D:\\commercial-property-multi-agent\\backend",
   "env": {
     "PYTHONIOENCODING": "utf-8",
-    "PYTHONUTF8": "1",
-    "DEMO_PRINCIPAL_ID": ""
+    "PYTHONUTF8": "1"
   }
 }
 ```
@@ -181,7 +181,7 @@ stdout 只承载 MCP 协议；启动提示“开发模式：固定主体，不�
 - **工作目录必须是 `backend/`**，否则 `-m app.cli` 找不到包；
 - 使用 Flowise 所在机器上的 Python 解释器路径；若 Flowise 在容器内，需要把仓库挂载进去并安装同一套依赖；
 - 一个 Flowise MCP 连接对应一个 MCP 会话与一份预算；重连会重新计算额度；
-- 不要给服务进程额外注入自报身份参数；身份只由档案（开发模式）决定。
+- 身份只来自档案的 `principal_id`，或启动环境 / `.env` 里的 `DEMO_PRINCIPAL_ID`（见 §5.3）；工具调用参数永远不能影响身份。
 
 ### 5.5 下一版计划
 

@@ -4,6 +4,15 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-23] Task 033 独立复查返修（Claude Code）
+
+- **依据**：DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)：**有条件通过**，无 P1，P2 两项、P3 六项。用户确认 P2-1 在工具层修。
+- **P2-1**：`document.search` 点名越权租约 / 文档时改为 `project_scope_denied`（原为 `ok` + 0 条，与其它工具不一致）；`KnowledgeLibrary` 新增 `catalog_metas`，因为锦澜合同缺 PDF、不在已索引文档里，只看已索引文档判断不出归属。**影响所有调用 `document.search` 的 Agent**；离线 heldout 与 `20261121T093757_*` A/B/C 各 32 题 0 差异。
+- **P2-2**：补未知工具名测试（复查者的“未知名回退 `lease.lookup`”变异现在 4 项失败）。
+- **P3**：启动提示打印主体与来源；`_sessions` 改为有上限；保留键预拦截写 stderr；主体不存在启动期失败；补 `document.search` 真实路径、大小写 / 嵌套保留键、CLI stdout 等测试；文档状态更正。
+- **新发现**：`.env` 加载把空值当作未设置，`.env` 中的 `DEMO_PRINCIPAL_ID` 会覆盖 MCP 档案主体（客户端传空字符串也拦不住）；当前值与档案相同、无实际影响。未改加载语义，README 写明，Flowise 配置示例去掉该项。
+- **验证**：659 tests OK（skipped=1）、70 项契约、`check` exit 0；`stdio_probe.txt` 重跑更新。返修为自检，**待复查确认**；未推送。归档 [§11](../prompts/04_agents/2026-11-23_033_mcp_gateway.md)。
+
 ## [2026-11-23] 任务 033 - MCP 工具网关（stdio 第一版，编码方 DeepSeek / dev_loop）
 
 - **起点**：`main`；033A 提交 `083335a`，033B 提交 `4422a74`；本轮 033C 只补手动连接证据与文档，未改代码和测试。
@@ -12,7 +21,7 @@
 - **手动连接（033C）**：用官方 SDK `ClientSession` + `stdio_client` 启动真实 CLI（`--client local_dev`），完成初始化、`tools/list`（5 个工具）、星汇 A-301 `lease_lookup`（`deposit_amount: "40000.00"` 等金额为字符串）与带 `principal_id` 的调用（`isError: true`、`status: denied`、`permission_denied`）；服务端 stderr 出现“开发模式：固定主体，不可用于生产”。原始输出 `docs/reviews/task033_evidence/stdio_probe.txt`。
 - **验证**：全量回归 **651 tests OK（skipped=1）**（此前 610，+41 为 `test_mcp_gateway.py`）、契约自检 **70 项**；证据 `docs/reviews/task033_evidence/unittest.txt`、`smoke.txt`。
 - **未做**：Streamable HTTP、OAuth、TLS；未在 Flowise 中实际连接；未使用 MCP Inspector（原 Prompt 允许 Inspector 或 SDK 客户端二选一）。
-- **归档**：[Task 033 归档](../prompts/04_agents/2026-11-23_033_mcp_gateway.md)，风险分析见 §9.2（身份与传输会话生命周期错配）。未调用付费接口；未提交/推送；**已实施并自检，待独立复查**。
+- **归档**：[Task 033 归档](../prompts/04_agents/2026-11-23_033_mcp_gateway.md)，风险分析见 §9.2（身份与传输会话生命周期错配）。未调用付费接口；033A/B/C 已提交为 `083335a` / `4422a74` / `57a0921`，未推送；**已实施并自检，待独立复查**。
 
 ## [2026-11-23] Task 032 / 034 返修确认复查与 P3 再修（Claude Code）
 

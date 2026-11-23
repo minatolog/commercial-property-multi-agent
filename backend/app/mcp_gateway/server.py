@@ -24,6 +24,7 @@ from __future__ import annotations
 import sys
 import traceback
 import uuid
+from collections import deque
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -67,6 +68,9 @@ __all__ = [
 
 GATEWAY_NAME = "commercial-property-mcp-gateway"
 GATEWAY_VERSION = "0.1.0"
+
+#: 诊断用会话快照的上限
+_SESSION_HISTORY = 32
 
 
 def alias_for(tool_name: str) -> str:
@@ -215,7 +219,19 @@ class GatewayServer:
         )
         self._environ = environ
         self._call_names = _build_call_names(registry)
-        self._sessions: list[McpSession] = []
+        # 只保留最近的会话快照供测试/诊断，避免长时间运行时随连接数无限增长
+        # （复查 P3-2；HTTP 版本多连接时尤其需要）。
+        self._sessions: deque[McpSession] = deque(maxlen=_SESSION_HISTORY)
+        # 启动期就确认主体存在（复查 P3-4）：否则服务能起来，但每次调用都失败。
+        preview = create_session(profile, environ=environ)
+        try:
+            self._repository.principal(preview.principal_id)
+        except AgentError as exc:
+            raise AgentConfigError(
+                f"客户端档案 {profile.name!r} 的主体 {preview.principal_id!r}"
+                f"（来源 {preview.source}）不存在：{exc.message}"
+            ) from exc
+        self._startup_identity = preview
         self._server: Server[McpSession] = Server(
             name=GATEWAY_NAME,
             version=GATEWAY_VERSION,
@@ -246,9 +262,15 @@ class GatewayServer:
 
     @property
     def sessions(self) -> tuple[McpSession, ...]:
-        """按建立顺序记录的本进程会话（只读快照，供测试/诊断）。"""
+        """按建立顺序记录的最近会话（最多 `_SESSION_HISTORY` 个，只读快照，供测试/诊断）。"""
 
         return tuple(self._sessions)
+
+    @property
+    def startup_identity(self) -> SessionIdentity:
+        """启动时解析出的主体与来源（用于启动提示；每个连接仍各自生成会话 ID）。"""
+
+        return self._startup_identity
 
     # ------------------------------------------------------------------ 生命周期
 
@@ -324,6 +346,12 @@ class GatewayServer:
         #    permission_denied，让 033A 的 Code→status 映射仍然给出 denied。
         reserved = sorted(RESERVED_PAYLOAD_KEYS & set(arguments))
         if reserved:
+            # 预拦截不进执行器、不写业务 Trace、不消耗预算，但安全事件要留痕（复查 P3-3）
+            print(
+                f"[mcp-gateway] 拒绝：会话 {session.identity.session_id} 调用 "
+                f"{requested_name!r} 的参数含保留键 {reserved}",
+                file=sys.stderr,
+            )
             return _failure(
                 requested_name,
                 ErrorCode.PERMISSION_DENIED,

@@ -604,7 +604,7 @@ class TestResultEnvelope(unittest.TestCase):
 import copy
 import io
 import sys
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 
 from mcp import Client, ClientSession, StdioServerParameters, stdio_client
 
@@ -871,6 +871,86 @@ class TestMcpGatewayEndToEnd(unittest.TestCase):
         )
         self.assertIsNone(result.structured_content["data"])
 
+    # 6b.（复查 P2-1）文档检索点名越权租约 / 文档 → 范围拒绝，不再是 ok + 0 条
+    def test_document_search_cross_project_target_is_denied(self) -> None:
+        # 用网关自己的真实注册表（含文档库与 PDF 索引）；`_registry()` 里的
+        # `document.search` 只是占位，测不到真实的检索与范围判断。
+        gateway = load_gateway("local_dev", environ={})
+        cases = [
+            {"query": "免租期", "lease_id": "lease_jl_b101_2025"},
+            {"query": "免租期", "lease_id": LEASE, "document_ids": ["doc_jl_b101_contract"]},
+            {"query": "免租期", "document_id": "doc_jl_b101_contract"},
+        ]
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                result = self._run(
+                    gateway,
+                    lambda client, a=arguments: client.call_tool("document_search", a),
+                )
+                self.assertTrue(result.is_error)
+                envelope = result.structured_content
+                self.assertEqual(envelope["status"], "denied")
+                self.assertEqual(envelope["error"]["code"], ErrorCode.PROJECT_SCOPE_DENIED.value)
+                self.assertIsNone(envelope["data"])
+                self.assertEqual(envelope["evidence"], [])
+
+        # 本项目租约照常可检索，证据带出页码 / 条款号（复查 P3-5 的证据路径）
+        ok = self._run(
+            gateway,
+            lambda client: client.call_tool(
+                "document_search", {"query": "免租期", "lease_id": LEASE}
+            ),
+        )
+        self.assertFalse(ok.is_error)
+        data = ok.structured_content["data"]
+        self.assertGreater(data["result_count"], 0)
+        for item in data["results"]:
+            self.assertEqual(item["project_id"], "prj_xinghui")
+            self.assertIsInstance(item["page"], int)
+            self.assertTrue(item["clause_id"])
+        evidence = ok.structured_content["evidence"]
+        self.assertEqual(len(evidence), data["result_count"])
+        self.assertTrue(all("page" in e["fields"] and "clause_id" in e["fields"] for e in evidence))
+
+    # 6c.（复查 P2-2）未知工具名：报错，且绝不能被路由到任何已允许的工具
+    def test_unknown_tool_name_is_rejected_without_execution(self) -> None:
+        gateway = self._gateway("local_dev")
+        invoked: list[str] = []
+        patches = []
+        for name in gateway.profile.allowed_tools:
+            tool = gateway.registry.get(name)
+
+            async def spy(payload: Any, context: AgentContext, _n: str = name) -> ToolInvocation:
+                invoked.append(_n)
+                raise AssertionError(f"未知工具名不应执行 {_n}")
+
+            patches.append(mock.patch.object(tool, "invoke", spy))
+        for p in patches:
+            p.start()
+        try:
+            for unknown in ("does_not_exist", "billing.statement.write", "Billing_Statement_Read"):
+                with self.subTest(name=unknown):
+                    result = self._run(
+                        gateway,
+                        lambda client, n=unknown: client.call_tool(n, {"lease_id": LEASE}),
+                    )
+                    self.assertTrue(result.is_error)
+                    envelope = result.structured_content
+                    self.assertNotEqual(envelope["status"], "ok")
+                    self.assertIn(
+                        envelope["error"]["code"],
+                        {ErrorCode.TOOL_NOT_FOUND.value, ErrorCode.TOOL_NOT_ALLOWED.value},
+                    )
+                    self.assertIsNone(envelope["data"])
+        finally:
+            for p in patches:
+                p.stop()
+        self.assertEqual(invoked, [])
+        for session in gateway.sessions:
+            self.assertTrue(
+                all(t.status != "ok" for t in session.executor.trace_log.snapshot())
+            )
+
     # 7. 工具执行失败 → isError: true 且 status 不是 ok
     def test_tool_failure_is_not_reported_as_success(self) -> None:
         gateway = self._gateway("local_dev")
@@ -982,6 +1062,96 @@ class TestMcpGatewayEndToEnd(unittest.TestCase):
         message = str(caught.exception)
         self.assertIn("billing.statement.read", message)
         self.assertIn("billing.statement_read", message)
+
+    # 复查 P3-5：CLI 启动失败时 stdout 必须为空（stdout 只留给协议）
+    def test_cli_startup_failure_keeps_stdout_empty(self) -> None:
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cli.main(["mcp-serve", "--transport", "stdio", "--client", "no_such_client"])
+        self.assertEqual(code, cli.EXIT_USAGE)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("no_such_client", err.getvalue())
+
+    # 复查 P3-4：主体不存在 → 启动期失败，而不是服务起来后每次调用都失败
+    def test_unknown_principal_fails_at_startup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            _write_profile(Path(tmp), "ghost_owner", principal_id="principal_ghost")
+            with self.assertRaises(AgentConfigError) as caught:
+                load_gateway("ghost_owner", registry=_registry(), config_dir=tmp, environ={})
+            self.assertIn("principal_ghost", str(caught.exception))
+            self.assertIn("profile", str(caught.exception))
+        with self.assertRaises(AgentConfigError) as caught:
+            load_gateway(
+                "local_dev", registry=_registry(), environ={"DEMO_PRINCIPAL_ID": "principal_ghost"}
+            )
+        self.assertIn("env:DEMO_PRINCIPAL_ID", str(caught.exception))
+
+    # 复查 P3-1：启动身份如实暴露主体与来源（CLI 启动提示据此打印）
+    def test_startup_identity_reports_principal_and_source(self) -> None:
+        identity = self._gateway("local_dev").startup_identity
+        self.assertEqual((identity.principal_id, identity.source), (PRINCIPAL, "profile"))
+        overridden = load_gateway(
+            "local_dev", registry=_registry(), environ={"DEMO_PRINCIPAL_ID": "principal_finance_xinghui"}
+        ).startup_identity
+        self.assertEqual(
+            (overridden.principal_id, overridden.source),
+            ("principal_finance_xinghui", "env:DEMO_PRINCIPAL_ID"),
+        )
+
+    # 复查 P3-5：大小写变体 / 嵌套的保留键同样不能执行（由 input_model 的 extra=forbid 挡住）
+    def test_reserved_key_variants_are_rejected_without_execution(self) -> None:
+        gateway = self._gateway("local_dev")
+        tool = gateway.registry.get("lease.lookup")
+        calls: list[Any] = []
+
+        async def spy(payload: Any, context: AgentContext) -> ToolInvocation:
+            calls.append(payload)
+            raise AssertionError("不应执行")
+
+        variants = [
+            {"lease_id": LEASE, "Principal_ID": "principal_finance_jinlan"},
+            {"lease_id": LEASE, "PROJECT_IDS": ["prj_jinlan"]},
+            {"lease_id": LEASE, "filters": {"project_ids": ["prj_jinlan"]}},
+            {"lease_id": LEASE, "metadata": {"principal_id": "principal_finance_jinlan"}},
+        ]
+        stderr = io.StringIO()
+        with mock.patch.object(tool, "invoke", spy), redirect_stderr(stderr):
+            for arguments in variants:
+                with self.subTest(arguments=arguments):
+                    result = self._run(
+                        gateway,
+                        lambda client, a=arguments: client.call_tool("lease_lookup", a),
+                    )
+                    self.assertTrue(result.is_error)
+                    self.assertNotEqual(result.structured_content["status"], "ok")
+                    self.assertIsNone(result.structured_content["data"])
+        self.assertEqual(calls, [])
+
+    # 复查 P3-3：顶层保留键的预拦截会在 stderr 留痕
+    def test_reserved_key_denial_is_logged_to_stderr(self) -> None:
+        gateway = self._gateway("local_dev")
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            self._run(
+                gateway,
+                lambda client: client.call_tool(
+                    "lease_lookup", {"lease_id": LEASE, "permissions": ["billing.write"]}
+                ),
+            )
+        log = stderr.getvalue()
+        self.assertIn("拒绝", log)
+        self.assertIn("permissions", log)
+        self.assertIn(gateway.sessions[-1].identity.session_id, log)
+
+    # 复查 P3-2：会话快照有上限，不随连接数无限增长
+    def test_session_history_is_bounded(self) -> None:
+        from app.mcp_gateway import server as server_module
+
+        with mock.patch.object(server_module, "_SESSION_HISTORY", 3):
+            gateway = self._gateway("local_dev")
+        for _ in range(5):
+            self._run(gateway, lambda client: client.list_tools())
+        self.assertEqual(len(gateway.sessions), 3)
 
 
 class TestMcpGatewayUnexpectedError(unittest.TestCase):

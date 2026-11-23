@@ -47,6 +47,10 @@ class KnowledgeLibrary:
     documents: dict[tuple[str, int], DocumentMeta] = field(default_factory=dict)
     #: 是否执行了"fixture 页码 == 真实页码"的对齐校验
     snippets_verified: bool = False
+    #: 目录里的**全部**文档（含因缺文件未索引的），只用于判断归属项目。
+    #: `documents` 只含已索引文档；越权判断不能因为对方合同没有 PDF 就放过
+    #: （Task 033 复查 P2-1：锦澜合同缺 PDF，曾导致跨项目检索返回 ok + 0 条）。
+    catalog_metas: tuple[DocumentMeta, ...] = ()
 
     def metas(self) -> tuple[DocumentMeta, ...]:
         return tuple(self.documents.values())
@@ -149,8 +153,9 @@ def build_knowledge_library(
     documents: dict[tuple[str, int], DocumentMeta] = {}
     missing: list[str] = []
     verified = False
+    all_metas = tuple(catalog.list_documents())
 
-    for meta in catalog.list_documents():
+    for meta in all_metas:
         filename = meta.filename or DOCUMENT_FILES.get(meta.document_id)
         if filename is None:
             missing.append(meta.document_id)
@@ -185,4 +190,5 @@ def build_knowledge_library(
         missing_documents=tuple(missing),
         documents=documents,
         snippets_verified=verified,
+        catalog_metas=all_metas,
     )

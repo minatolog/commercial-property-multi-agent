@@ -17,6 +17,7 @@ from typing import ClassVar
 from pydantic import Field
 
 from ..agents.base.contracts import AgentContext
+from ..agents.base.errors import ProjectScopeDeniedError
 from ..rag.service import KnowledgeService
 from ..runtime.types import EvidenceDraft
 from .base import BaseTool, ToolInvocation
@@ -89,6 +90,44 @@ class DocumentSearchTool(BaseTool):
         #: Agent 调用必须能确定范围；CLI 的交互式检索才允许"全库搜索"
         self._require_scope = require_scope
 
+    def _assert_targets_in_scope(
+        self, payload: DocumentSearchInput, context: AgentContext
+    ) -> None:
+        """点名的租约 / 文档不在可信项目范围内 → 范围拒绝（Task 033 复查 P2-1）。
+
+        服务层本来就按 `context.project_ids` 过滤，越权目标只会得到 0 条结果，
+        不会泄漏数据；但“越权”和“没有匹配条款”必须能区分，而且要与
+        `lease.lookup` / `billing.*` / `property.work_orders.read` 对越权租约
+        一律 `project_scope_denied` 的行为一致。
+
+        项目归属取自文档目录元数据（含缺 PDF、未索引的文档；工具层不持有业务
+        仓库）。目录里没有任何文档的租约无法判定归属，仍按原逻辑返回 0 条，不猜测。
+        """
+
+        if self._library is None:
+            return
+        allowed_projects = context.project_ids
+        metas = tuple(getattr(self._library, "catalog_metas", ()) or ()) or self._library.metas()
+        lease_id = payload.lease_id or self._lease_id
+        named_documents = set(payload.document_ids or ())
+        if payload.document_id:
+            named_documents.add(payload.document_id)
+
+        denied: list[dict[str, str]] = []
+        if lease_id:
+            for project_id in sorted({m.project_id for m in metas if m.lease_id == lease_id}):
+                if project_id not in allowed_projects:
+                    denied.append({"lease_id": lease_id, "project_id": project_id})
+        for document_id in sorted(named_documents):
+            for project_id in sorted({m.project_id for m in metas if m.document_id == document_id}):
+                if project_id not in allowed_projects:
+                    denied.append({"document_id": document_id, "project_id": project_id})
+        if denied:
+            raise ProjectScopeDeniedError(
+                "检索目标不在可信上下文的项目范围内",
+                details={"denied": denied, "allowed_projects": sorted(allowed_projects)},
+            )
+
     def _resolve_allowed(
         self, payload: DocumentSearchInput, *, statuses: frozenset[str]
     ) -> frozenset[str] | None:
@@ -140,6 +179,7 @@ class DocumentSearchTool(BaseTool):
         statuses = (
             frozenset({"signed", "draft"}) if payload.include_drafts else frozenset({"signed"})
         )
+        self._assert_targets_in_scope(payload, context)
         allowed = self._resolve_allowed(payload, statuses=statuses)
         hits = self._service.search(
             payload.query,

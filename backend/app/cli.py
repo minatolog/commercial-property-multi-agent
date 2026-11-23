@@ -1196,7 +1196,12 @@ def _cmd_mcp_serve(args: argparse.Namespace) -> int:
     from .mcp_gateway.server import load_gateway
 
     gateway = load_gateway(args.client)
-    print(f"[dev-mode] {DEV_MODE_WARNING}", file=sys.stderr)
+    identity = gateway.startup_identity
+    print(
+        f"[dev-mode] {DEV_MODE_WARNING}；档案 {identity.client_name}，"
+        f"主体 {identity.principal_id}（来源 {identity.source}）",
+        file=sys.stderr,
+    )
     asyncio.run(gateway.serve_stdio())
     return EXIT_OK
 
