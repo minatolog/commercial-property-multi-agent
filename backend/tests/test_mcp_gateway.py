@@ -592,5 +592,495 @@ class TestResultEnvelope(unittest.TestCase):
         self.assertIn({"type": "null"}, schema["properties"]["data"]["anyOf"])
 
 
+# --------------------------------------------------------------------------- #
+# Task 033B：端到端测试（内存客户端 + stdio 冒烟）
+# --------------------------------------------------------------------------- #
+#
+# 下面只追加测试，不修改 033A 的用例。内存测试用 SDK 的 `Client(server,
+# mode="legacy")` 连接 `server.py` 构建的 low-level `Server`（内部走
+# `InMemoryTransport`，不起子进程）；最后一个用例用 SDK 的 stdio 客户端
+# 以子进程方式启动真实 CLI。
+
+import copy
+import io
+import sys
+from contextlib import redirect_stderr
+
+from mcp import Client, ClientSession, StdioServerParameters, stdio_client
+
+from app import cli
+from app.mcp_gateway.server import GatewayServer, alias_for, load_gateway
+
+
+class _AliasCollisionTool(BaseTool):
+    """测试专用：注册名与 `billing.statement.read` 折叠出同一个别名。"""
+
+    name = "billing.statement_read"
+    version = "1.0.0"
+    description = "test-only alias collision"
+    required_permissions = frozenset()
+    timeout_seconds = 1.0
+    max_attempts = 1
+    input_model = _EmptyInput
+    output_model = _EmptyOutput
+
+    async def invoke(self, payload: _EmptyInput, context: AgentContext) -> ToolInvocation:
+        raise AssertionError("别名冲突的测试工具不应被调用")
+
+
+def _normalized_envelope(payload: dict[str, Any]) -> dict[str, Any]:
+    """去掉每次调用必然不同的字段，便于比较别名与原名两次调用的等价性。"""
+
+    cleaned = copy.deepcopy(payload)
+    cleaned.pop("call_id", None)
+    for item in cleaned.get("evidence") or ():
+        item.pop("tool_call_id", None)
+        item.pop("collected_at", None)
+    return cleaned
+
+
+class TestMcpGatewayEndToEnd(unittest.TestCase):
+    """内存客户端端到端：协议外壳 → 执行器 → fixture 的完整链路。"""
+
+    def _gateway(
+        self,
+        client_name: str = "local_dev",
+        *,
+        registry: ToolRegistry | None = None,
+        config_dir: str | Path | None = None,
+    ) -> GatewayServer:
+        return load_gateway(
+            client_name,
+            registry=_registry() if registry is None else registry,
+            config_dir=config_dir,
+            environ={},  # 隔离进程环境：身份只来自档案
+        )
+
+    @staticmethod
+    def _run(gateway: GatewayServer, action: Any) -> Any:
+        async def scenario() -> Any:
+            async with Client(gateway.server, mode="legacy") as client:
+                return await action(client)
+
+        return asyncio.run(scenario())
+
+    # 1. tools/list：只列允许的工具、Schema 与 input_model 一致、别名正确
+    def test_tools_list_only_allowed_with_aliases_and_schemas(self) -> None:
+        local = self._gateway("local_dev")
+        listing = self._run(local, lambda client: client.list_tools())
+
+        expected_order = [
+            alias_for(name) for name in local.profile.allowed_tools
+        ]
+        self.assertEqual([tool.name for tool in listing.tools], expected_order)
+        self.assertEqual(
+            {tool.name for tool in listing.tools},
+            {alias_for(name) for name in READ_ONLY_TOOLS},
+        )
+        self.assertFalse(any("." in tool.name for tool in listing.tools))
+
+        for advertised in listing.tools:
+            original = {
+                alias_for(name): name for name in local.profile.allowed_tools
+            }[advertised.name]
+            tool = local.registry.get(original)
+            self.assertEqual(
+                advertised.input_schema, tool.input_model.model_json_schema()
+            )
+            self.assertEqual(
+                advertised.output_schema,
+                envelope_output_schema(tool.output_model),
+            )
+            self.assertIn(tool.description, advertised.description)
+            self.assertIn(f"原名: {original}", advertised.description)
+            self.assertNotIn(original, {t.name for t in listing.tools})
+
+        flowise = self._gateway("flowise")
+        flowise_listing = self._run(flowise, lambda client: client.list_tools())
+        flowise_names = {tool.name for tool in flowise_listing.tools}
+        self.assertEqual(
+            flowise_names,
+            {
+                "lease_lookup",
+                "billing_statement_read",
+                "property_work_orders_read",
+                "document_search",
+            },
+        )
+        self.assertNotIn("billing_arrears_calculate", flowise_names)
+        self.assertNotIn(
+            "billing.arrears.calculate",
+            flowise.profile.allowed_tools,
+        )
+
+    # 2. 一定经过执行器：Trace 有记录，run_id 是会话 ID，工具名是原名
+    def test_call_goes_through_executor_and_trace_records_session(self) -> None:
+        gateway = self._gateway("local_dev")
+        tool = gateway.registry.get("lease.lookup")
+        original_invoke = tool.invoke
+        seen_contexts: list[AgentContext] = []
+
+        async def spy(payload: Any, context: AgentContext) -> ToolInvocation:
+            seen_contexts.append(context)
+            return await original_invoke(payload, context)
+
+        with mock.patch.object(tool, "invoke", spy):
+            result = self._run(
+                gateway,
+                lambda client: client.call_tool(
+                    "lease_lookup", {"lease_id": LEASE}
+                ),
+            )
+
+        self.assertFalse(result.is_error)
+        self.assertEqual(len(seen_contexts), 1)
+        self.assertEqual(len(gateway.sessions), 1)
+        session = gateway.sessions[0]
+        self.assertEqual(session.identity.client_name, "local_dev")
+        self.assertEqual(seen_contexts[0].run_id, session.identity.session_id)
+
+        traces = session.executor.trace_log.snapshot()
+        self.assertEqual(len(traces), 1)
+        trace = traces[0]
+        self.assertEqual(trace.tool_name, "lease.lookup")  # Trace 记录原名
+        self.assertEqual(trace.run_id, session.identity.session_id)
+        self.assertTrue(trace.run_id.startswith("mcp_local_dev_"))
+        self.assertEqual(trace.status, "ok")
+        self.assertEqual(trace.call_id, result.structured_content["call_id"])
+
+    # 3. 保留键：直接拒绝，不执行工具，也没有该工具的执行记录
+    def test_reserved_keys_are_denied_without_execution(self) -> None:
+        gateway = self._gateway("local_dev")
+        tool = gateway.registry.get("lease.lookup")
+        invoked = False
+
+        async def spy(payload: Any, context: AgentContext) -> ToolInvocation:
+            nonlocal invoked
+            invoked = True
+            raise AssertionError("保留键调用不应进入工具")
+
+        malicious_arguments = [
+            {"lease_id": LEASE, "principal_id": PRINCIPAL},
+            {"lease_id": LEASE, "permissions": ["billing.read"]},
+            {"lease_id": LEASE, "project_ids": ["prj_jinlan"]},
+        ]
+        with mock.patch.object(tool, "invoke", spy):
+            for arguments in malicious_arguments:
+                result = self._run(
+                    gateway,
+                    lambda client, args=arguments: client.call_tool(
+                        "lease_lookup", args
+                    ),
+                )
+                self.assertTrue(result.is_error)
+                self.assertEqual(result.structured_content["status"], "denied")
+                self.assertEqual(
+                    result.structured_content["error"]["code"],
+                    ErrorCode.PERMISSION_DENIED.value,
+                )
+                self.assertIsNone(result.structured_content["data"])
+
+        self.assertFalse(invoked)
+        session = gateway.sessions[0]
+        self.assertEqual(session.executor.trace_log.snapshot(), ())
+
+    # 4. 不在档案中的工具 → isError + TOOL_NOT_ALLOWED（原名与别名一致）
+    def test_tool_not_in_profile_is_denied(self) -> None:
+        gateway = self._gateway("flowise")
+
+        original = self._run(
+            gateway,
+            lambda client: client.call_tool(
+                "billing.arrears.calculate", {"lease_id": LEASE}
+            ),
+        )
+        alias = self._run(
+            gateway,
+            lambda client: client.call_tool(
+                "billing_arrears_calculate", {"lease_id": LEASE}
+            ),
+        )
+
+        for result in (original, alias):
+            self.assertTrue(result.is_error)
+            self.assertEqual(result.structured_content["status"], "denied")
+            self.assertEqual(
+                result.structured_content["error"]["code"],
+                ErrorCode.TOOL_NOT_ALLOWED.value,
+            )
+
+    # 5. 超出会话预算 → BUDGET_EXHAUSTED；新会话额度重新计算
+    def test_session_budget_is_exhausted_and_reset_per_connection(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            _write_profile(
+                Path(tmp),
+                "budget_one",
+                budget={"max_tool_calls_per_session": 1},
+            )
+            gateway = self._gateway(
+                "budget_one", config_dir=tmp
+            )
+
+        async def two_calls(client: Any) -> tuple[Any, Any]:
+            first = await client.call_tool("lease_lookup", {"lease_id": LEASE})
+            second = await client.call_tool("lease_lookup", {"lease_id": LEASE})
+            return first, second
+
+        first, second = self._run(gateway, two_calls)
+        self.assertFalse(first.is_error)
+        self.assertTrue(second.is_error)
+        self.assertEqual(
+            second.structured_content["status"], "budget_exhausted"
+        )
+        self.assertEqual(
+            second.structured_content["error"]["code"],
+            ErrorCode.BUDGET_EXHAUSTED.value,
+        )
+
+        # 新连接 = 新会话：同样的 Server，额度重新从档案计算
+        third = self._run(
+            gateway,
+            lambda client: client.call_tool("lease_lookup", {"lease_id": LEASE}),
+        )
+        self.assertFalse(third.is_error)
+        self.assertEqual(len(gateway.sessions), 2)
+        first_session, second_session = gateway.sessions
+        self.assertNotEqual(
+            first_session.identity.session_id, second_session.identity.session_id
+        )
+        self.assertEqual(first_session.budget.snapshot().used_tool_calls, 1)
+        self.assertEqual(second_session.budget.snapshot().used_tool_calls, 1)
+        self.assertEqual(second_session.budget.snapshot().max_tool_calls, 1)
+
+    # 6. 跨项目数据 → 范围拒绝
+    def test_cross_project_query_is_denied(self) -> None:
+        # 档案主体 principal_ops_xinghui 只有 prj_xinghui；租约属于 prj_jinlan
+        gateway = self._gateway("local_dev")
+        result = self._run(
+            gateway,
+            lambda client: client.call_tool(
+                "billing_statement_read", {"lease_id": "lease_jl_b101_2025"}
+            ),
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.structured_content["status"], "denied")
+        self.assertEqual(
+            result.structured_content["error"]["code"],
+            ErrorCode.PROJECT_SCOPE_DENIED.value,
+        )
+        self.assertIsNone(result.structured_content["data"])
+
+    # 7. 工具执行失败 → isError: true 且 status 不是 ok
+    def test_tool_failure_is_not_reported_as_success(self) -> None:
+        gateway = self._gateway("local_dev")
+        tool = gateway.registry.get("lease.lookup")
+
+        async def boom(payload: Any, context: AgentContext) -> ToolInvocation:
+            raise RuntimeError("fixture 工具内部异常")
+
+        with mock.patch.object(tool, "invoke", boom):
+            result = self._run(
+                gateway,
+                lambda client: client.call_tool(
+                    "lease_lookup", {"lease_id": LEASE}
+                ),
+            )
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.structured_content["status"], "error")
+        self.assertNotEqual(result.structured_content["status"], "ok")
+        self.assertEqual(
+            result.structured_content["error"]["code"],
+            ErrorCode.INTERNAL_ERROR.value,
+        )
+        session = gateway.sessions[0]
+        traces = session.executor.trace_log.snapshot()
+        self.assertEqual(len(traces), 1)
+        self.assertEqual(traces[0].status, "error")
+
+    # 8. 金额在 structuredContent 中是精确到分的字符串
+    def test_amounts_are_strings_to_the_cent(self) -> None:
+        gateway = self._gateway("local_dev")
+        result = self._run(
+            gateway,
+            lambda client: client.call_tool(
+                "billing_statement_read", {"lease_id": LEASE}
+            ),
+        )
+
+        self.assertFalse(result.is_error)
+        data = result.structured_content["data"]
+        expected = {
+            "invoiced_total": "52596.00",
+            "paid_total": "34560.00",
+            "outstanding_total": "18036.00",
+            "rent_variance_total": "756.00",
+        }
+        for key, value in expected.items():
+            self.assertIsInstance(data[key], str)
+            self.assertEqual(data[key], value)
+            self.assertEqual(f"{Decimal(data[key]):.2f}", data[key])
+
+        text = result.content[0].text
+        self.assertIn('"outstanding_total": "18036.00"', text)
+        _assert_no_float(json.loads(text))
+        _assert_no_float(result.structured_content)
+
+    # 9. 别名与原名调用结果相同（只忽略每次调用必然不同的标识/时间）
+    def test_alias_and_original_return_the_same_envelope(self) -> None:
+        gateway = self._gateway("local_dev")
+
+        async def both(client: Any) -> tuple[Any, Any]:
+            by_alias = await client.call_tool(
+                "lease_lookup", {"lease_id": LEASE}
+            )
+            by_original = await client.call_tool(
+                "lease.lookup", {"lease_id": LEASE}
+            )
+            return by_alias, by_original
+
+        by_alias, by_original = self._run(gateway, both)
+        self.assertFalse(by_alias.is_error)
+        self.assertFalse(by_original.is_error)
+        self.assertEqual(
+            _normalized_envelope(by_alias.structured_content),
+            _normalized_envelope(by_original.structured_content),
+        )
+        traces = gateway.sessions[0].executor.trace_log.snapshot()
+        self.assertEqual(
+            [trace.tool_name for trace in traces],
+            ["lease.lookup", "lease.lookup"],
+        )
+
+    # 10. 档案配置错误 → Server 构建失败 / CLI 非零退出
+    def test_invalid_profile_fails_at_build_and_cli(self) -> None:
+        with self.assertRaises(AgentConfigError):
+            self._gateway("no_such_client")
+
+        buffer = io.StringIO()
+        with redirect_stderr(buffer):
+            code = cli.main(
+                [
+                    "mcp-serve",
+                    "--transport",
+                    "stdio",
+                    "--client",
+                    "no_such_client",
+                ]
+            )
+        self.assertEqual(code, cli.EXIT_USAGE)
+        self.assertIn("no_such_client", buffer.getvalue())
+
+        # 别名冲突同样在构建 Server 时失败
+        registry = _registry()
+        registry.register(_AliasCollisionTool())
+        with self.assertRaises(AgentConfigError) as caught:
+            load_gateway(
+                "local_dev", registry=registry, environ={}
+            )
+        message = str(caught.exception)
+        self.assertIn("billing.statement.read", message)
+        self.assertIn("billing.statement_read", message)
+
+
+class TestMcpGatewayUnexpectedError(unittest.TestCase):
+    """网关自身的未预期异常也不能变成成功（Claude Code 复核 033B 时补充）。
+
+    第 7 点测的是执行器内部的工具失败；这里测执行器**之外**、网关处理器里
+    抛出的异常：必须返回 `isError` 信封，且不把 Python 堆栈发给客户端。
+    """
+
+    # 复用端到端用例的连接辅助方法（不继承，避免父类用例被重复收集）
+    _gateway = TestMcpGatewayEndToEnd._gateway
+    _run = staticmethod(TestMcpGatewayEndToEnd._run)
+
+    def test_gateway_exception_is_error_without_traceback(self) -> None:
+        gateway = self._gateway("local_dev")
+
+        async def boom(*_args: Any, **_kwargs: Any) -> Any:
+            raise RuntimeError("gateway-secret-detail")
+
+        stderr = io.StringIO()
+        with mock.patch.object(ToolExecutor, "execute", boom), redirect_stderr(stderr):
+            result = self._run(
+                gateway,
+                lambda client: client.call_tool("lease_lookup", {"lease_id": LEASE}),
+            )
+
+        self.assertTrue(result.is_error)
+        envelope = result.structured_content
+        self.assertEqual(envelope["status"], "error")
+        self.assertEqual(envelope["error"]["code"], ErrorCode.INTERNAL_ERROR.value)
+        self.assertIsNone(envelope["data"])
+        client_text = result.content[0].text
+        self.assertNotIn("gateway-secret-detail", client_text)
+        self.assertNotIn("Traceback", client_text)
+        # 堆栈只写服务端 stderr
+        self.assertIn("gateway-secret-detail", stderr.getvalue())
+
+
+class TestMcpGatewayStdio(unittest.TestCase):
+    """stdio 冒烟：真实 CLI 子进程 + SDK stdio 客户端。"""
+
+    def test_stdio_cli_smoke(self) -> None:
+        backend = Path(__file__).resolve().parents[1]
+        errlog = tempfile.NamedTemporaryFile(
+            mode="w+", encoding="utf-8", suffix=".log", delete=False
+        )
+        try:
+            params = StdioServerParameters(
+                command=sys.executable,
+                args=[
+                    "-m",
+                    "app.cli",
+                    "mcp-serve",
+                    "--transport",
+                    "stdio",
+                    "--client",
+                    "local_dev",
+                ],
+                cwd=str(backend),
+                env={
+                    "PYTHONIOENCODING": "utf-8",
+                    "PYTHONUTF8": "1",
+                    "DEMO_PRINCIPAL_ID": "",
+                },
+            )
+
+            async def scenario() -> tuple[Any, Any]:
+                async with stdio_client(params, errlog=errlog) as (
+                    read_stream,
+                    write_stream,
+                ):
+                    async with ClientSession(read_stream, write_stream) as session:
+                        await session.initialize()
+                        listing = await session.list_tools()
+                        result = await session.call_tool(
+                            "lease_lookup", {"lease_id": LEASE}
+                        )
+                        return listing, result
+
+            listing, result = asyncio.run(
+                asyncio.wait_for(scenario(), timeout=120)
+            )
+            errlog.seek(0)
+            stderr = errlog.read()
+        finally:
+            errlog.close()
+            Path(errlog.name).unlink(missing_ok=True)
+
+        self.assertEqual(
+            {tool.name for tool in listing.tools},
+            {alias_for(name) for name in READ_ONLY_TOOLS},
+        )
+        self.assertFalse(result.is_error)
+        self.assertEqual(result.structured_content["status"], "ok")
+        self.assertEqual(result.structured_content["data"]["lease_id"], LEASE)
+        self.assertIn(DEV_MODE_WARNING, stderr)
+        self.assertIn("开发模式", stderr)
+        self.assertIn("不可用于生产", stderr)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

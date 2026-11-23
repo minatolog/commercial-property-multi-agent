@@ -6,6 +6,7 @@
     python -m app.cli tools
     python -m app.cli check
     python -m app.cli demo --principal principal_ops_xinghui --lease lease_xh_a301_2025
+    python -m app.cli mcp-serve --transport stdio --client local_dev
 
 `demo` 使用 ScriptedToolAgent（Fake Agent）跑通 Runtime → ToolExecutor → fixture，
 只证明边界、权限、预算与 Trace，不代表已接入真实模型。
@@ -350,6 +351,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     pending = sub.add_parser("pending", help="列出待审批请求与已记录的决定")
     pending.add_argument("--control-dir", default=None, help="控制面数据目录")
+
+    mcp_serve = sub.add_parser(
+        "mcp-serve",
+        help="以 MCP stdio 服务开放只读工具（开发模式固定主体，不可用于生产）",
+        epilog=_EXIT_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    mcp_serve.add_argument(
+        "--transport",
+        default="stdio",
+        choices=("stdio",),
+        help="传输方式（本版本只支持 stdio；stdout 只承载 MCP 协议）",
+    )
+    mcp_serve.add_argument(
+        "--client",
+        required=True,
+        help="客户端档案名（app/config/mcp_clients/<name>.yaml，例如 local_dev / flowise）",
+    )
 
     evaluate_parser = sub.add_parser(
         "evaluate",
@@ -1165,6 +1184,23 @@ async def _approve_async(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _cmd_mcp_serve(args: argparse.Namespace) -> int:
+    """启动 MCP stdio 网关（Task 033B）。
+
+    启动期失败（档案不存在/禁用/工具不合法/别名冲突）由 `main` 统一转成
+    退出码 2；服务运行期间 **stdout 只承载 MCP 协议**，开发模式提示与
+    其它诊断信息一律写 stderr。
+    """
+
+    from .mcp_gateway.identity import DEV_MODE_WARNING
+    from .mcp_gateway.server import load_gateway
+
+    gateway = load_gateway(args.client)
+    print(f"[dev-mode] {DEV_MODE_WARNING}", file=sys.stderr)
+    asyncio.run(gateway.serve_stdio())
+    return EXIT_OK
+
+
 def _cmd_pending(args: argparse.Namespace) -> int:
     approval_path = _approval_path(args)
     store = ApprovalStore(approval_path)
@@ -1378,6 +1414,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_approve(args)
         if args.command == "pending":
             return _cmd_pending(args)
+        if args.command == "mcp-serve":
+            return _cmd_mcp_serve(args)
         if args.command == "evaluate":
             return _cmd_evaluate(args)
         if args.command == "search":
