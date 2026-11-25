@@ -27,6 +27,8 @@ param(
     [int]$MaxTurns = 150,
     [string[]]$AddDirs = @(),
     [switch]$Overwrite,
+    # 上一次复查用完工具调用、没给出报告时：接着同一会话（保留已做的调查），只要求它写出报告
+    [string]$ResumeSession = "",
     [string]$ClaudeExe = ""
 )
 
@@ -158,6 +160,12 @@ foreach ($d in $AddDirs) {
 
 $tpl = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "independent_review_prompt.md"), $utf8)
 $prompt = $tpl.Replace("{{PROMPT_FILE}}", $promptRel).Replace("{{REPORT_FILE}}", $reportRel).Replace("{{SCRATCH_DIR}}", $ScratchDir.Replace('\', '/'))
+if ($ResumeSession) {
+    $prompt = "你在上一段已经用完了工具调用次数，还没有给出报告。现在不要再调用任何工具，" +
+        "直接根据你已经做过的调查，按复查 Prompt（$promptRel）第 5 节的格式输出完整报告正文，第一行是一级标题。" +
+        "没来得及验证的项目如实写进“本轮限制”并标明未验证，不要把推测写成结论。" +
+        "另外如实说明实验是否在 PG 测试库留下了临时角色或数据（调度方观察到留下了 6 个 ro_log_* 角色，已清理）。"
+}
 
 # ---------------------------------------------------------------- 运行
 $before = New-WorktreeSnapshot "before"
@@ -167,7 +175,8 @@ Write-Host "报告：$reportRel"
 Write-Host "实验目录（仓库外）：$ScratchDir"
 Write-Host "日志：$RunRel"
 
-$cliArgs = @("-p", "--output-format", "json", "--max-turns", "$MaxTurns") + $addDirArgs +
+$resumeArgs = if ($ResumeSession) { @("--resume", $ResumeSession) } else { @() }
+$cliArgs = @("-p", "--output-format", "json", "--max-turns", "$MaxTurns") + $resumeArgs + $addDirArgs +
     @("--permission-mode", "default", "--allowedTools") + $allow + @("--disallowedTools") + $deny
 
 $saved = @{}
