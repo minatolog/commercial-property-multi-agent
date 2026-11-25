@@ -5,7 +5,7 @@
 - **日期**：2026-11-24
 - **任务编号**：038
 - **模块**：04_agents
-- **Git Commit**：`Pending`，起点 `main` / `77410ca`。保留已有未提交页面及 Task 036/037 文档。
+- **Git Commit**：`d81e33d`（`langchain`，与 Task 036/037 及运营总览 / 3D 商场页面同一提交；起点 `main` / `77410ca`）。
 - **关联决策**：[ADR-007](../../decisions/ADR-007-langchain-standard-components.md)
 
 ## 2. 任务目标和背景
@@ -55,7 +55,7 @@
 
 ## 8. 对应 Git Commit Hash
 
-`Pending`。本轮按源码和文档验证交付，未执行 Git 提交。基线 `77410ca`，保留已有工作区修改。
+`d81e33d`（归档写作时为 Pending，之后由用户提交）。基线 `77410ca`。
 
 ## 9. 后续待办事项
 

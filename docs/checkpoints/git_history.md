@@ -4,6 +4,13 @@
 
 > 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-25] Task 036 / 037 / 038 提交（d81e33d）
+
+- **提交**：`d81e33d`（“langchain”，作者 minatolog，2026-11-25），包含 Task 036 架构审查、Task 037 LangChain 标准化方案（ADR-007）、Task 038 LangChain 架构实施，以及运营总览（`static/ops/`）与 3D 商场（`static/mall/`）页面；已在 `origin/main`。
+- **验证**（2026-11-25 Claude Code 复核实测）：723 tests OK（默认 skipped=45；设置 `COMMERCIAL_PG_TEST_URL` 时 skipped=1，44 个 PG 测试实际执行）、70 项契约、`check` exit 0。
+- **复查**：尚无独立复查（复查 Prompt 见 `docs/handoffs/REVIEW_TASK038_PROMPT.md`）。
+- **回滚参考**：`git revert d81e33d` 会同时撤销三个任务与两个新页面；只回滚 LangChain 循环时按路径选择性还原（旧循环见 `77410ca` 的 `backend/app/runtime/tool_loop.py`）。
+
 ## [2026-11-24] Task 038 LangChain 架构实施（Pending）
 
 - **起点**：main / 77410ca，保留用户已有未提交页面改动。

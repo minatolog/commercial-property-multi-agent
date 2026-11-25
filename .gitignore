@@ -88,3 +88,5 @@ data/
 *.db-shm
 # dev_loop 自动编码/审查循环的运行日志
 tmp/dev_loop/
+# 本地 Claude Code 预览 / 会话配置（含本机临时路径，不入库）
+.claude/

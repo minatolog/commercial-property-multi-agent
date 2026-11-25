@@ -44,7 +44,7 @@
 
 ## 8. 对应 Git Commit Hash
 
-Pending；HEAD 77410ca，未提交/推送。本轮不安装依赖、不运行 dev_loop、不调用付费模型。
+`d81e33d`（归档写作时为 Pending，之后与 Task 038 一同提交）；基线 77410ca。本轮不安装依赖、不运行 dev_loop、不调用付费模型。
 
 ## 9. 后续待办事项
 

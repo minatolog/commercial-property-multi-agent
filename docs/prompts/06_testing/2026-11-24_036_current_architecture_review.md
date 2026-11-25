@@ -44,7 +44,7 @@
 
 ## 8. 对应 Git Commit Hash
 
-Pending；HEAD 77410ca。缓存 origin/main 同 hash，未 fetch，不承诺远端即时状态。
+`d81e33d`（归档写作时为 Pending，之后与 Task 037/038 一同提交）；审查基线 HEAD 77410ca。
 
 ## 9. 后续待办事项
 
