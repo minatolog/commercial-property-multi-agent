@@ -23,10 +23,10 @@
       <a class="nav-link" href="#agents" data-page="agents"><span data-icon="bot"></span>Agent 工作台</a>
       <a class="nav-link" href="#tasks" data-page="tasks"><span data-icon="tasks"></span>协同任务<span class="nav-count" id="nav-count">3</span></a>
       <a class="nav-link" href="#insights" data-page="insights"><span data-icon="chart"></span>运营洞察</a>
-      <a class="nav-link" href="/workbench"><span data-icon="search"></span>争议调查</a>
+      <a class="nav-link" href="/workbench"><span data-icon="search"></span>争议调查（真实工作台）</a>
     </nav>
     <div class="side-bottom">
-      <div class="side-system"><span class="sys-icon" data-icon="activity"></span><span><strong id="side-status">6 个 Agent 在线</strong><small>协同网络运行正常</small></span><i class="live-dot"></i></div>
+      <div class="side-system"><span class="sys-icon" data-icon="activity"></span><span><strong id="side-status">演示：6 个 Agent</strong><small>模拟状态</small></span><i class="live-dot"></i></div>
       <div class="account"><span class="avatar">演</span><span><strong>演示值班员</strong><small>运营工作台</small></span></div>
     </div>
   </aside>
@@ -38,7 +38,7 @@
         <div class="site-name"><span class="site-icon" data-icon="building"></span><strong>星汇广场</strong><span class="top-divider"></span><span>商场运营</span></div>
       </div>
       <div class="top-actions">
-        <span class="date-stamp"><span data-icon="calendar"></span>11 月 24 日，周二</span>
+        <span class="date-stamp"><span data-icon="calendar"></span>11 月 24 日，周二（模拟数据）</span>
         <button class="icon-button notification-button" data-action="notifications" aria-label="消息通知"><span data-icon="bell"></span><i id="unread-dot"></i></button>
         <span class="demo-badge">演示环境</span>
       </div>
@@ -47,7 +47,7 @@
     <main id="main" tabindex="-1">
       <section class="page active" id="page-overview" aria-labelledby="overview-title">
         <div class="page-intro">
-          <div><h1 id="overview-title">运营总览</h1><p>掌握全场态势，追踪 Agent 的每一次协同。</p></div>
+          <div><h1 id="overview-title">运营总览</h1><p>掌握全场态势，追踪 Agent 的每一次协同。本页指标与任务均为模拟数据；真实争议调查请进入左侧「争议调查（真实工作台）」。</p></div>
           <div class="intro-actions">
             <label class="period-control"><span data-icon="calendar"></span><select id="period" aria-label="指标统计周期"><option value="today">今日</option><option value="yesterday">昨日</option></select><span data-icon="chevron-down"></span></label>
             <button class="primary-button" data-action="new"><span data-icon="plus"></span>发起协同</button>
@@ -66,7 +66,7 @@
             <button class="orchestrator" data-agent="hub">
               <span class="hub-icon" data-icon="network"></span>
               <span class="agent-content"><strong>运营调度 Agent</strong><small>统筹全场 · 编排协同任务</small></span>
-              <span class="hub-status"><i class="live-dot"></i>在线</span>
+              <span class="hub-status"><i class="live-dot"></i>模拟在线</span>
             </button>
             <div class="agent-tree" id="agent-tree"></div>
           </section>
@@ -92,7 +92,7 @@
       <section class="page" id="page-tasks" hidden aria-labelledby="tasks-title">
         <div class="page-intro"><div><h1 id="tasks-title">协同任务</h1><p>追踪从指标发现、跨 Agent 研判到现场执行的任务进度。</p></div><button class="primary-button" data-action="new"><span data-icon="plus"></span>发起协同</button></div>
         <section class="panel listing-panel">
-          <div class="panel-heading"><h2>任务列表</h2><div class="filter-control" id="task-filters" role="group" aria-label="筛选任务"><button data-filter="all" aria-pressed="true">全部</button><button data-filter="approval" aria-pressed="false">待审批</button><button data-filter="running" aria-pressed="false">协同中</button><button data-filter="done" aria-pressed="false">已完成</button></div></div>
+          <div class="panel-heading"><h2>任务列表</h2><div class="filter-control" id="task-filters" role="group" aria-label="筛选任务"><button data-filter="all" aria-pressed="true">全部</button><button data-filter="approval" aria-pressed="false">模拟待审批</button><button data-filter="running" aria-pressed="false">协同中</button><button data-filter="done" aria-pressed="false">已完成</button></div></div>
           <div id="task-list"></div>
         </section>
       </section>

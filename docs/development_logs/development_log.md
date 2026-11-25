@@ -7,7 +7,7 @@
 ## [2026-11-24] Task 038 LangChain 架构实施
 
 - **实现**：领域与 Single 使用 `create_agent` 调度模型与工具。标准工具经同一执行器，合同工具经标准 Retriever。网页支持显式模型配置，追加领域回答、用量和有据综合。
-- **验证**：723 项发现（678 通过、45 跳过）、70 契约。离线 96 个组/题条目结果一致。模拟 HTTP 三次请求、45 tokens，旧 checkpoint 两级恢复和无副作用均独立验证。
+- **验证**：723 项发现（678 通过、45 跳过）、70 契约。离线 96 个组/题条目结果一致。模拟 HTTP 三次请求、45 tokens，旧 checkpoint 两级恢复和无副作用均为实施者本地验证。
 - **范围**：新增 LangChain 1.4.9，既有环境其他三项核心版本保留。网页默认离线，实际 DeepSeek 和 PG 本轮未调用。见 [Task 038](../prompts/04_agents/2026-11-24_038_langchain_standardization.md) 与 [接手指南](../architecture/langchain_integration.md)。
 
 ## [2026-11-24] Task 037 LangChain 标准组件迁移方向

@@ -179,7 +179,9 @@ class SingleToolAgent(BaseAgent):
             raise AgentError(
                 f"工具调用循环未完成: {outcome.stop_reason}",
                 code=error_code,
-                retryable=error_code is ErrorCode.MODEL_ERROR,
+                # 与领域 Agent 一致：错误码仍报 TIMEOUT，但瞬时超时可重试；
+                # 重试受同一个 Budget 约束并逐次记账。
+                retryable=error_code in {ErrorCode.MODEL_ERROR, ErrorCode.TIMEOUT},
                 details={
                     "stop_reason": outcome.stop_reason,
                     "rounds": outcome.rounds,

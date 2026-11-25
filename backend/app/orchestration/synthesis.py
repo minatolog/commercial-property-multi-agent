@@ -11,7 +11,6 @@ from ..agents.base.contracts import AgentContext
 from ..llm.model_client import ChatMessage, ChatModelClient, served_models_of
 from ..runtime.budget import Budget
 from ..runtime.tool_loop import run_tool_loop
-from ..tools.executor import ToolExecutor
 
 
 _SYSTEM_PROMPT = (
@@ -46,10 +45,9 @@ def _select(items: list[Any], indices: list[int]) -> list[Any]:
 
 
 class ReportSynthesizer:
-    def __init__(self, client: ChatModelClient, budget: Budget, executor: ToolExecutor) -> None:
+    def __init__(self, client: ChatModelClient, budget: Budget) -> None:
         self.client = client
         self.budget = budget
-        self.executor = executor
 
     async def __call__(self, report: dict[str, Any], context: AgentContext) -> dict[str, Any]:
         facts = report.get("findings", [])
@@ -81,7 +79,8 @@ class ReportSynthesizer:
                 ChatMessage(role="user", content=json.dumps(payload, ensure_ascii=False)),
             ),
             tools=(),
-            executor=self.executor,
+            # 综合节点不暴露任何工具，工具节点不可能被调用，因此不需要执行器。
+            executor=None,  # type: ignore[arg-type]
             context=context,
             agent_config=None,
             budget=self.budget,

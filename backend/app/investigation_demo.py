@@ -426,14 +426,16 @@ def build_investigation_bundle(
     synthesizer = None
     if enable_synthesis and model_provider == "deepseek":
         from .orchestration.synthesis import ReportSynthesizer
-        from .tools.executor import ToolExecutor
 
+        # 与规划器相同：调用方注入的客户端优先，绝不在这里另建真实客户端
+        # （测试/评测注入假模型时仍能证明综合链路，也不会成为付费调用缝）。
         synthesis_client = _planner_client(
-            model_provider, planner_config, planner_client_factory=planner_client_factory
+            model_provider,
+            planner_config,
+            planner_client=planner_client,
+            planner_client_factory=planner_client_factory,
         )
-        synthesizer = ReportSynthesizer(
-            synthesis_client, budget, ToolExecutor(tool_registry, budget, trace_log=trace_log)
-        )
+        synthesizer = ReportSynthesizer(synthesis_client, budget)
     investigator = Investigator(
         registry=report.registry,
         repository=repository,

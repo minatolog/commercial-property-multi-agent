@@ -167,7 +167,9 @@ class LLMToolAgent(BaseAgent):
             raise AgentError(
                 f"工具调用循环未完成: {outcome.stop_reason}",
                 code=error_code,
-                retryable=error_code is ErrorCode.MODEL_ERROR,
+                # 错误码保持 TIMEOUT 可见；但瞬时模型超时与 MODEL_ERROR 一样可重试，
+                # 否则一次网络抖动就会直接失败子任务。每次重试仍各自计入共享 Budget。
+                retryable=error_code in {ErrorCode.MODEL_ERROR, ErrorCode.TIMEOUT},
                 details={
                     "stop_reason": outcome.stop_reason,
                     "rounds": outcome.rounds,

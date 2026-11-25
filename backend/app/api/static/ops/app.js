@@ -46,7 +46,7 @@ const agents = {
 };
 
 const taskStatus = {
-  approval: ["待审批", "approval"],
+  approval: ["模拟待审批", "approval"],
   running: ["协同中", "running"],
   done: ["已完成", "done"],
   dismissed: ["已驳回", "dismissed"],
@@ -149,7 +149,8 @@ function renderMetrics() {
       trend = approvalCount() ? approvalCount() + " 项待审批" : "无待审批";
       caption = approvalCount() ? "需运营介入" : "当前状态";
     }
-    const title = period === "yesterday" ? item.yesterdayTitle || item.title : item.title;
+    const baseTitle = period === "yesterday" ? item.yesterdayTitle || item.title : item.title;
+    const title = baseTitle + "（模拟数据）";
     const points = item.trend;
     return '<article class="metric ' + item.tone + '"><div class="metric-top">' + iconBox(item.icon, "metric-icon") + title
       + '</div><div class="metric-value">' + value + '<small>' + unit + '</small></div><div class="metric-note"><strong class="' + (index === 3 ? "attention" : "") + '">' + trend
@@ -181,7 +182,7 @@ function renderMap() {
 }
 
 function agentState(id) {
-  if (id === "hub") return ["在线", "done", agents[id].role];
+  if (id === "hub") return ["模拟在线", "done", agents[id].role];
   const working = tasks.find((task) => task.status === "running" && templates[task.type].steps.at(-1)[0] === id);
   if (working) return ["协同中", "running", working.title];
   const handedOff = tasks.find((task) => task.status === "approval" && templates[task.type].steps[0][0] === id);
@@ -189,7 +190,7 @@ function agentState(id) {
   const supporting = tasks.find((task) => task.status === "running" && templates[task.type].steps.at(-2)[0] === id);
   if (supporting) return ["协助中", "running", supporting.title];
   if (id === "safety") return ["待命", "idle", agents[id].role];
-  return ["在线", "done", agents[id].role];
+  return ["模拟在线", "done", agents[id].role];
 }
 
 function renderAgents() {
@@ -228,8 +229,8 @@ function renderActivity() {
     const sample = templates[task.type];
     return '<button class="action-row" data-task="' + task.id + '">' + iconBox(sample.icon, "action-icon " + sample.tone)
       + '<span class="action-body"><strong>' + escape(task.id === task.type ? sample.name : task.title) + '</strong><small>' + sample.area + ' · ' + agentName(sample.steps[0][0])
-      + ' 发起</small></span><span class="text-link">去审批</span></button>';
-  }).join("") : '<p class="empty">当前没有待审批的建议。</p>';
+      + ' 发起</small></span><span class="text-link">查看演示</span></button>';
+  }).join("") : '<p class="empty">当前没有模拟待审批的建议。</p>';
   byId("nav-count").textContent = openCount();
 }
 
@@ -297,18 +298,18 @@ function showTask(task) {
     const last = index === sample.steps.length - 1;
     const active = last && task.status === "running";
     const pending = last && ["approval", "dismissed"].includes(task.status);
-    const status = pending ? (task.status === "dismissed" ? "已取消" : "待审批") : active ? "执行中" : "已完成";
+    const status = pending ? (task.status === "dismissed" ? "已取消" : "模拟待审批") : active ? "执行中" : "已完成";
     const text = last && task.status === "done" ? "已回传结果并归档。" : note;
     return '<li class="flow-step ' + (pending ? "pending" : "") + '">' + iconBox(agents[id].icon, "agent-icon " + agents[id].tone)
       + '<div><strong>' + agentName(id) + ' <span class="inline-status ' + (active ? "running" : pending ? "warning" : "") + '">' + status
       + '</span></strong><p>' + text + '</p></div></li>';
   }).join("");
   const actions = {
-    approval: '<button class="primary-button" data-action="approve">' + iconBox("check") + '批准并派单</button><button class="secondary-button" data-action="dismiss">驳回建议</button>',
+    approval: '<button class="primary-button" data-action="approve">' + iconBox("check") + '模拟批准并派单</button><button class="secondary-button" data-action="dismiss">模拟驳回</button>',
     running: '<button class="primary-button" data-action="complete">' + iconBox("check") + '模拟回传结果</button>',
     done: "", dismissed: "",
   };
-  const result = task.status === "done" ? '<section><h3>执行回执</h3><p>' + (task.type === "crowd" ? "安保 Agent 已回传疏导结果，中庭客流密度由 82% 回落至 61%。" : "负责执行的 Agent 已回传处理结果，运营调度 Agent 已归档。") + '</p></section>' : "";
+  const result = task.status === "done" ? '<section><h3>演示执行回执</h3><p>' + (task.type === "crowd" ? "安保 Agent 已回传疏导结果，中庭客流密度由 82% 回落至 61%。" : "负责执行的 Agent 已回传处理结果，运营调度 Agent 已归档。") + '</p></section>' : "";
   showDialog(task.title, "协同任务 · " + sample.area, '<div class="dialog-summary">' + taskPill(task) + '<time>' + task.time
     + '</time><span>' + team(task) + '</span></div><p>' + sample.summary + '</p><section><h3>处理建议</h3><p>'
     + sample.recommendation + '</p></section><section><h3>Agent 交接记录</h3><ol class="flow">' + steps + '</ol></section>' + result
@@ -335,7 +336,7 @@ function showZone(id) {
 function showNotifications() {
   byId("unread-dot").hidden = true;
   const pending = tasks.filter((task) => task.status === "approval");
-  showDialog("消息通知", "运营工作台", '<p>' + (pending.length ? "待你审批的 Agent 建议" : "当前没有待审批的建议。") + '</p>'
+  showDialog("消息通知", "运营工作台", '<p>' + (pending.length ? "待你查看的模拟 Agent 建议" : "当前没有模拟待审批的建议。") + '</p>'
     + (pending.length ? '<section>' + pending.map(taskRecord).join("") + '</section>' : ""), { type: "notifications" });
 }
 
@@ -366,7 +367,7 @@ function toast(message) {
 function updateTask(action) {
   const task = currentDetail?.type === "task" ? findTask(currentDetail.id) : null;
   if (!task) return;
-  const transitions = { approve: ["approval", "running", "已批准，执行 Agent 已接单"], dismiss: ["approval", "dismissed", "已驳回建议"], complete: ["running", "done", "已收到模拟执行回执"] };
+  const transitions = { approve: ["approval", "running", "模拟批准：执行 Agent 已接单（演示）"], dismiss: ["approval", "dismissed", "模拟驳回建议"], complete: ["running", "done", "已收到模拟执行回执"] };
   const [from, to, message] = transitions[action];
   if (task.status !== from) return;
   task.status = to;

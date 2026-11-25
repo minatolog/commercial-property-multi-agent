@@ -800,5 +800,58 @@ class TestFindingEvidenceBinding(unittest.TestCase):
         )
 
 
+class TestScopeFilteringBeforeTopK(unittest.TestCase):
+    """复查 P3-2：授权范围过滤必须发生在截取 top-k **之前**。
+
+    语料只在测试内生成（不改 fixture）：范围外文档的 10 个 chunk 在**全库**排名
+    都高于范围内的唯一命中，因此"先取 top_k*4 再过滤"的旧实现会返回空列表。
+    """
+
+    def test_in_scope_hit_is_returned_even_when_global_top_hits_are_out_of_scope(self) -> None:
+        query = "租金递增百分之五"
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            outside_pages = tuple(
+                (f"5.{index} " + " ".join([query] * 4),) for index in range(1, 11)
+            )
+            outside = build_pdf(
+                base / "outside.pdf", outside_pages, title="范围外语料（合成）"
+            )
+            inside = build_pdf(
+                base / "inside.pdf", (("9.1 " + query,),), title="范围内语料（合成）"
+            )
+
+            service = KnowledgeService()
+            service.index_pdf(
+                document_id="doc_outside", path=outside, project_id="prj_jinlan"
+            )
+            service.index_pdf(
+                document_id="doc_inside", path=inside, project_id="prj_xinghui"
+            )
+
+            top_k = 2
+            # 前提校验：全库前 top_k*4 名全部落在授权范围之外（否则本用例无法证明差异）。
+            global_hits = service.search(query, top_k=top_k * 4)
+            self.assertEqual(len(global_hits), top_k * 4)
+            self.assertTrue(
+                all(hit.chunk.document_id == "doc_outside" for hit in global_hits),
+                "测试语料前提：全库最高分的 chunk 必须都在授权范围外",
+            )
+
+            scoped = service.search(
+                query, project_ids=frozenset({"prj_xinghui"}), top_k=top_k
+            )
+
+            self.assertTrue(scoped, "先筛选后 top-k 应仍返回授权范围内的命中")
+            self.assertEqual({hit.chunk.document_id for hit in scoped}, {"doc_inside"})
+            self.assertTrue(
+                all(
+                    hit.chunk.document_id != "doc_outside"
+                    for hit in scoped
+                ),
+                "授权范围外的 chunk 不得进入结果",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

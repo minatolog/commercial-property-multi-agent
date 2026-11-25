@@ -158,6 +158,42 @@ class TestWebModelMode(_ApiCase):
         self.assertGreater(attempted.await_count, 0)
 
 
+class TestClientCannotSelectModelMode(_ApiCase):
+    """复查 P2-3：模型模式只能由服务端决定，客户端字段一律 422 且不改变服务端配置。
+
+    变异（给 `RunRequest` 增加 `model_provider` 并在提交时写回服务配置）会让本用例失败。
+    """
+
+    FORBIDDEN = (
+        ("model_provider", "deepseek"),
+        ("engine", "llm"),
+        ("model_name", "deepseek-flash"),
+        ("max_model_calls", 3),
+        ("planner_provider", "scripted"),
+    )
+
+    def test_model_mode_fields_are_rejected_and_server_mode_stays(self) -> None:
+        self.assertEqual(self.client.get("/api/meta").json()["model_provider"], "offline")
+        for field, value in self.FORBIDDEN:
+            with self.subTest(field=field):
+                payload = {"question": QUESTION, "lease_id": LEASE, field: value}
+                response = self.client.post("/api/runs", json=payload)
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertEqual(self.service.model_provider, "offline")
+                self.assertEqual(
+                    self.client.get("/api/meta").json()["model_provider"], "offline"
+                )
+        self.assertEqual(self.client.get("/api/runs").json()["count"], 0)
+
+    def test_client_cannot_switch_a_deepseek_server_back_to_offline(self) -> None:
+        self.service.model_provider = "deepseek"
+        payload = {"question": QUESTION, "lease_id": LEASE, "model_provider": "offline"}
+        response = self.client.post("/api/runs", json=payload)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.service.model_provider, "deepseek")
+        self.assertEqual(self.client.get("/api/meta").json()["model_provider"], "deepseek")
+
+
 class TestIdentityBoundary(_ApiCase):
     def test_client_cannot_declare_identity(self) -> None:
         for field in ("principal_id", "permissions", "roles"):
