@@ -1192,19 +1192,23 @@ class TestReadonlyRolePostgres(_SeededPostgresCase):
 
         from app.db.roles import create_readonly_role
 
+        from app.db.roles import drop_readonly_role
+
+        role_name = f"ro_echo_{secrets.token_hex(4)}"
         echo_engine = create_engine_for(PG_URL, echo=True)
         try:
             with self.assertRaises(ValueError):
-                create_readonly_role(echo_engine, f"ro_echo_{secrets.token_hex(4)}", "secret")
+                create_readonly_role(echo_engine, role_name, "secret")
             with self.engine.connect() as connection:
                 self.assertEqual(
                     connection.execute(
-                        text("SELECT count(*) FROM pg_roles WHERE rolname LIKE 'ro_echo_%'")
+                        text("SELECT count(*) FROM pg_roles WHERE rolname = :n"), {"n": role_name}
                     ).scalar_one(),
                     0,
                 )
         finally:
             echo_engine.dispose()
+            drop_readonly_role(self.engine, role_name)  # 检查失效时角色会真的建出来，总要清理
 
     def test_create_role_refuses_when_sql_logging_enabled(self) -> None:
         """`sqlalchemy.engine` logger 为 INFO 时同样会打印含密码的 DDL，必须拒绝（复查 P3 残留 1）。"""
@@ -1214,21 +1218,28 @@ class TestReadonlyRolePostgres(_SeededPostgresCase):
 
         from app.db.roles import create_readonly_role
 
+        from app.db.roles import drop_readonly_role
+
+        role_name = f"ro_log_{secrets.token_hex(4)}"
         logger = logging.getLogger("sqlalchemy.engine")
         previous = logger.level
         logger.setLevel(logging.INFO)
         try:
             with self.assertRaises(ValueError):
-                create_readonly_role(self.engine, f"ro_log_{secrets.token_hex(4)}", "secret")
+                create_readonly_role(self.engine, role_name, "secret")
+            logger.setLevel(previous)
+            with self.engine.connect() as connection:
+                self.assertEqual(
+                    connection.execute(
+                        text("SELECT count(*) FROM pg_roles WHERE rolname = :n"), {"n": role_name}
+                    ).scalar_one(),
+                    0,
+                )
         finally:
             logger.setLevel(previous)
-        with self.engine.connect() as connection:
-            self.assertEqual(
-                connection.execute(
-                    text("SELECT count(*) FROM pg_roles WHERE rolname LIKE 'ro_log_%'")
-                ).scalar_one(),
-                0,
-            )
+            # 检查失效（例如变异测试去掉了日志检查）时角色会真的建出来，任何断言失败都要清理，
+            # 不能把角色留在测试库里（2026-11-25 复查实验中曾残留 6 个）。
+            drop_readonly_role(self.engine, role_name)
 
     def test_readonly_role_has_no_elevated_attributes(self) -> None:
         """角色属性也是权限边界：不能是超级用户，也不能建库 / 建角色 / 绕过 RLS（复核补充）。"""
