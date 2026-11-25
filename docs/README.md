@@ -110,6 +110,9 @@ docs/prompts/02_database/2026-11-05_003_postgresql_schema.md
 | 033 | 2026-11-23 | 04_agents | MCP 工具网关（stdio 第一版）：客户端档案 / 会话身份 / 结果信封 / low-level `Server` / `mcp-serve`；只读工具、身份只来自会话、保留键拦截、预算按会话；全量回归 651 tests OK（skipped=1）、70 项契约，SDK stdio 手动连接成功（金额为字符串、自报身份被拒）；DeepSeek 复查有条件通过，P2/P3 已返修（659 tests），返修经确认复查条件已满足；未推送 | [2026-11-23_033_mcp_gateway.md](./prompts/04_agents/2026-11-23_033_mcp_gateway.md) |
 | 034 | 2026-11-22 | 04_agents | （DeepSeek 复查有条件通过，返修经确认复查条件已满足；实际应答模型改记“未记录”）LLM Supervisor 与混合规划（默认 rule 不变）；改写问法评测集 v1/v2 冻结在代码之前（含 36 道实习场景题）；离线对照零越权；修复 Task 031 复查 P3-2；595 tests / 70 项契约通过；真实模型单次对照 rule 36 / llm 61 / hybrid 58（66 题，零越权）；未提交，待独立复查 | [2026-11-22_034_llm_supervisor_planner.md](./prompts/04_agents/2026-11-22_034_llm_supervisor_planner.md) |
 | 035 | 2026-11-23 | 02_database | PostgreSQL 实机验证第一版（035A/035B/035C）：修 seed 外键顺序、会话级只读、时区、单价精度；39 条 CHECK + 1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql`；12 / 14 表清点与证据归档；700 tests OK（PG 套件 36 个实际执行）、70 项契约；**已实施并自检，独立复查不通过（单价读路径）→ 返修 → 确认复查有条件通过，条件已再修（710 tests）；未推送** | [2026-11-23_035_postgresql_verification.md](./prompts/02_database/2026-11-23_035_postgresql_verification.md) |
+| 036 | 2026-11-24 | 06_testing | 当前架构复查与实际链路图；719 tests OK（skipped=45）、70 契约；区分模型/规划/MCP/PG 进展、网页离线与运营模拟 | [2026-11-24_036_current_architecture_review.md](./prompts/06_testing/2026-11-24_036_current_architecture_review.md) |
+| 037 | 2026-11-24 | 04_agents | LangChain 标准 Agent/Tool/检索接口迁移方向与 ADR-007；仅方案，保留现有治理，未安装或修改实现 | [2026-11-24_037_langchain_standardization_plan.md](./prompts/04_agents/2026-11-24_037_langchain_standardization_plan.md) |
+| 038 | 2026-11-24 | 04_agents | LangChain 标准 Agent、受控工具、检索和网页综合分析已实施；723 项回归发现（跳过 45）、70 项契约 | [2026-11-24_038_langchain_standardization.md](./prompts/04_agents/2026-11-24_038_langchain_standardization.md) |
 
 ---
 

@@ -59,6 +59,7 @@ __all__ = ["LLMToolAgent"]
 
 _STOP_REASON_ERRORS: dict[str, ErrorCode] = {
     ToolLoopStopReason.MODEL_ERROR: ErrorCode.MODEL_ERROR,
+    ToolLoopStopReason.MODEL_TIMEOUT: ErrorCode.TIMEOUT,
     ToolLoopStopReason.BUDGET_EXHAUSTED: ErrorCode.BUDGET_EXHAUSTED,
     ToolLoopStopReason.DEADLINE_EXCEEDED: ErrorCode.DEADLINE_EXCEEDED,
 }

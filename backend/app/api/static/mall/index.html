@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08131e">
+  <title>星汇广场 · 3D 商场态势</title>
+  <link rel="stylesheet" href="page.css">
+  <script src="mall-hologram.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="frame top-inner">
+      <a href="/workbench" class="back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+        争议案件处理台
+      </a>
+      <span class="property">星汇广场</span>
+    </div>
+  </header>
+  <main class="frame">
+    <div class="intro">
+      <h1>3D 商场态势</h1>
+      <p>查看楼层、商铺状态和相关 Agent，从商铺发起调查。</p>
+    </div>
+    <mall-hologram investigation-path="/workbench"></mall-hologram>
+    <noscript><p>启用 JavaScript 后即可操作商场模型。</p></noscript>
+  </main>
+</body>
+</html>

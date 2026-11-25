@@ -1,0 +1,15 @@
+:root { color-scheme: dark; font: 16px/1.55 "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #e6f3fa; background: #08131e; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 300px; }
+.frame { max-width: 1380px; margin: auto; padding-inline: clamp(14px, 4vw, 54px); }
+.top { border-bottom: 1px solid #1b3447; background: #0a1825; }
+.top-inner { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.back { display: inline-flex; gap: 7px; align-items: center; color: #bcdae9; text-decoration: none; }
+.back:hover { color: #87e8ff; }
+.back:focus-visible { outline: 2px solid #87e8ff; outline-offset: 3px; }
+.back svg { width: 17px; height: 17px; }
+.property { color: #a5bed0; }
+main { padding-block: clamp(20px, 3vw, 34px) 24px; }
+.intro { margin-bottom: 16px; }
+.intro h1 { margin: 0; font-size: clamp(26px, 4vw, 39px); line-height: 1.18; letter-spacing: -.04em; }
+.intro p { margin: 8px 0 0; color: #9db7c9; font-size: 14px; }

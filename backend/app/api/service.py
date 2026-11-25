@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from ..agents.base.errors import AgentError
+from ..agents.base.errors import AgentError, ConfigError, MissingApiKeyError
 from ..control_plane import control_plane
 from ..investigation_demo import build_investigation_bundle
 from ..orchestration.approval import ApprovalError
@@ -289,8 +289,13 @@ class WorkflowService:
     approval_path: Path | None = None
     #: 本实例可信主体的项目范围；`None` 表示从 fixture 读取（测试可显式注入）
     project_ids: frozenset[str] | None = None
+    model_provider: str = "offline"
+    max_model_calls: int = 16
+    max_total_tokens: int = 30_000
 
     def __post_init__(self) -> None:
+        if self.model_provider not in {"offline", "deepseek"}:
+            raise ValueError("COMMERCIAL_WEB_MODEL_PROVIDER 仅支持 offline 或 deepseek")
         if self.project_ids is None:
             self.project_ids = self._resolve_scope()
         self._backfill_legacy_scope()
@@ -364,19 +369,29 @@ class WorkflowService:
         run_id = f"run_{uuid.uuid4().hex[:12]}"
         thread_id = f"thread_{run_id}"
         async with self._control(with_approval) as plane:
-            bundle = build_investigation_bundle(
-                principal_id=self.principal_id,
-                max_tool_calls=max_tool_calls,
-                control_plane=plane,
-                run_id=run_id,
-            )
             try:
+                uses_model = self.model_provider != "offline"
+                bundle = build_investigation_bundle(
+                    principal_id=self.principal_id,
+                    max_tool_calls=max_tool_calls,
+                    max_model_calls=self.max_model_calls if uses_model else 0,
+                    max_total_tokens=self.max_total_tokens if uses_model else None,
+                    model_provider=self.model_provider,
+                    planner_mode="rule",
+                    enable_synthesis=uses_model,
+                    control_plane=plane,
+                    run_id=run_id,
+                )
                 result = await bundle.investigator.investigate(
                     question=question,
                     lease_id=lease_id,
                     context=bundle.context,
                     thread_id=thread_id,
                 )
+            except MissingApiKeyError as exc:
+                raise ApiError("missing_api_key", "网页模型模式缺少服务端 API Key", status_code=503) from exc
+            except ConfigError as exc:
+                raise ApiError("model_configuration", "网页模型配置不可用", status_code=503) from exc
             except AgentError as exc:
                 self.index.upsert(
                     {
@@ -488,7 +503,7 @@ class WorkflowService:
         async with self._control(True) as plane:
             # 恢复时也要用同一条运行身份（批准人不是请求人，不能借 resume 换 run_id）
             bundle = build_investigation_bundle(
-                control_plane=plane, run_id=record.get("run_id")
+                control_plane=plane, run_id=record.get("run_id"), planner_mode="rule"
             )
             try:
                 result = await bundle.investigator.resume(
@@ -572,6 +587,11 @@ class WorkflowService:
                 "missing_information": list(result.missing),
                 "failures": list(result.failures),
                 "budget": bundle.budget.snapshot().model_dump(),
+                "execution": {
+                    "engine": bundle.engine,
+                    "provider": bundle.model_provider,
+                    "agent_framework": "langchain" if bundle.engine == "llm" else None,
+                },
             },
             "traces": [
                 {

@@ -8,13 +8,15 @@ version = "0.1.0"
 description = "Agent-first 商业地产多 Agent 工作流：Runtime、受控只读工具、LangChain 模型适配与合同条款 RAG"
 readme = "README.md"
 requires-python = ">=3.11"
-# 只声明当前源码真实使用的依赖；不引入 LangGraph / 数据库 / 向量库 / Web 框架
+# 只声明当前源码实际使用的依赖。
 dependencies = [
     "pydantic>=2.6,<3",
     "PyYAML>=6.0,<7",
     # Task 008：LangChain 模型适配层（DeepSeek 走 OpenAI 兼容端点）
     "langchain-core>=1.0,<2",
     "langchain-openai>=1.0,<2",
+    # ADR-007：领域 Agent 使用 LangChain 标准模型/工具循环。
+    "langchain==1.4.9",
     # Task 009：多 Agent 图编排
     "langgraph>=1.0,<2",
     # Task 010：只读业务数据层与迁移（本机验证用 SQLite；生产目标 PostgreSQL）

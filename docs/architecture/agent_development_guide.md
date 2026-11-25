@@ -1,6 +1,6 @@
 # Agent 开发指南（当前版）
 
-- 更新：2026-11-21，Task 031。
+- 更新：2026-11-24，Task 038。框架装配和修改步骤见 [LangChain 接手指南](langchain_integration.md)。
 - 上位依据：[当前基线](CURRENT_BASELINE.md)、[ADR-005](../decisions/ADR-005-agent-first-refocus.md)、[运行时契约](agent_runtime_contracts.md)。
 - 旧示例和原文：[历史快照](agent_development_guide_legacy_2026-11-09.md)，不再用其中直接 invoke 工具的示例开发。
 
@@ -9,7 +9,7 @@
 1. Agent 不 import 其他 Agent 实现；Coordinator 不 import 具体 Agent；具体实现只在受信任工厂装配。
 2. 子类 _execute(request, context) 返回 AgentOutput，由 BaseAgent 包装 AgentResult。
 3. Agent 不直接访问 ORM、Session、SQL、环境密钥或外部服务；业务能力通过受控工具、模型通过注入客户端获得。
-4. **工具调用必须经过 ToolExecutor 或共用工具循环**；仅调用 assert_tool_invocable 后直接 tool.invoke 不能替代预算、schema、deadline、结果范围和 Trace 校验。
+4. **业务工具统一经过 ToolExecutor**。LLM Agent 使用同一 `create_agent` 工厂，以 `StructuredTool` 接入执行器和治理中间件。注册新工具时沿用执行器的权限、预算和证据校验。
 5. 金额/日期/状态取自确定性工具，不在 Prompt 中计算或编造。业务规则新增到合适的 Service；现有仓库聚合与目标分层的差距不能继续扩大。
 6. Prompt 位于 Agent 自己的 prompts 目录；YAML 独立、schema 严格，密钥只引用环境变量名。禁止配置字符串动态 import。
 7. 业务目标和权限分别校验：授权范围来自可信上下文，任务范围来自可信入口装配，模型只能在范围内选择参数。
@@ -42,7 +42,7 @@
 | 替换实现 | 工厂指向兼容实现，同步类/YAML version 和 capabilities；检查 Registry 原子替换及相关工作流 |
 | 修改 Prompt | 修改独立文件，重建装配，验证相关工具选择、证据与回答；不写死业务真值 |
 | 修改模型 | Task 031 起客户端按各 Agent 自己的 YAML 创建（provider/model_name/temperature/max_tokens/api_key_env/timeout），同参数缓存共享；修改后重建装配并核对 `agent_models`/`models_by_agent` 的实际值。非法配置启动期失败，不允许静默回退；脚本化客户端必须显式注入脚本，不能写进 YAML |
-| 修改检索 | 只承诺实际消费的参数；当前实现只有 BM25，`retrieval_settings` 只接受 `enabled`/`top_k`，向量/嵌入/rerank 等未实现字段写入即加载失败，需实现并评测后才能进入 Schema |
+| 修改检索 | 从 `ContractRetriever` 替换或扩展检索，保留 `Document` 来源、文档授权与检索范围。当前索引是 BM25，`retrieval_settings` 只接受 `enabled` 与 `top_k` |
 | 移除模块 | 当前默认保留历史实现；确需删除须先确认任务范围并检查能力引用、配置、工厂和迁移 |
 
 ## 5. State、恢复和回归

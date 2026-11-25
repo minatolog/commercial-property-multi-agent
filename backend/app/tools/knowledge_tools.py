@@ -12,12 +12,13 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import Field
 
 from ..agents.base.contracts import AgentContext
 from ..agents.base.errors import ProjectScopeDeniedError
+from ..rag.retriever import ContractRetriever
 from ..rag.service import KnowledgeService
 from ..runtime.types import EvidenceDraft
 from .base import BaseTool, ToolInvocation
@@ -181,8 +182,8 @@ class DocumentSearchTool(BaseTool):
         )
         self._assert_targets_in_scope(payload, context)
         allowed = self._resolve_allowed(payload, statuses=statuses)
-        hits = self._service.search(
-            payload.query,
+        retriever = ContractRetriever(
+            service=self._service,
             document_id=payload.document_id,
             document_version=payload.document_version,
             project_ids=context.project_ids,
@@ -190,41 +191,10 @@ class DocumentSearchTool(BaseTool):
             document_statuses=statuses,
             top_k=payload.top_k,
         )
-        results: list[DocumentClauseOut] = []
-        for hit in hits:
-            project_id = self._service.project_of(
-                hit.chunk.document_id, hit.chunk.document_version
-            )
-            if project_id is None:  # pragma: no cover - search 已保证记录存在
-                continue
-            results.append(
-                DocumentClauseOut(
-                    chunk_id=hit.chunk.chunk_id,
-                    document_id=hit.chunk.document_id,
-                    document_version=hit.chunk.document_version,
-                    project_id=project_id,
-                    document_scope=(
-                        self._service.scope_of(
-                            hit.chunk.document_id, hit.chunk.document_version
-                        )
-                        or "unknown"
-                    ),
-                    document_status=(
-                        self._service.status_of(
-                            hit.chunk.document_id, hit.chunk.document_version
-                        )
-                        or "unknown"
-                    ),
-                    lease_id=self._service.lease_of(
-                        hit.chunk.document_id, hit.chunk.document_version
-                    ),
-                    page=hit.chunk.page,
-                    clause_id=hit.chunk.clause_id,
-                    excerpt=hit.chunk.text,
-                    score=hit.score,
-                    synthetic=hit.chunk.synthetic,
-                )
-            )
+        results = [
+            DocumentClauseOut(excerpt=document.page_content, **document.metadata)
+            for document in await retriever.ainvoke(payload.query)
+        ]
         evidence = tuple(
             EvidenceDraft(
                 evidence_id=item.chunk_id,

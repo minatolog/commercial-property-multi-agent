@@ -15,8 +15,10 @@ from __future__ import annotations
 import uuid
 from typing import Any, Sequence
 
+from openai import APITimeoutError
+
 from ..agents.base.contracts import TokenUsage
-from ..agents.base.errors import AgentError
+from ..agents.base.errors import AgentError, ErrorCode
 from ..config.schema import AgentConfig
 from .adapter import get_adapter
 from .model_client import (
@@ -50,13 +52,15 @@ class LangChainChatModelClient:
     async def complete(
         self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec]
     ) -> ModelTurn:
-        lc_messages = [_to_langchain_message(message) for message in messages]
+        lc_messages = [to_langchain_message(message) for message in messages]
         bound = self._chat_model
         if tools:
             bound = bound.bind_tools([_to_openai_tool(spec) for spec in tools])
 
         try:
             response = await bound.ainvoke(lc_messages)
+        except APITimeoutError as exc:
+            raise ModelInvocationError("模型服务请求超时", code=ErrorCode.TIMEOUT) from exc
         except AgentError:
             raise
         except Exception as exc:  # 厂商 SDK 的异常类型不稳定，统一收敛为 MODEL_ERROR
@@ -96,6 +100,7 @@ def build_chat_client(config: AgentConfig) -> LangChainChatModelClient:
         max_tokens=params.get("max_tokens"),
         timeout=config.timeout_seconds,
         max_retries=0,
+        cache=False,
     )
     return LangChainChatModelClient(
         provider=config.model_provider,
@@ -115,7 +120,7 @@ def _to_openai_tool(spec: ToolSpec) -> dict[str, Any]:
     }
 
 
-def _to_langchain_message(message: ChatMessage) -> Any:
+def to_langchain_message(message: ChatMessage) -> Any:
     from langchain_core.messages import (
         AIMessage,
         HumanMessage,

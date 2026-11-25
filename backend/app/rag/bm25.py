@@ -85,7 +85,9 @@ class BM25Index:
             if self._df[token] <= 0:
                 del self._df[token]
 
-    def search(self, query: str, *, top_k: int = 5) -> list[tuple[str, float]]:
+    def search(
+        self, query: str, *, top_k: int = 5, candidate_ids: frozenset[str] | None = None
+    ) -> list[tuple[str, float]]:
         if not self._docs:
             return []
         query_tokens = tokenize(query)
@@ -95,6 +97,8 @@ class BM25Index:
         avg_length = self._total_length / total_docs if total_docs else 0.0
         scored: list[tuple[str, float]] = []
         for doc in self._docs.values():
+            if candidate_ids is not None and doc.doc_id not in candidate_ids:
+                continue
             score = 0.0
             for token in query_tokens:
                 frequency = doc.tokens.get(token, 0)

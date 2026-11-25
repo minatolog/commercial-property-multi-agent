@@ -154,10 +154,8 @@ class KnowledgeService:
           不能与已签署条款等同。`None` 表示不限（仅供内部校验使用）。
         """
 
-        results = self._index.search(query, top_k=max(top_k * 4, top_k))
-        retrieved: list[RetrievedChunk] = []
-        for chunk_id, score in results:
-            chunk = self._chunks[chunk_id]
+        candidates = set()
+        for chunk_id, chunk in self._chunks.items():
             if document_id is not None and chunk.document_id != document_id:
                 continue
             if document_version is not None and chunk.document_version != document_version:
@@ -174,10 +172,13 @@ class KnowledgeService:
             if document_statuses is not None:
                 if record is None or record.document_status not in document_statuses:
                     continue
-            retrieved.append(RetrievedChunk(chunk=chunk, score=score))
-            if len(retrieved) >= top_k:
-                break
-        return retrieved
+            candidates.add(chunk_id)
+        return [
+            RetrievedChunk(chunk=self._chunks[chunk_id], score=score)
+            for chunk_id, score in self._index.search(
+                query, top_k=top_k, candidate_ids=frozenset(candidates)
+            )
+        ]
 
     def project_of(self, document_id: str, document_version: int) -> str | None:
         record = self._documents.get((document_id, document_version))

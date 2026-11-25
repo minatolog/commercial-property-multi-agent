@@ -14,11 +14,15 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 from app.api.app import create_app
 from app.api.service import RunIndex, WorkflowService
+from app.agents.base.errors import ErrorCode, MissingApiKeyError
+from app.llm.model_client import FakeChatModelClient, ModelInvocationError
+from app.llm.scripted import scripted_client_for_tools
 from app.orchestration.checkpointing import checkpoint_config, open_checkpointer
 
 QUESTION = (
@@ -46,6 +50,112 @@ class _ApiCase(unittest.TestCase):
         response = self.client.post("/api/runs", json=payload)
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+
+class TestWebModelMode(_ApiCase):
+    def test_model_analysis_uses_actual_tools_and_shared_accounting(self) -> None:
+        self.service.model_provider = "deepseek"
+        model = scripted_client_for_tools(
+            [
+                ("lease.lookup", {"lease_id": LEASE}),
+                ("billing.statement.read", {"lease_id": LEASE}),
+                ("property.work_orders.read", {"lease_id": LEASE}),
+            ],
+            summary="已通过领域工具核对商铺资料。",
+        )
+        synthesis = FakeChatModelClient([
+            '{"facts":[0],"conflicts":[0],"gaps":[0],"actions":["reconcile_billing"]}'
+        ])
+
+        def client_for_config(config, **kwargs):
+            return synthesis if not hasattr(config, "allowed_tools") else model
+
+        with patch(
+            "app.investigation_demo.build_model_client_for_config", side_effect=client_for_config
+        ):
+            submitted = self.submit(with_approval=True)
+        detail = self.client.get(f"/api/runs/{submitted['run_id']}").json()
+        report = detail["report"]
+        self.assertEqual(report["execution"]["agent_framework"], "langchain")
+        self.assertEqual(report["budget"]["used_model_calls"], len(model.calls) + len(synthesis.calls))
+        self.assertGreater(len(model.calls), 0)
+        self.assertTrue(detail["traces"])
+        self.assertEqual(
+            {entry["agent"] for entry in report["agent_analyses"]},
+            {"lease", "billing", "property"},
+        )
+        for entry in report["agent_analyses"]:
+            self.assertEqual(entry["answer"], "已通过领域工具核对商铺资料。")
+            self.assertTrue(entry["evidence_ids"])
+            self.assertEqual(entry["model"]["provider"], "scripted")
+        self.assertEqual(len(synthesis.calls), 1)
+        final = report["synthesis"]
+        self.assertEqual(final["status"], "completed")
+        self.assertIn(final["facts"][0], report["findings"])
+        self.assertIn(final["conflicts"][0], report["conflicts"])
+        self.assertIn(final["gaps"][0], report["missing_information"])
+        self.assertTrue(final["next_steps"])
+        request = report["approval_request"]
+        for actor in self.service.approver_allowlist:
+            response = self.client.post(
+                f"/api/runs/{submitted['run_id']}/approvals",
+                json={"decision": "approve", "draft_version": request["draft_version"]},
+                headers={"X-Actor-ID": actor},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+        approved = self.client.get(f"/api/runs/{submitted['run_id']}").json()["report"]
+        self.assertEqual(approved["synthesis"], final)
+        self.assertEqual(approved["budget"], report["budget"])
+        self.assertEqual(approved["approved_draft"]["executed_side_effects"], [])
+        self.assertEqual(len(synthesis.calls), 1)
+
+    def test_invalid_synthesis_indices_preserve_verified_report(self) -> None:
+        model = scripted_client_for_tools(
+            [("billing.statement.read", {"lease_id": LEASE})],
+            summary="已核对账单。",
+        )
+        synthesis = FakeChatModelClient([
+            '{"facts":[999],"conflicts":[0],"gaps":[],"actions":["reconcile_billing"]}'
+        ])
+        self.service.model_provider = "deepseek"
+        with patch(
+            "app.investigation_demo.build_model_client_for_config",
+            side_effect=lambda config, **kwargs: model if hasattr(config, "allowed_tools") else synthesis,
+        ):
+            submitted = self.submit(question="请核对 A-301 的账单。", with_approval=False)
+        report = self.client.get(f"/api/runs/{submitted['run_id']}").json()["report"]
+        self.assertEqual(report["synthesis"], {"status": "invalid_output"})
+        self.assertTrue(report["findings"])
+
+    def test_model_configuration_failure_does_not_fall_back(self) -> None:
+        self.service.model_provider = "deepseek"
+        with patch(
+            "app.investigation_demo.build_model_client_for_config",
+            side_effect=MissingApiKeyError("未配置模型密钥"),
+        ):
+            response = self.client.post("/api/runs", json={"question": QUESTION, "lease_id": LEASE})
+        self.assertEqual(response.status_code, 503, response.text)
+        self.assertEqual(response.json()["error"]["code"], "missing_api_key")
+        self.assertEqual(self.client.get("/api/meta").json()["model_provider"], "deepseek")
+
+    def test_model_timeout_is_visible_and_accounted(self) -> None:
+        self.service.model_provider = "deepseek"
+        model = FakeChatModelClient([])
+        with (
+            patch(
+                "app.investigation_demo.build_model_client_for_config", return_value=model
+            ),
+            patch.object(
+                model, "complete",
+                new=AsyncMock(side_effect=ModelInvocationError("provider timeout", code=ErrorCode.TIMEOUT)),
+            ) as attempted,
+        ):
+            submitted = self.submit(question="请核对 A-301 的账单。", with_approval=False)
+        detail = self.client.get(f"/api/runs/{submitted['run_id']}").json()
+        self.assertEqual(detail["status"], "failed")
+        self.assertEqual(detail["report"]["failures"][0]["error_code"], "timeout")
+        self.assertEqual(detail["report"]["budget"]["used_model_calls"], attempted.await_count)
+        self.assertGreater(attempted.await_count, 0)
 
 
 class TestIdentityBoundary(_ApiCase):
@@ -482,10 +592,23 @@ class TestPresentationIsOptional(_ApiCase):
     def test_index_page_renders(self) -> None:
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        # Task 032：产品页由“Agent 协作工作台”改为面向业务人员的“争议案件处理台”
+        self.assertIn("运营总览 · 星汇运营中枢", response.text)
+        self.assertIn("/static/ops/app.js", response.text)
+        self.assertIn("/static/mall/mall-hologram.js", response.text)
+        self.assertIn('href="/workbench"', response.text)
+
+    def test_workbench_still_renders(self) -> None:
+        response = self.client.get("/workbench")
+        self.assertEqual(response.status_code, 200)
         self.assertIn("商业地产 · 争议案件处理台", response.text)
-        # 主视图不再显示接口路径（属于技术细节）；改为确认页面加载了工作台脚本
         self.assertIn("/static/js/app.js", response.text)
+
+    def test_old_workbench_links_keep_their_query(self) -> None:
+        for query in ("run=abc&tab=evidence&tech=open", "store=A-302"):
+            with self.subTest(query=query):
+                response = self.client.get("/?" + query, follow_redirects=False)
+                self.assertEqual(response.status_code, 307)
+                self.assertEqual(response.headers["location"], "/workbench?" + query)
 
     def test_cli_and_evaluation_do_not_import_api(self) -> None:
         """删除展示层不应影响 CLI 与评测：它们不能依赖 `app.api`。"""
@@ -520,6 +643,10 @@ class TestWorkbenchStaticAssets(_ApiCase):
     """
 
     ASSETS = {
+        "/static/ops/styles.css": "text/css",
+        "/static/ops/app.js": "javascript",
+        "/static/mall/mall-hologram.css": "text/css",
+        "/static/mall/mall-hologram.js": "javascript",
         "/static/css/workbench.css": "text/css",
         "/static/js/app.js": "javascript",
         "/static/js/api.js": "javascript",
@@ -545,7 +672,7 @@ class TestWorkbenchStaticAssets(_ApiCase):
 
     def test_assets_and_index_require_revalidation(self) -> None:
         """Task 032 遗留：静态资源与首页带 no-cache，且未改动时返回 304。"""
-        for path in ("/", *self.ASSETS):
+        for path in ("/", "/workbench", *self.ASSETS):
             response = self.client.get(path)
             self.assertEqual(response.headers.get("cache-control"), "no-cache", path)
         first = self.client.get("/static/js/app.js")
@@ -554,11 +681,12 @@ class TestWorkbenchStaticAssets(_ApiCase):
         self.assertEqual(again.status_code, 304)
 
     def test_index_uses_local_assets_only(self) -> None:
-        html = self.client.get("/").text
-        self.assertIn("/static/vendor/tabler/css/tabler.min.css", html)
-        self.assertIn("/static/css/workbench.css", html)
-        self.assertIn("/static/js/app.js", html)
-        self.assertIn("/static/vendor/tabler/js/tabler.min.js", html)
+        workbench = self.client.get("/workbench").text
+        html = workbench + self.client.get("/").text
+        self.assertIn("/static/vendor/tabler/css/tabler.min.css", workbench)
+        self.assertIn("/static/css/workbench.css", workbench)
+        self.assertIn("/static/js/app.js", workbench)
+        self.assertIn("/static/vendor/tabler/js/tabler.min.js", workbench)
         for host in (
             "cdn.jsdelivr.net",
             "unpkg.com",

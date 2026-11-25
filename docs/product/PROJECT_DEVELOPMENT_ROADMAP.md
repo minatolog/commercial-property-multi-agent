@@ -1,6 +1,7 @@
 # 项目总开发路线与进度表 V1.1
 
-- 更新：2026-11-23，Task 035 PostgreSQL 实机验证第一版（035A/035B/035C）已实施；DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)**不通过**（单价读路径），已返修；[返修确认复查](../reviews/2026-11-23_task035_repair_review.md)**有条件通过**，其条件（arrears 工具契约、P3 残留）已再修；**未推送**：PG 16.16 上迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 条 CHECK + 1 条租期 `EXCLUDE` / 只读数据库角色 / CLI `--backend postgresql`；PG 套件 36 个实际执行、全量 700 tests OK（skipped=1）、70 项契约；RLS、多实例并发与生产部署未做；Task 033 MCP 工具网关（stdio 第一版）DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)**有条件通过**（无 P1），P2/P3 已返修，[返修确认复查](../reviews/2026-11-23_task033_repair_review.md)条件已满足；未推送；Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）独立复查有条件通过，返修经 [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认条件已满足，复查新提的 3 项 P3 已再修；2026-11-22 两任务实施；此前 2026-11-21 Task 031 返修与复查条件同步；027–031 成果与返修已提交为 `3be785e`（已在 `origin/main`）。原主体规划由 Task 026 整理。
+- 更新：2026-11-24，Task 038。主线进度和验收边界见 §2。
+- 上一版记录（2026-11-23），Task 035 PostgreSQL 实机验证第一版（035A/035B/035C）已实施；DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)**不通过**（单价读路径），已返修；[返修确认复查](../reviews/2026-11-23_task035_repair_review.md)**有条件通过**，其条件（arrears 工具契约、P3 残留）已再修；**未推送**：PG 16.16 上迁移 / seed / 只读会话 / 项目隔离 / 精度 / 39 条 CHECK + 1 条租期 `EXCLUDE` / 只读数据库角色 / CLI `--backend postgresql`；PG 套件 36 个实际执行、全量 700 tests OK（skipped=1）、70 项契约；RLS、多实例并发与生产部署未做；Task 033 MCP 工具网关（stdio 第一版）DeepSeek [独立复查](../reviews/2026-11-23_task033_independent_review.md)**有条件通过**（无 P1），P2/P3 已返修，[返修确认复查](../reviews/2026-11-23_task033_repair_review.md)条件已满足；未推送；Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）独立复查有条件通过，返修经 [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)确认条件已满足，复查新提的 3 项 P3 已再修；2026-11-22 两任务实施；此前 2026-11-21 Task 031 返修与复查条件同步；027–031 成果与返修已提交为 `3be785e`（已在 `origin/main`）。原主体规划由 Task 026 整理。
 - 目标与范围：[当前架构基线](../architecture/CURRENT_BASELINE.md)、[Agent-first V1.0](../handoffs/PROJECT_REFOCUS_AGENT_FIRST_V1.0.md)。
 - 旧版完整路线与逐次更新：[历史快照](PROJECT_DEVELOPMENT_ROADMAP_legacy_2026-11-09.md)。下表为现状，不用旧版“剩余 9 次 Prompt”等首次规划数字判断进度。
 
@@ -16,7 +17,7 @@
 
 > **2026-11-22 独立复查与返修**：DeepSeek 按 [`REVIEW_TASK032_034_PROMPT.md`](../handoffs/REVIEW_TASK032_034_PROMPT.md) 复查 [Task 032](../reviews/2026-11-22_task032_independent_review.md) 与 [Task 034](../reviews/2026-11-22_task034_independent_review.md)，均为**有条件通过**（无 P1）；Claude Code 返修全部 P2 与可代码化的 P3（不新增付费调用）：610 tests OK（skipped=1）、70 项契约、JS 48 用例 / 185 断言。034 真实对照的实际应答模型改记为“未记录，不可复核”。2026-11-23 DeepSeek [返修确认复查](../reviews/2026-11-22_task032_034_repair_review.md)：P2 全部关闭、无新 P1/P2；新提 3 项 P3（错误码替换过宽、完成但无结论显示绿色、状态文档旧口径）已再修，JS 增至 48 用例 / 190 断言。
 
-下一步：① 复查确认 032/034 返修（可只看返修差异）；② Task 033 返修已确认（P2-1 跨项目文档检索改为范围拒绝，影响所有调用 `document.search` 的 Agent，离线 heldout 0 差异；`.env` 覆盖 MCP 档案主体为 P3，待另行决定是否让 `mcp-serve` 不读该项）；③ 视需要授权重复测量真实规划对照（同时补实际应答模型证据）；④ Task 033 复查通过后，再按另行决定推进 Streamable HTTP + OAuth；⑤ Task 035 PostgreSQL 实机第一版已完成，独立复查 → 返修 → 确认复查有条件通过，条件已再修；RLS、多实例并发与生产部署不在本版范围，复查通过前工作包 3 仍不记为验收。现有网页默认规则演示，不能把命令行模型接入当作网页已经使用 AI。展示修复不关闭下方正式实验、人工量表与 PostgreSQL 实机验收。
+> **2026-11-24 LangChain 迁移（Task 038）**。领域内工具循环交由 `create_agent`，工具以 `StructuredTool` 装配，合同检索通过 `BaseRetriever` 返回 `Document`。跨领域 LangGraph 流程和审批继续使用项目原有实现。网页默认离线，可在服务端选择 DeepSeek 并查看领域回答、证据和综合分析。尚待实际服务端到端演示与最终独立复现。见 [实施记录](../prompts/04_agents/2026-11-24_038_langchain_standardization.md)。
 
 ## 1. 项目要交付什么
 
@@ -32,16 +33,16 @@
 |---|---|---|
 | 1 / 006 | Agent-first 范围、契约、8 题样例 | 已有独立验收记录；当时契约提案不等于当前全部字段已实现 |
 | 2 / 007 | Runtime、受控工具、预算与 Trace | 已实现，后续有修复/回归；Task 031 完成 Single 入口 Z1/Z2 与 CLI 契约（待独立复查） |
-| 3 / 008 | LangChain/DeepSeek 工具循环 | 已实现；018–020 补齐领域装配与真实首跑/dev；Task 031 起按各 Agent YAML 独立建客户端（待独立复查） |
+| 3 / 008 | LangChain/DeepSeek 工具循环 | Task 038 已将领域和 Single 的模型循环迁至 `create_agent`，通过标准工具与中间件保留可信范围和预算。沿用 Task 031 的逐 Agent YAML |
 | 4 / 009 | 三领域与 LangGraph | 分支、Send 并发、verify、有限补查已有实现和测试；Task 031 起未命中领域返回 `needs_clarification`，不再静默落 billing |
-| 5 / 010 | 精简 SQLAlchemy/Alembic 只读数据层 | 12 表映射、SQLite 已验；PostgreSQL 实机与必要约束待验，分层差距明确记录 |
-| 6 / 011 | 合同 PDF、检索、证据 | 合成 PDF 实际解析/页码核对、BM25 已有；配置已只声明真实能力（无 chroma/bge/rerank）；向量/混合检索为未来可选 |
+| 5 / 010 | 精简 SQLAlchemy/Alembic 只读数据层 | 12 表映射，SQLite 已验。Task 035 有 PostgreSQL 实机记录，Task 038 未复跑 |
+| 6 / 011 | 合同 PDF、检索、证据 | 合成 PDF 已解析并核对页码。Task 038 以标准检索器接入 BM25，检索前按可信范围筛选。向量和混合检索仍是可选扩展 |
 | 7 / 012 | 持久恢复、审批 | 单机 SQLite checkpoint + 独立台账、串行双角色、批准草案已有；Task 031 起 `approve --dry-run` 只校验不写台账；分布式语义不在 P0 |
-| 8 / 013 | 三基线与 40 题 | 8 dev + 32 heldout_v3；离线 scoring-v3.3 新报告 A 20/30、B 21/30、C 24/30；真实 heldout B/C、重复测量与人工量表待做 |
-| 9 / 014 | FastAPI/轻量演示页 | 已实现规则演示与 Tabler 协作界面；030 确认 U1/U2 原始反例通过；Task 032 改为业务流程工作台并完成 U3（独立复查有条件通过，返修已确认）。网页真实模型装配/回答展示/综合分析仍未完成；生产鉴权/部署非 P0 前置 |
+| 8 / 013 | 三基线与 40 题 | 8 dev + 32 heldout_v3。Task 038 离线回放 A 20/30、B 21/30、C 24/30。迁移前已归档四组各五次正式运行，评分审计和人工量表待完成 |
+| 9 / 014 | FastAPI/轻量演示页 | Task 032 已交付业务流程工作台。Task 038 已实现可选 DeepSeek 装配、领域回答与证据综合，并完成本地端到端验证。实际 DeepSeek 网页运行待验 |
 | 10 / 015 | 最终复现与展示材料 | README/脚本/候选版本已有；当前最终版本复现与未闭合关口完成前，不记 MVP 全部验收 |
 
-**进度判断：MVP 集成与最终验收阶段，版本候选。** Task 031 返修后 551 tests OK（skipped=1）、70 项契约；Z1–Z3、CLI、逐 Agent 模型配置、配置真实性与路由兜底及返修 R1–R4 已实施，独立复查**有条件通过**（R1 残余在 Task 034 处理）；U3 已由 Task 032 收尾并经返修确认复查；Task 034 混合规划已实施（默认 rule）；Task 033 MCP stdio 第一版已实施，独立复查有条件通过、返修经确认复查条件已满足；Task 035 PostgreSQL 实机验证第一版已完成，经独立复查与返修确认（条件已再修）；当前 **710 tests OK（skipped=1）**（PG 套件 36 个实际执行）、70 项契约、JS 48 用例 / 190 断言。网页真实模型链路、正式真实评测与重复测量、人工量表仍开放；PostgreSQL 的 RLS、多实例并发与生产部署仍开放；MCP 的 Streamable HTTP + OAuth 未实现。未以自检全绿替代独立验收。
+**当前为版本候选，处于 MVP 集成与最终验收阶段。** Task 038 发现 723 项测试，678 项通过，45 项跳过（44 项 PostgreSQL），70 项契约通过。下一步验证迁移后的实际 DeepSeek 工作台，审计已保存的正式评测并补人工量表，最后按 README 独立复现。PostgreSQL 的 RLS、多实例并发与生产部署，以及 MCP Streamable HTTP + OAuth 仍属扩展范围。
 
 ## 3. 后续五个工作包（建议顺序）
 
@@ -52,14 +53,14 @@
 | 1 | 收尾 Z1/Z2/Z3 | **Task 031 已实施并自检（待独立复查）**：真实 ask 装配传可信目标；换目标拒绝；失败工具不满足取证；合法零结果保留；ask/investigate 默认输出展示可信资金字段；覆盖默认/完整输出并回归 |
 | 2 | 明确独立模型配置策略 | **Task 031 已实施并自检（待独立复查）**：每 Agent 按自己 YAML 创建/缓存客户端；实际 provider/model/参数逐 Agent 写入 `agent_models`/`models_by_agent`；无效配置启动期失败；离线装配测试通过 |
 | 3 | PostgreSQL 实机与数据边界验收 | **PG 实机验证已完成第一版（独立复查不通过 → 返修 → 确认复查有条件通过，条件已再修）**：PG 16.16 上迁移 / seed / 只读限制 / 项目隔离 / 精度与 fixture 等价通过；清点 12 / 14 表差异；39 条 CHECK + 1 条租期 `EXCLUDE`、只读数据库角色、CLI `--backend postgresql` 已实测。RLS、多实例并发与生产部署未做，复查通过前不记验收。见 [Task 035 归档](../prompts/02_database/2026-11-23_035_postgresql_verification.md) |
-| 4 | 正式真实评测与人工量表 | 冻结代码/数据/评分/Prompt/模型/预算与重复次数；同一工具/权限/预算下完成 B/C、配 A 确定性基线；保存全部重复、失败题和人工结果；揭示旧保留题已被开发查看的限制 |
+| 4 | 正式真实评测与人工量表 | [原始结果](../evaluation/reports/formal_20261123/summary.md) 已归档。保留原报告，审计资金字段及拒绝状态评分，复查跨主体用例并完成量表。报告需注明旧保留题已经曝光 |
 | 5 | 最终版本复现、演示与交付 | 独立环境按 README 重建运行；完整测试、调查/冲突/审批/失败案例及可插拔回归；文档与结果一致；完成验收后才建议发布 |
 
-工作包 1、2 已按 Prompt 实施并自检，仍需独立复查确认；3 需要可用 PostgreSQL 实例；4 需要有效模型配置、预算和人工评分。生产鉴权、Docker、部署、混合检索为另行决定的扩展，不阻塞现定 P0；MCP 的 stdio 第一版已按 Task 033 实施（独立复查有条件通过，返修经确认复查条件已满足），Streamable HTTP + OAuth 仍为扩展；Task 032/033 按用户要求与本任务分开执行。
+五个工作包记录原定收尾范围。工作包 1、2 已实施，3 已取得第一版实机证据，4 的原始运行及冻结配置已保存。评分审计和人工量表可先使用原始输出，工作包 5 仍需独立环境复现。生产鉴权、Docker、部署和混合检索为扩展。
 
 ## 4. 评测与完成判断
 
-scoring-v3.3 离线 heldout（Task 031 后新报告）：A 20/30、B 21/30、C 24/30；相对 Task 025 时期 C 从 23 变为 24，唯一影响通过的题是 H27（`expected_outcome=failed`，旧逻辑静默 billing 反而"答出内容"，新逻辑回问＝明确失败），H19/H25/H26 只影响路由效率或人工评定题，没有"通过变失败"的题。它们是离线规则路径结果，不证明真实模型质量或多 Agent 的普遍优势。真实 DeepSeek 已有 dev/单题证据，不再等同“缺密钥从未调用”，但不足以替代正式实验；历史模型名 `deepseek-chat` 已下线，当前配置为 `deepseek-flash`（未新增真实调用）。
+Task 038 的 scoring-v3.3 离线回放与 Task 031 报告逐题一致，A 20/30、B 21/30、C 24/30。迁移前的 [正式四组重复运行](../evaluation/reports/formal_20261123/summary.md) 单独保存。Task 036 记录的评分与跨主体用例问题仍须核查，原始得分暂不用于质量排名。见 [Task 036 审查](../reviews/2026-11-24_current_architecture_review.md)。
 
 旧 heldout 已被多次运行和检查，不能无证据宣称从未暴露的独立盲测。正式报告需如实标注，若需要盲测结论则另冻结未用于开发的集；保留原题、原评分与原结果。人工量表不因自动回归通过而完成。
 

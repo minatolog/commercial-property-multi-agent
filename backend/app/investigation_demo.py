@@ -250,6 +250,7 @@ def build_investigation_bundle(
     planner_client: Any = None,
     planner_client_factory: Callable[[Any], Any] | None = None,
     planner_config_path: str | Path | None = None,
+    enable_synthesis: bool = False,
 ) -> InvestigationBundle:
     """装配一次调查所需的全部依赖。
 
@@ -422,6 +423,17 @@ def build_investigation_bundle(
         model_clients=model_clients or None,
         model_client=model_client if not model_clients else None,
     )
+    synthesizer = None
+    if enable_synthesis and model_provider == "deepseek":
+        from .orchestration.synthesis import ReportSynthesizer
+        from .tools.executor import ToolExecutor
+
+        synthesis_client = _planner_client(
+            model_provider, planner_config, planner_client_factory=planner_client_factory
+        )
+        synthesizer = ReportSynthesizer(
+            synthesis_client, budget, ToolExecutor(tool_registry, budget, trace_log=trace_log)
+        )
     investigator = Investigator(
         registry=report.registry,
         repository=repository,
@@ -430,6 +442,7 @@ def build_investigation_bundle(
         approval_store=getattr(control_plane, "approval_store", None),
         checkpointer=getattr(control_plane, "checkpointer", None),
         budget_snapshot=budget.snapshot,
+        synthesizer=synthesizer,
     )
 
     principal = repository.principal(principal_id)

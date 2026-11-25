@@ -4,6 +4,26 @@
 
 > 条目是对应日期/代码版本的历史记录；其中“当前/下一步”不覆盖 [当前基线](../architecture/CURRENT_BASELINE.md) 和 [现行进度表](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-24] Task 038 LangChain 架构实施
+
+- **实现**：领域与 Single 使用 `create_agent` 调度模型与工具。标准工具经同一执行器，合同工具经标准 Retriever。网页支持显式模型配置，追加领域回答、用量和有据综合。
+- **验证**：723 项发现（678 通过、45 跳过）、70 契约。离线 96 个组/题条目结果一致。模拟 HTTP 三次请求、45 tokens，旧 checkpoint 两级恢复和无副作用均独立验证。
+- **范围**：新增 LangChain 1.4.9，既有环境其他三项核心版本保留。网页默认离线，实际 DeepSeek 和 PG 本轮未调用。见 [Task 038](../prompts/04_agents/2026-11-24_038_langchain_standardization.md) 与 [接手指南](../architecture/langchain_integration.md)。
+
+## [2026-11-24] Task 037 LangChain 标准组件迁移方向
+
+- **用户方向**：采用高层 Agent/RAG 标准组件，降低自定义框架接手成本；原始 Prompt 见 [037 归档](../prompts/04_agents/2026-11-24_037_langchain_standardization_plan.md)。
+- **交付**：[ADR-007](../decisions/ADR-007-langchain-standard-components.md)，分领域试点、推广、检索标准化、网页与旧循环收尾四步；框架管理通用循环，现有权限/预算/证据/金额/审批继续治理。
+- **核实**：官方 create_agent/middleware/Tools/Retrieval 文档；本机 core 1.7.6、openai 1.7.4、graph 1.2.20，未安装高层 langchain 包。
+- **边界**：仅文档，未改源码、安装依赖、重跑业务测试或调用付费模型，未提交/推送；目标架构不当作已实现。
+
+## [2026-11-24] Task 036 当前架构复查
+
+- **起点**：main / 77410ca，已有 9 个跟踪文件修改及 ops/mall/.claude 未跟踪文件，全部保留；本轮不改实现、不提交/推送。
+- **验证**：默认环境 719 tests，43.642 秒，OK（skipped=45：44 PG 与 1 既有跳过）；70 契约通过；未实连 PG、未新增真实模型调用或浏览器截图。
+- **成果**：[当前架构和流程图](../reviews/2026-11-24_current_architecture_review.md)、[036 归档](../prompts/06_testing/2026-11-24_036_current_architecture_review.md)。核实逐 Agent 模型、混合规划、stdio MCP、PG 实现与正式重复评测已有；不能沿用 11-13 的未实现判断。
+- **缺口**：网页仍默认 offline/rule/fixture；新运营总览任务和审批来自模板/localStorage；正式测量已跑完但评分/安全失败待审计；PG 注入使用临时全局替换，现行状态文档仍有滞后。
+
 ## [2026-11-23] Task 035 独立复查返修（Claude Code）
 
 - **依据**：DeepSeek [独立复查](../reviews/2026-11-23_task035_independent_review.md)，**首次由 `dev_review.ps1` 自动执行**（133 轮、约 22 分钟，仓库未被改动，测试库已清理）。结论**不通过**：P1-1 数据库仓库读路径仍把单价 / 数量量化到 2 位并参与应收计算。

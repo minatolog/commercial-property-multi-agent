@@ -231,6 +231,30 @@ export function buildCases() {
   const cases = [];
   const addCase = (name, source, fn) => cases.push({ name, source, fn });
 
+  addCase('LangChain 调查：摘要显示模型回答、用量与有据建议', 'fixture', () => {
+    const run = withReport({
+      execution: { engine: 'llm', provider: 'deepseek' },
+      budget: { used_model_calls: 7, used_total_tokens: 123 },
+      agent_analyses: [{
+        capability: 'billing.statement', answer: '模型已核对账单。',
+        model: { served_models: ['model-from-response'] },
+        evidence_ids: ['inv_2026_08'],
+      }],
+      synthesis: {
+        status: 'completed', facts: [BILLING_FINDING], conflicts: [], gaps: [],
+        next_steps: ['请财务核对账单。'],
+      },
+    });
+    const text = summaryText(run);
+    return [
+      equal(text.includes('模型已核对账单。'), true, '显示领域回答'),
+      equal(text.includes('model-from-response'), true, '显示响应模型'),
+      equal(text.includes('模型请求 7 次 · 已记账 123 tokens'), true, '显示真实预算字段'),
+      equal(text.includes('请财务核对账单。'), true, '显示综合建议'),
+      equal(summaryText(withReport({ synthesis: { status: 'budget_exhausted' } })).includes('模型预算已用尽'), true, '解释综合分析中止'),
+    ];
+  });
+
   addCase('正常单领域：只标记真实参与的能力', 'fixture', () => {
     const run = {
       run_id: 'run_fixture_simple',

@@ -81,13 +81,49 @@ function tracesTable(rows, { showAgent = false } = {}) {
 }
 
 
+function analysisItem(analysis) {
+  const models = vm.asArray(analysis.model?.served_models);
+  const model = models.length ? models.join(' / ') : '实际应答模型未报告';
+  const evidence = vm.asArray(analysis.evidence_ids);
+  return el('details', { class: 'wb-details' }, [
+    el('summary', { text: `${term('capability', analysis.capability)} · ${model}` }),
+    paragraph(vm.textOr(analysis.answer, '未提供分析')),
+    paragraph(`返回用量 ${analysis.usage?.total_tokens ?? '未提供'} tokens`, 'wb-muted'),
+    ...(evidence.length ? [paragraph(`取证记录 ${evidence.join('、')}`, 'wb-muted')] : []),
+  ]);
+}
+
+function synthesisSection(synthesis, records) {
+  if (synthesis.status !== 'completed') {
+    const messages = {
+      insufficient_evidence: '证据不足，暂未生成综合分析。',
+      budget_exhausted: '模型预算已用尽，暂未生成综合分析。',
+      deadline_exceeded: '调查时限已到，暂未生成综合分析。',
+      invalid_output: '综合分析未通过证据引用校验。',
+      model_error: '模型请求失败，暂未生成综合分析。',
+      model_timeout: '模型服务超时，暂未生成综合分析。',
+    };
+    return section('综合分析', null, [
+      paragraph(messages[synthesis.status] || '本次未生成综合分析。', 'wb-muted'),
+    ]);
+  }
+  return section('综合分析', null, [
+    ...vm.asArray(synthesis.facts).map((fact) => item(
+      'note', localizeStatement(fact.statement), vm.asArray(fact.evidence_ids).join('、')
+    )),
+    ...vm.asArray(synthesis.conflicts).map((conflict) => item(
+      'conflict', `${term('conflictType', conflict.type)} · 差额 ${formatMoney(conflict.amount)}`,
+      vm.asArray(conflict.evidence_ids).join('、')
+    )),
+    ...vm.asArray(synthesis.gaps).map((gap) => item('missing', describeMissingItem(gap, { documents: records }))),
+    ...vm.asArray(synthesis.next_steps).map((step) => item('note', step, '建议下一步')),
+  ]);
+}
+
 /* ------------------------------------------------------------ 案件摘要 */
 
 /**
- * 事实 / 推断 / 缺失三段式（保持后端已有的区分）：
- * - 事实 = findings（取自业务数据、工具核算或合同条款）；
- * - 推断 = 证据结论与 conflicts（核验阶段得出的判断）；
- * - 缺失 = missing_information 与当前未解决的失败。
+ * 调查结果列出事实、资料缺口与失败。核验判断见案头，差额明细见冲突对照。
  */
 export function renderSummary(container, run) {
   clear(container);
@@ -104,7 +140,6 @@ export function renderSummary(container, run) {
     container.appendChild(el('div', { class: 'wb-alert wb-alert-danger' }, [
       el('div', { class: 'wb-strong', text: `本次调查失败：${term('errorCode', report.error.code, { missing: '原因未提供' })}` }),
       el('div', { text: vm.textOr(report.error.message, '未提供错误说明') }),
-      el('div', { class: 'wb-muted', text: '报告只包含错误信息，没有事实、冲突与结论；本页不据此推断调查结论。原始错误码见技术视图。' }),
     ]));
     return;
   }
@@ -114,38 +149,48 @@ export function renderSummary(container, run) {
       el('div', { class: 'wb-strong', text: '需要补充信息：本次没有执行调查' }),
       el('div', { text: vm.textOr(clarification.message, '无法判断这个问题属于哪一类事项。') }),
       el('div', { class: 'wb-strong wb-mt-8', text: `请补充：${vm.textOr(clarification.question, '要核实的是合同、账单还是物业工单？')}` }),
-      el('div', { class: 'wb-muted', text: '没有调用任何工具，也没有产生证据或审批。' }),
     ]));
     return;
   }
 
-  const interp = cs.interpretVerification(run);
   const { records } = cs.displayOf(run);
+  if (report.synthesis) container.appendChild(synthesisSection(report.synthesis, records));
 
   const findings = vm.asArray(report.findings);
-  container.appendChild(section('已核实事实', findings.length, findings.length
-    ? findings.map((finding) => {
-      const source = finding.source;
-      const meta = [
-        term('derivation', finding.derivation, { missing: '来源未提供' }),
-        source && source.document_id
-          ? `${vm.textOr((records[source.document_id] || {}).title, '合同')} 第 ${vm.textOr(source.page, '?')} 页 · 第 ${vm.textOr(source.clause_id, '?')} 条`
-          : null,
-      ].filter(Boolean).join(' · ');
-      return item('note', localizeStatement(finding.statement), meta);
-    })
-    : [paragraph('报告没有列出已核实事实。', 'wb-muted')]));
+  const businessFacts = findings.filter((finding) => !finding.source?.document_id);
+  const documentFacts = findings.filter((finding) => finding.source?.document_id);
+  const orderedFacts = [...businessFacts, ...documentFacts];
+  const renderFinding = (finding) => {
+    const source = finding.source;
+    const meta = [
+      term('derivation', finding.derivation, { missing: '来源未提供' }),
+      source && source.document_id
+        ? `${vm.textOr((records[source.document_id] || {}).title, '合同')} 第 ${vm.textOr(source.page, '?')} 页 · 第 ${vm.textOr(source.clause_id, '?')} 条`
+        : null,
+    ].filter(Boolean).join(' · ');
+    return item('note', localizeStatement(finding.statement), meta);
+  };
+  const facts = orderedFacts.slice(0, 3).map(renderFinding);
+  const remainingFacts = orderedFacts.slice(3);
+  if (remainingFacts.length) {
+    facts.push(el('details', { class: 'wb-details' }, [
+      el('summary', { text: `展开其余 ${remainingFacts.length} 条事实` }),
+      ...remainingFacts.map(renderFinding),
+    ]));
+  }
+  if (!facts.length) facts.push(paragraph('报告没有列出已核实事实。', 'wb-muted'));
+  container.appendChild(section('已核实事实', findings.length, facts));
 
-  const conflicts = vm.asArray(report.conflicts).filter((entry) => entry && typeof entry === 'object');
-  const inference = [
-    item(interp.state === 'success' ? 'note' : 'conflict', interp.headline, interp.note),
-    ...conflicts.map((conflict) => {
-      const variance = formatVariance(conflict.amount, conflict.currency || 'CNY');
-      return item('conflict', `${term('conflictType', conflict.type)}：账单${variance.label} ${variance.text}`,
-        `依据：${term('basis', conflict.expected_basis)} 对照 ${term('basis', conflict.observed_basis)}；明细见「冲突对照」`);
-    }),
-  ];
-  container.appendChild(section('判断与冲突', conflicts.length, inference));
+  if (report.execution?.engine === 'llm') {
+    const analyses = vm.asArray(report.agent_analyses);
+    const calls = report.budget?.used_model_calls ?? '未提供';
+    const tokens = report.budget?.used_total_tokens ?? '未提供';
+    container.appendChild(section('模型分析', analyses.length, [
+      paragraph(`模型请求 ${calls} 次 · 已记账 ${tokens} tokens。金额以已核实事实为准。`, 'wb-muted'),
+      ...analyses.map(analysisItem),
+      ...(!analyses.length ? [paragraph('本次没有可展示的模型分析。', 'wb-muted')] : []),
+    ]));
+  }
 
   const missing = vm.asArray(report.missing_information);
   const failures = vm.asArray(report.failures);
@@ -171,14 +216,11 @@ export function renderSummary(container, run) {
 
   const warnings = vm.asArray(report.warnings);
   if (warnings.length) {
-    container.appendChild(section('系统提醒', warnings.length,
-      warnings.map((warning) => item('note', localizeStatement(warning)))));
+    container.appendChild(el('details', { class: 'wb-details' }, [
+      el('summary', { text: `系统提醒（${warnings.length}）` }),
+      ...warnings.map((warning) => item('note', localizeStatement(warning))),
+    ]));
   }
-
-  container.appendChild(el('div', { class: 'wb-alert wb-alert-info wb-mt-16' }, [
-    el('div', { class: 'wb-strong', text: '处置建议：暂未生成' }),
-    el('div', { text: '系统只输出事实、冲突与审批草案，不生成经营或减免建议，也不执行任何调账。' }),
-  ]));
   if (report.disclaimer) container.appendChild(paragraph(report.disclaimer, 'wb-muted wb-mt-8'));
 }
 
@@ -255,7 +297,6 @@ export function renderConflicts(container, run) {
     container.appendChild(el('section', { class: 'wb-compare' }, [
       el('h3', { class: 'wb-compare-title', text: term('conflictType', conflict.type) }),
       el('div', { class: 'wb-compare-row' }, [left, middle, right]),
-      el('p', { class: 'wb-muted wb-compare-foot', text: '差额取自后端核算结果（账单金额 − 合同应收），页面不做两侧相减；两侧只列出冲突引用的记录。' }),
     ]));
   }
 }
@@ -709,6 +750,10 @@ function agentSummarySection(run, definition) {
     nodes.push(paragraph('本次调查没有分派到这个领域，也没有它的查询记录。这是“未调用”，不是“执行成功”。', 'wb-muted'));
     return nodes;
   }
+
+  const ids = new Set(participation.subtasks.map((record) => record.subtaskId));
+  const analyses = vm.asArray(run.report?.agent_analyses).filter((entry) => ids.has(entry.subtask_id));
+  nodes.push(...analyses.map(analysisItem));
 
   for (const record of participation.subtasks.filter((entry) => entry.failure)) {
     nodes.push(el('div', { class: 'wb-alert wb-alert-danger' }, [

@@ -11,7 +11,7 @@ import { apiCalls, ApiError } from './api.js';
 import * as vm from './view-model.js';
 import * as cs from './case-status.js';
 import { renderGraph, initGraphResize } from './components/graph.js';
-import { renderSteps, renderCards } from './components/case-head.js';
+import { renderSteps, renderOverview } from './components/case-head.js';
 import {
   renderSummary, renderConflicts, renderEvidence, renderCalls, renderApproval, renderRaw, renderNodeDetail,
 } from './components/report.js';
@@ -25,16 +25,18 @@ const dom = {
   sidebarToggle: $('sidebar-toggle'),
   refreshBtn: $('refresh-btn'),
   newRunBtn: $('new-run-btn'),
+  newRunBtnTop: $('new-run-btn-top'),
   roleLabel: $('role-label'),
+  modeLabel: $('mode-label'),
   headerPretitle: $('header-pretitle'),
   headerTitle: $('header-title'),
-  headerIssue: $('header-issue'),
   headerQuestion: $('header-question'),
-  headerSub: $('header-sub'),
+  caseAction: $('case-action'),
   runStatusBadge: $('run-status-badge'),
   pageAlert: $('page-alert'),
   steps: $('progress-steps'),
-  cards: $('conclusion-cards'),
+  overview: $('case-overview'),
+  report: $('report-card'),
 
   drawer: $('new-run-drawer'),
   drawerClose: $('drawer-close'),
@@ -61,7 +63,6 @@ const dom = {
   nodeDetailBody: $('node-detail-body'),
   nodeDetailClose: $('node-detail-close'),
 
-  reportMeta: $('report-meta'),
   paneSummary: $('pane-summary'),
   paneConflicts: $('pane-conflicts'),
   paneEvidence: $('pane-evidence'),
@@ -85,7 +86,6 @@ const state = {
   submitting: false,
   refreshing: false,
   noticeTimer: null,
-  activeTab: 'summary',
 };
 
 /* ------------------------------------------------------------- 提示区 */
@@ -141,24 +141,34 @@ function principalLabel(principalId) {
   return entry && entry.label ? entry.label : '角色名称未提供';
 }
 
+function renderQuestion(question) {
+  const preview = vm.shorten(question, 120);
+  if (preview === question) {
+    dom.headerQuestion.textContent = question;
+    return;
+  }
+  clear(dom.headerQuestion);
+  dom.headerQuestion.appendChild(el('details', {}, [
+    el('summary', { text: preview, attrs: { title: '展开完整问题' } }),
+    el('p', { text: question }),
+  ]));
+}
+
 function renderHeader() {
+  dom.caseAction.classList.add('d-none');
+  dom.runStatusBadge.classList.toggle('d-none', !state.currentRun && !state.pending);
   if (state.pending) {
-    dom.headerPretitle.textContent = '新调查执行中';
-    dom.headerTitle.textContent = '等待后端返回结果';
-    dom.headerIssue.classList.add('d-none');
-    dom.headerQuestion.textContent = vm.shorten(state.pendingQuestion, 120);
-    dom.headerSub.textContent = '请求尚未返回：本页不推测各领域的进度，结果返回后一次性展示。';
-    setStatusBadge(dom.runStatusBadge, 'pending', '调查执行中');
+    dom.headerPretitle.textContent = '';
+    dom.headerTitle.textContent = '正在调查';
+    renderQuestion(state.pendingQuestion);
+    dom.runStatusBadge.classList.add('d-none');
     return;
   }
   const run = state.currentRun;
   if (!run) {
-    dom.headerPretitle.textContent = '尚未选择案件';
-    dom.headerTitle.textContent = '选择左侧案件，或新建一次调查';
-    dom.headerIssue.classList.add('d-none');
+    dom.headerPretitle.textContent = '';
+    dom.headerTitle.textContent = '选择案件或新建调查';
     dom.headerQuestion.textContent = '';
-    dom.headerSub.textContent = '本页只呈现事实、证据与审批状态，不执行调账、减免或派单。';
-    setStatusBadge(dom.runStatusBadge, 'idle', '未选择');
     return;
   }
   const { lease } = cs.displayOf(run);
@@ -171,34 +181,33 @@ function renderHeader() {
     ? [lease.project_name, lease.building_name, lease.floor ? `${lease.floor} 层` : '']
       .filter(Boolean).join(' · ')
     : '项目与楼层信息未提供';
-  dom.headerPretitle.textContent = place;
+  dom.headerPretitle.textContent = `${place} / ${cs.caseIssueType(run)}`;
   dom.headerTitle.textContent = cs.caseTitle(run);
-  dom.headerIssue.textContent = cs.caseIssueType(run);
-  dom.headerIssue.classList.remove('d-none');
-  dom.headerQuestion.textContent = vm.textOr(run.question, '（问题未提供）');
-  dom.headerQuestion.title = vm.textOr(run.question, '');
-  dom.headerSub.textContent = `受理于 ${formatDate(run.created_at)} · 最近更新 ${formatDate(run.updated_at)}${lease && lease.lease_no ? ` · 合同编号 ${lease.lease_no}` : ''}`;
+  renderQuestion(vm.textOr(run.question, '（问题未提供）'));
   setStatusBadge(dom.runStatusBadge, statusMeta.state, statusMeta.label);
+
+  const approval = vm.approvalModel(run);
+  if (approval.hasRequest) {
+    dom.caseAction.dataset.action = 'approval';
+    dom.caseAction.textContent = approval.canDecide ? '查看审批单' : '查看审批记录';
+  } else if (cs.interpretVerification(run).clarification) {
+    dom.caseAction.dataset.action = 'clarify';
+    dom.caseAction.textContent = '补充调查问题';
+  } else {
+    return;
+  }
+  dom.caseAction.classList.remove('d-none');
 }
 
 function renderCaseOverview() {
-  if (state.pending) {
-    renderSteps(dom.steps, cs.STEP_DEFS.map((def, index) => ({
-      key: def.key,
-      title: def.title,
-      state: index === 0 ? 'done' : 'waiting',
-      detail: index === 0 ? '已提交' : '等待结果',
-    })));
-    renderCards(dom.cards, [
-      { key: 'verdict', title: '争议结论', tone: 'idle', value: '调查执行中', note: '结果返回后展示' },
-      { key: 'amount', title: '金额差异', tone: 'idle', value: '—', note: '' },
-      { key: 'gaps', title: '资料缺口', tone: 'idle', value: '—', note: '' },
-      { key: 'next', title: '下一步', tone: 'idle', value: '等待调查结果', note: '' },
-    ]);
-    return;
-  }
-  renderSteps(dom.steps, cs.progressModel(state.currentRun, { meta: state.meta }));
-  renderCards(dom.cards, cs.conclusionCards(state.currentRun, { meta: state.meta }));
+  const run = state.currentRun;
+  dom.overview.classList.toggle('d-none', !run);
+  clear(dom.overview);
+  if (!run) return;
+
+  const options = { meta: state.meta };
+  renderSteps(dom.steps, cs.progressModel(run, options));
+  renderOverview(dom.overview, cs.conclusionCards(run, options));
 }
 
 /* ------------------------------------------------------------ 案件列表 */
@@ -221,7 +230,7 @@ function renderRuns() {
       type: 'button',
       class: `wb-case-item${active ? ' is-active' : ''}`,
       dataset: { run: run.run_id },
-      attrs: { role: 'listitem', 'aria-current': active ? 'true' : 'false', title: vm.textOr(run.question, '') },
+      attrs: { 'aria-current': active ? 'true' : null, title: vm.textOr(run.question, '') },
     }, [
       el('span', { class: 'wb-case-item-title', text: cs.caseTitle(null, run.display || null) }),
       el('span', { class: 'wb-case-item-question', text: vm.textOr(run.question, '（问题未提供）') }),
@@ -230,7 +239,7 @@ function renderRuns() {
         el('span', { class: 'wb-case-item-time', text: formatDate(run.created_at) }),
       ]),
     ]);
-    dom.runsList.appendChild(item);
+    dom.runsList.appendChild(el('div', { attrs: { role: 'listitem' } }, [item]));
   }
 
   const empty = filtered.length === 0;
@@ -248,27 +257,16 @@ function renderViews() {
   renderCaseOverview();
 
   const run = state.pending ? null : state.currentRun;
-  const graphModel = state.pending ? vm.buildPendingGraphModel() : vm.buildGraphModel(run);
-  renderGraph(dom.graphCanvas, dom.graphLinks, graphModel, state.pending ? {} : vm.nodeHighlights(run));
+  dom.report.classList.toggle('d-none', !run);
+  if (!run) return;
 
-  if (state.pending) {
-    const message = () => el('div', { class: 'wb-muted wb-pending-note' }, [
-      el('span', { class: 'wb-spinner', attrs: { 'aria-hidden': 'true' } }),
-      '调查执行中，等待后端返回结果。',
-    ]);
-    [dom.paneSummary, dom.paneConflicts, dom.paneEvidence, dom.paneApproval, dom.paneCalls, dom.paneRaw]
-      .forEach((pane) => { clear(pane); pane.appendChild(message()); });
-    dom.reportMeta.textContent = '';
-  } else {
-    renderSummary(dom.paneSummary, run, { meta: state.meta });
-    renderConflicts(dom.paneConflicts, run);
-    renderEvidence(dom.paneEvidence, run);
-    renderApproval(dom.paneApproval, run, { meta: state.meta, onDecide: handleDecide });
-    renderCalls(dom.paneCalls, run);
-    renderRaw(dom.paneRaw, run);
-    dom.reportMeta.textContent = run ? `更新于 ${formatDate(run.updated_at)}` : '';
-  }
-
+  renderGraph(dom.graphCanvas, dom.graphLinks, vm.buildGraphModel(run), vm.nodeHighlights(run));
+  renderSummary(dom.paneSummary, run);
+  renderConflicts(dom.paneConflicts, run);
+  renderEvidence(dom.paneEvidence, run);
+  renderApproval(dom.paneApproval, run, { meta: state.meta, onDecide: handleDecide });
+  renderCalls(dom.paneCalls, run);
+  renderRaw(dom.paneRaw, run);
   renderNodeSelection();
 }
 
@@ -289,7 +287,6 @@ function renderNodeSelection() {
 /* ------------------------------------------------------------ 页签 */
 
 function selectTab(name) {
-  state.activeTab = name;
   for (const tab of document.querySelectorAll('.wb-tab')) {
     const on = tab.id === `tab-${name}`;
     tab.classList.toggle('is-active', on);
@@ -303,7 +300,7 @@ function selectTab(name) {
 
 /* ------------------------------------------------------------ 选中案件 */
 
-async function selectRun(runId, { silent = false } = {}) {
+async function selectRun(runId, { silent = false, reveal = false } = {}) {
   if (!runId) return;
   const seq = ++state.detailSeq;
   if (state.detailAbort) state.detailAbort.abort();
@@ -314,11 +311,23 @@ async function selectRun(runId, { silent = false } = {}) {
   try {
     const run = await apiCalls.getRun(runId, controller.signal);
     if (seq !== state.detailSeq) return;
+    if (state.currentRunId !== runId) {
+      state.selectedNode = null;
+      selectTab('summary');
+    }
     state.currentRun = run;
     state.currentRunId = run.run_id || runId;
     state.pending = false;
     renderViews();
     renderRuns();
+    if (reveal) {
+      if (window.matchMedia('(max-width: 991.98px)').matches) setSidebar(false);
+      dom.headerTitle.focus({ preventScroll: true });
+      dom.headerTitle.scrollIntoView({ block: 'start' });
+      dom.overview.classList.remove('wb-reveal');
+      void dom.overview.offsetWidth;
+      dom.overview.classList.add('wb-reveal');
+    }
   } catch (error) {
     if (error && error.name === 'AbortError') return;
     if (seq !== state.detailSeq) return;
@@ -377,11 +386,14 @@ async function loadRuns({ resetSelectionOnEmpty = false } = {}) {
 async function loadMeta() {
   try {
     state.meta = await apiCalls.meta();
+    dom.modeLabel.textContent = state.meta?.model_provider === 'deepseek' ? 'DeepSeek 模式'
+      : state.meta?.model_provider === 'offline' ? '规则演示' : '运行模式未提供';
     const principal = state.meta && state.meta.trusted_principal;
     dom.roleLabel.textContent = principal ? principalLabel(principal) : '角色未提供';
-    dom.roleLabel.title = '当前登录角色（由服务端注入，页面不能自报身份）';
+    dom.roleLabel.title = dom.roleLabel.textContent;
   } catch (error) {
     dom.roleLabel.textContent = '角色未知';
+    dom.modeLabel.textContent = '运行模式未知';
     showPageAlert('danger', `读取服务信息失败：${error.message}`, error.traceId);
   }
 }
@@ -396,8 +408,9 @@ function setSubmitting(busy) {
   dom.formStatus.textContent = busy ? '正在等待后端返回完整结果' : '';
 }
 
-function openDrawer() {
+function openDrawer(event) {
   clearFormAlert();
+  event?.currentTarget?.focus();
   if (typeof dom.drawer.showModal === 'function') dom.drawer.showModal();
   else dom.drawer.setAttribute('open', '');
   dom.question.focus();
@@ -406,7 +419,6 @@ function openDrawer() {
 function closeDrawer() {
   if (typeof dom.drawer.close === 'function') dom.drawer.close();
   else dom.drawer.removeAttribute('open');
-  dom.newRunBtn.focus();
 }
 
 async function handleSubmit(event) {
@@ -438,8 +450,7 @@ async function handleSubmit(event) {
     });
     closeDrawer();
     await loadRuns();
-    await selectRun(created.run_id);
-    showPageAlert('success', '调查已完成，结果已一次性返回。');
+    await selectRun(created.run_id, { reveal: true });
   } catch (error) {
     restoreAfterFailure();
     showFormAlert(`提交失败：${error.message}`, error.traceId);
@@ -485,8 +496,21 @@ function bindEvents() {
   dom.runsList.addEventListener('click', (event) => {
     const item = event.target.closest('.wb-case-item');
     if (!item) return;
-    selectRun(item.dataset.run);
-    if (window.matchMedia('(max-width: 991px)').matches) setSidebar(false);
+    selectRun(item.dataset.run, { reveal: true });
+  });
+
+  dom.caseAction.addEventListener('click', (event) => {
+    if (dom.caseAction.dataset.action === 'approval') {
+      selectTab('approval');
+      $('tab-approval').focus();
+      return;
+    }
+    const run = state.currentRun;
+    if (!run) return;
+    dom.leaseId.value = vm.textOr(run.lease_id, '');
+    dom.question.value = vm.textOr(run.question, '');
+    openDrawer(event);
+    dom.question.setSelectionRange(dom.question.value.length, dom.question.value.length);
   });
 
   dom.graphCanvas.addEventListener('click', (event) => {
@@ -513,8 +537,7 @@ function bindEvents() {
   }
 
   dom.newRunBtn.addEventListener('click', openDrawer);
-  // 窄屏时案件列表默认收起，顶栏另放一个入口，保证随时能新建调查
-  document.getElementById('new-run-btn-top').addEventListener('click', openDrawer);
+  dom.newRunBtnTop.addEventListener('click', openDrawer);
   dom.sidebarToggle.addEventListener('click', () => setSidebar(dom.shell.classList.contains('is-collapsed')));
 
   dom.refreshBtn.addEventListener('click', async () => {
@@ -544,16 +567,28 @@ function setSidebar(open) {
 
 async function init() {
   bindEvents();
-  if (window.matchMedia('(max-width: 991px)').matches) setSidebar(false);
+  if (window.matchMedia('(max-width: 991.98px)').matches) setSidebar(false);
   initGraphResize(dom.graphCanvas, dom.graphLinks);
   selectTab('summary');
   renderViews();
   renderRuns();
 
+  const params = new URLSearchParams(window.location.search);
+  const store = params.get('store');
+  const storeDrafts = new Map([
+    ['A-301', ['lease_xh_a301_2025', '商铺 A-301（云端咖啡）反映租金金额不一致、空调多次报修。请核对合同、账单、付款与工单。']],
+    ['A-302', ['lease_xh_a302_2025', '请核对商铺 A-302（星汇文具）的租期、租金账单和当前缴费情况。']],
+  ]);
+  if (storeDrafts.has(store)) {
+    const [leaseId, question] = storeDrafts.get(store);
+    dom.leaseId.value = leaseId;
+    dom.question.value = question;
+    openDrawer();
+  }
+
   await loadMeta();
   await loadRuns({ resetSelectionOnEmpty: true });
   // 可分享的只读定位参数：?run=案件 &tab=页签 &tech=open（不改变任何数据）
-  const params = new URLSearchParams(window.location.search);
   const requested = params.get('run');
   const initial = requested || (state.runs.length ? state.runs[0].run_id : null);
   if (initial && !state.currentRunId) await selectRun(initial, { silent: true });

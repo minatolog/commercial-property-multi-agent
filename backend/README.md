@@ -68,15 +68,23 @@ python -m app.cli evaluate --split dev
 python -m app.cli evaluate --split heldout
 python -m app.cli evaluate --split heldout --baseline C_multi_agent --model-provider deepseek  # 需密钥
 
-# 演示 API + 工作台页面（http://127.0.0.1:8000/）
-# 页面资源全部在 app/api/static/ 下本地提供（Tabler 1.7.4），运行期不访问 CDN
+# 运营总览（/）、争议案件处理台（/workbench）及演示 API
+# 页面资源由 app/api/static/ 同源提供，运行期不访问 CDN
 python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
 
 # 回归测试
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-### 退出码（Task 031）
+### 网页模型模式（Task 038）
+
+网页启动时读取 `COMMERCIAL_WEB_MODEL_PROVIDER`。默认 `offline`。需要 DeepSeek 时，将项目
+`.env` 中此项设为 `deepseek`，使用已有 `DEEPSEEK_API_KEY`，再启动服务。
+在 `/workbench` 新建调查，案件摘要会展示领域模型回答、证据引用、已记账用量和综合分析。
+网页采用规则规划、合成数据、每次最多 16 次模型请求和 30,000 token 的共享预算闸门。
+token 用量在响应后记账，超限停止后续请求。Key、模型模式和预算由服务端配置。
+
+### CLI 退出码（Task 031）
 
 | 码 | 含义 |
 |---|---|

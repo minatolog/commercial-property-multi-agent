@@ -1,5 +1,5 @@
 /**
- * 案件头、流程步骤条、结论卡（Task 032）
+ * 案件概览与流程步骤。
  *
  * 只渲染 case-status.js 给出的模型；不在这里做任何判断，也不计算金额。
  * 全部用 textContent 写入（经 dom.el）。
@@ -51,32 +51,25 @@ export function renderSteps(container, steps) {
   });
 }
 
-const TONE_ICON = {
-  success: '✓',
-  warning: '!',
-  failed: '✕',
-  unknown: '?',
-  idle: '·',
-};
+export function renderOverview(container, [verdict, amount, gaps, next]) {
+  const showAmount = amount.direction || (amount.tone === 'unknown' && verdict.tone === 'warning');
+  const gapText = gaps.tone === 'warning' || gaps.value === '待核实'
+    ? `资料缺口 ${gaps.value}`
+    : '';
+  const actionText = next.tone === 'warning' || next.tone === 'failed' ? next.value : '';
+  const context = [gapText, actionText].filter(Boolean).join(' · ');
 
-export function renderCards(container, cards) {
-  clear(container);
-  for (const card of cards) {
-    const value = el('div', { class: 'wb-card-value' }, [
-      el('span', { text: card.value }),
-    ]);
-    if (card.key === 'amount' && card.direction && card.direction !== 'unknown') {
-      value.dataset.direction = card.direction;
-    }
-    container.appendChild(el('article', { class: 'wb-card', dataset: { tone: card.tone || 'unknown', key: card.key } }, [
-      el('div', { class: 'wb-card-head' }, [
-        el('span', { class: 'wb-card-icon', attrs: { 'aria-hidden': 'true' }, text: TONE_ICON[card.tone] || '?' }),
-        el('h3', { class: 'wb-card-title', text: card.title }),
-        card.label ? el('span', { class: 'wb-card-tag', text: card.label }) : null,
-      ]),
-      value,
-      card.note ? el('div', { class: 'wb-card-note', text: card.note }) : null,
-      card.draft ? el('div', { class: 'wb-card-draft', text: card.draft }) : null,
+  container.appendChild(el('div', { class: 'wb-overview-copy' }, [
+    el('div', { class: 'wb-overview-label', text: '调查结论' }),
+    el('h2', { class: 'wb-overview-title', text: verdict.value }),
+    verdict.note ? el('p', { class: 'wb-overview-note', text: verdict.note }) : null,
+    context ? el('p', { class: 'wb-overview-context', text: context }) : null,
+  ]));
+  if (showAmount) {
+    container.appendChild(el('div', { class: 'wb-overview-amount' }, [
+      el('div', { class: 'wb-overview-label', text: amount.label || amount.title }),
+      el('div', { class: 'wb-overview-value', dataset: { direction: amount.direction || '' }, text: amount.value }),
+      amount.note ? el('p', { class: 'wb-overview-note', text: amount.note }) : null,
     ]));
   }
 }

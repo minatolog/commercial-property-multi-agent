@@ -4,6 +4,31 @@
 
 > 下文 Pending/未提交是记录时状态；实际当前提交以 Git 为准，不用旧条目反推未提交变更。当前规划见 [路线图](../product/PROJECT_DEVELOPMENT_ROADMAP.md)。
 
+## [2026-11-24] Task 038 LangChain 架构实施（Pending）
+
+- **起点**：main / 77410ca，保留用户已有未提交页面改动。
+- **验证**：723 项发现（45 跳过）、70 契约、离线评分逐题结果一致、模拟 HTTP 与旧 checkpoint 恢复。
+- **建议 Summary**：`refactor(agents): adopt LangChain agent, tool and retrieval interfaces`
+- **建议 Description**：通过 LangChain 调度领域模型与工具，将合同 BM25 接入 Retriever。工作台支持服务端显式启用 DeepSeek，并展示模型回答、共享预算与有据综合。
+
+## [2026-11-24] Task 037 LangChain 标准化方案（Pending）
+
+- **起点**：main / 77410ca，保留 036 审查和现有未提交页面源码。
+- **变更**：ADR-007、037 Prompt、当前方向入口、编号、日志与检查点；仅文档，不更改当前运行路径。
+- **验证**：本地包元数据、官方接口资料及文档静态检查；没有迁移代码测试结果。
+- **本轮提交**：Pending，未提交/推送。
+- **建议 Summary**：`docs: plan migration to standard LangChain agent and retrieval interfaces`
+- **建议 Description**：明确标准组件与项目治理的职责，分阶段替换通用 Agent 循环并标准化 Tool/Retriever 接口；保持可信身份、共享预算、证据和审批契约，记录尚未实施。
+
+## [2026-11-24] Task 036 当前架构复查（Pending）
+
+- **HEAD**：main / 77410ca；缓存 origin/main 同 hash，未联网 fetch。
+- **工作区**：保留现有页面/源码/测试改动及未跟踪文件；本轮仅新增报告、036 Prompt 和文档索引/日志。
+- **验证**：719 tests OK（skipped=45），70 契约；架构与入口静态核查、正式评测记录核对，未付费调用或重跑 PG。
+- **本轮提交**：Pending，未提交/推送。
+- **建议 Summary**：`docs: review current architecture and distinguish demo from live workflows`
+- **建议 Description**：绘制真实系统/工作流结构，更新对模型配置、混合规划、MCP、PG 和真实重复测量的认识；记录网页离线、模拟运营流程、评分审计及装配耦合边界。
+
 ## [2026-11-23] 任务 032 / 034 提交（e1d0d2e）
 
 - **提交**：`e1d0d2e`（`feat: 业务流程工作台（Task 032）与 LLM Supervisor 混合规划（Task 034）`，作者 minatolog），包含 Task 032（业务流程工作台 + U3 收尾）与 Task 034（LLM Supervisor / 混合规划）及两轮复查返修；未推送。

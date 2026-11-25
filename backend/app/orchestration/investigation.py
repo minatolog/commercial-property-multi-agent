@@ -611,6 +611,7 @@ def build_investigation_graph(
     draft_resolver: Callable[[InvestigationState, list[dict[str, Any]]], dict[str, Any] | None]
     | None = None,
     budget_snapshot: Callable[[], Any] | None = None,
+    synthesizer: Callable[..., Any] | None = None,
     checkpointer: Any = None,
 ) -> Any:
     """编译调查图。节点通过 capability 解析 Agent，不引用具体类。
@@ -861,10 +862,21 @@ def build_investigation_graph(
         _discrepancy_statuses = {"mismatch", "ungrounded"}
         narrative_discrepancies: list[dict[str, Any]] = []
         authoritative_amounts: list[dict[str, Any]] = []
+        agent_analyses: list[dict[str, Any]] = []
         for item in results:
             output = item.get("output") or {}
             fund = output.get("fund_check")
             amount_check = output.get("answer_check")
+            if output.get("engine") == "llm" and output.get("answer"):
+                agent_analyses.append({
+                    "subtask_id": item["subtask_id"],
+                    "capability": item["capability"],
+                    "agent": item["agent"],
+                    "answer": output["answer"],
+                    "model": output.get("model"),
+                    "usage": output.get("usage"),
+                    "evidence_ids": list(dict.fromkeys(_evidence_ids(output))),
+                })
             if isinstance(fund, dict) and isinstance(output.get("fund_conclusion"), dict):
                 authoritative_amounts.append(
                     {
@@ -944,9 +956,18 @@ def build_investigation_graph(
             or bool(narrative_discrepancies),
             "disclaimer": "本报告只陈述事实与冲突，不构成减免/调账决定",
         }
+        if agent_analyses:
+            report["agent_analyses"] = agent_analyses
         if draft is not None:
             report["proposed_draft"] = draft
         return {"report": report, "approval_status": "not_required" if draft is None else "ready"}
+
+    async def synthesis_node(state: InvestigationState) -> dict[str, Any]:
+        if synthesizer is None:
+            return {}
+        report = dict(state["report"])
+        report["synthesis"] = await synthesizer(report, state["context"])
+        return {"report": report}
 
     def approval_node(state: InvestigationState) -> dict[str, Any]:
         """审批门：独立节点，只负责"发起审批 / 记录结论"，绝不执行业务动作。
@@ -1050,6 +1071,7 @@ def build_investigation_graph(
     graph.add_node("verify", verify_node)
     graph.add_node("revise", revise_node)
     graph.add_node("report", report_node)
+    graph.add_node("synthesis", synthesis_node)
     graph.add_node("approval", approval_node)
 
     graph.add_edge(START, "plan")
@@ -1069,7 +1091,8 @@ def build_investigation_graph(
     graph.add_edge("deterministic_answer", "verify")
     graph.add_conditional_edges("verify", route_after_verify, {"revise": "revise", "report": "report"})
     graph.add_edge("revise", "dispatch")
-    graph.add_edge("report", "approval")
+    graph.add_edge("report", "synthesis")
+    graph.add_edge("synthesis", "approval")
     graph.add_edge("approval", END)
 
     return graph.compile(checkpointer=checkpointer)
@@ -1210,6 +1233,7 @@ class Investigator:
     checkpointer: Any = None
     approval_rule: ApprovalRule | None = None
     budget_snapshot: Callable[[], dict[str, Any]] | None = None
+    synthesizer: Callable[..., Any] | None = None
     _graph: Any = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -1235,6 +1259,7 @@ class Investigator:
             approval_reader=reader,
             draft_resolver=self._resolve_draft,
             budget_snapshot=self.budget_snapshot,
+            synthesizer=self.synthesizer,
             checkpointer=self.checkpointer,
         )
 

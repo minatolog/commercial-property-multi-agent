@@ -4,8 +4,8 @@
 Runtime → 受控只读工具 → LangGraph 编排 → 合同条款证据 → 人工审批 → 评测 → 演示界面。
 
 > **状态**：可运行、可演示、可解释的版本候选（release candidate）。
-> 所有业务数据均为**合成数据**；已有真实 DeepSeek dev/单题记录，PostgreSQL 实机与正式真实模型对照尚未完成。
-> 当前指导入口：[架构与文档基线](docs/architecture/CURRENT_BASELINE.md)（2026-11-21，Task 031 已实施并自检、待独立复查）。
+> 所有业务数据均为**合成数据**。PostgreSQL 已有实机证据。正式模型对照的原始运行已归档，评分审计和人工量表仍待完成。
+> 当前指导入口：[架构与文档基线](docs/architecture/CURRENT_BASELINE.md)、[LangChain 架构及接手指南](docs/architecture/langchain_integration.md)。
 > 未完成项在 [§8 已知限制](#8-已知限制不夸大) 中逐条列出，本文不夸大任何能力。
 
 ---
@@ -39,7 +39,7 @@ python -m app.cli tools
 python -m app.cli check
 python tests/smoke_agent_contracts.py
 
-# 4) 跑一遍完整回归（610 项）
+# 4) 跑一遍完整回归
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -47,14 +47,18 @@ python -m unittest discover -s tests -p "test_*.py"
 
 ```bash
 python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
-# 打开 http://127.0.0.1:8000/
+# 运营总览（含 3D 商场）：http://127.0.0.1:8000/
+# 争议案件处理台：http://127.0.0.1:8000/workbench
 ```
+
+运营总览使用示例指标和浏览器侧协同演示。可从 A-301、A-302 商铺打开调查草稿，提交后由项目现有调查 API 处理。
 
 环境变量（全部可选，脚本与演示都能离线运行）：
 
 | 变量 | 作用 | 缺省 |
 |---|---|---|
-| `DEEPSEEK_API_KEY` | 真实模型调用（`--model-provider deepseek`） | 未设置 → 只能用 Fake/离线 |
+| `DEEPSEEK_API_KEY` | DeepSeek 模式所需的服务端密钥 | 离线和 scripted 模式可直接使用 |
+| `COMMERCIAL_WEB_MODEL_PROVIDER` | 设为 `deepseek` 并重启服务后，工作台新调查会调用模型 | `offline` |
 | `DEMO_PRINCIPAL_ID` | 演示 API 的可信主体 | `principal_ops_xinghui` |
 | `DEMO_APPROVERS` | 演示 API 允许的审批人（逗号分隔） | 物业经理 + 财务 |
 | `CONTRACT_PDF_OUT` / `DOC_OUT_DIR` | 合成 PDF 输出目录 | `docs/evaluation/documents/` |
@@ -283,7 +287,7 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 | 证据 | 命令 | 结果 |
 |---|---|---|
 | 契约自检 | `python tests/smoke_agent_contracts.py` | 70 项通过 |
-| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | **610 项通过**（1 项因本机已配置密钥而 skip；Task 032/034 复查返修后，2026-11-22；Task 032 后 606、Task 034 后 595、Task 031 返修后 551） |
+| 单元/集成回归 | `python -m unittest discover -s tests -p "test_*.py"` | Task 038 共 723 项，678 项通过，45 项跳过（含 44 项 PostgreSQL 测试） |
 | 冻结评测 | `python -m app.cli evaluate --split heldout` | 3 份 JSON + 汇总 Markdown（绑定提交与校验和） |
 | 模型预算按物理请求记账 | `tests/test_model_budget.py`（6 项） | `max_model_calls=1` 时只发出 1 次请求；重试/补查逐次记账 |
 | 模型不能换目标/丢筛选 | `tests/test_task_scope.py`（15 项） | 越界租约被拒、省略即注入、文档范围取交集、受控调用双省略默认拒绝 |
@@ -326,12 +330,8 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 
 ## 8. 已知限制（不夸大）
 
-1. **真实模型仅有 dev/有界样例证据**：`ask` / `investigate` / `evaluate --split dev` 均已真实调用
-   DeepSeek（见 [real_model_dev](docs/evaluation/reports/real_model_dev/) 和 [real_model_v2](docs/evaluation/reports/real_model_v2/)）。**heldout 32 题的真实对照尚未执行**，
-   且 dev 集是自然语言断言 + 人工量表题，其通过率**不能**用于 B vs C 的质量结论。
-   成本金额未换算（项目未内置价格表）。
-2. **未接 PostgreSQL**：本机无服务（`127.0.0.1:5432` 不可达），迁移与查询只在 SQLite 验证；
-   `EXCLUDE` / RLS / 原生 `NUMERIC` 未实测。
+1. **正式对照仍待评分审计**。迁移前的四组各五次 heldout 运行已归档。待核查资金字段评分、拒绝状态及跨主体用例，人工量表尚未完成。见 [正式原始结果](docs/evaluation/reports/formal_20261123/summary.md) 和 [Task 036 审查](docs/reviews/2026-11-24_current_architecture_review.md)。
+2. **PostgreSQL 已有实机验证记录**。Task 035 覆盖迁移、只读角色、金额精度、项目隔离和约束。RLS、多实例并发与生产部署仍待验证，Task 038 未复跑 PostgreSQL 套件。见 [Task 035](docs/prompts/02_database/2026-11-23_035_postgresql_verification.md)。
 3. **检索只有 BM25**：长问题召回不足（评测 H18–H20 已暴露）；向量/混合检索/rerank 属下一阶段，
    当前 `retrieval_settings` 只接受 `enabled`/`top_k`，声明未实现字段会加载失败；`top_k` 是声明值，
    检索工具的实际条数由调用参数决定。
@@ -344,8 +344,7 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 8. **失败路径只覆盖单机**：checkpoint 与审批台账是本机 SQLite，未验证多实例并发与分布式"恰好一次"。
 9. **一条 `thread_id` 只能承载一次运行**：重复用它做新调查会被明确拒绝（`invalid_context`）；
    恢复请用 `resume`/`approve`，新任务请换线索。这是有意的安全约束，不是缺陷。
-10. **网页仍未接模型**：WorkflowService 默认确定性、`model_client=None`、`max_model_calls=0`；
-   Task 032 只改了界面与只读展示元数据，没有接模型；领域回答展示与最终综合分析尚未完成；不能把命令行模型接入当作网页已使用 AI。
+10. **网页模型链路待真实服务验证**。工作台默认离线，可通过 `COMMERCIAL_WEB_MODEL_PROVIDER=deepseek` 启用领域 Agent 和最终证据综合。API 与页面已通过脚本模型及模拟 HTTP 验证。见 [Task 038](docs/prompts/04_agents/2026-11-24_038_langchain_standardization.md)。
 11. **Z1–Z3、CLI、逐 Agent 模型配置、配置真实性与路由兜底已实施并自检（Task 031），但待独立复查**：
     默认 `ask` 现在必须携带可信目标（从 `--lease`/`--unit` 或问题里的商铺编号解析），失败调用不再算取证，
     默认摘要分栏展示可信资金结论；模型客户端按各 Agent 自己的 YAML 创建；路由未命中返回澄清。
@@ -361,4 +360,4 @@ H25/H26 变为 clarification，均只影响效率指标或人工评定题；**�
 
 - 分支 `main`，当前提交见 `git log -1`；里程碑记录见 [git_history](docs/checkpoints/git_history.md)。
 - **未打 Tag、未发布、未部署**——这些动作需要项目所有者确认。
-- 下一步：① 复查确认 Task 032 / 034 的返修（DeepSeek 独立复查均为有条件通过，P2/P3 已返修）；② 推进 Task 033（MCP 工具网关）；③ 完成 PostgreSQL 必要数据边界实机验收、正式真实 B/C 对照/重复测量与人工量表，最后复现交付。验收标准见 [当前路线图](docs/product/PROJECT_DEVELOPMENT_ROADMAP.md)。混合检索、部署为后续可选扩展。
+- 下一步先验证迁移后的实际 DeepSeek 网页链路，同时审计已有正式评测的评分与安全题，补齐人工量表和最终复现。验收标准见 [当前路线图](docs/product/PROJECT_DEVELOPMENT_ROADMAP.md)。

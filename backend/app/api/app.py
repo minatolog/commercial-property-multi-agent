@@ -25,7 +25,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
@@ -100,6 +100,7 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
     )
     app.state.service = service or WorkflowService(
         principal_id=os.environ.get("DEMO_PRINCIPAL_ID", DEFAULT_PRINCIPAL),
+        model_provider=os.environ.get("COMMERCIAL_WEB_MODEL_PROVIDER", "offline"),
         approver_allowlist=tuple(
             item.strip()
             for item in os.environ.get(
@@ -156,12 +157,23 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
             },
         )
 
-    @app.get("/", response_class=HTMLResponse)
-    async def index() -> HTMLResponse:
-        page = STATIC_DIR / "index.html"
+    def serve_page(page: Path) -> HTMLResponse:
         return HTMLResponse(
             page.read_text(encoding="utf-8"), headers={"Cache-Control": NO_CACHE}
         )
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index(request: Request) -> Response:
+        # 保留此前发给用户的案件定位链接和从 3D 商场打开的调查草稿。
+        if any(key in request.query_params for key in ("run", "tab", "tech", "store")):
+            return RedirectResponse(
+                f"/workbench?{request.url.query}", headers={"Cache-Control": NO_CACHE}
+            )
+        return serve_page(STATIC_DIR / "ops" / "index.html")
+
+    @app.get("/workbench", response_class=HTMLResponse)
+    async def workbench() -> HTMLResponse:
+        return serve_page(STATIC_DIR / "index.html")
 
     # Task 027：样式/脚本/模板资源改为同源静态目录。
     # 只挂载 `static/`，不把仓库根、`docs/`、`data/`、`.env` 暴露成静态站点；
@@ -177,6 +189,7 @@ def create_app(*, service: WorkflowService | None = None) -> FastAPI:
             "approver_allowlist": list(svc.approver_allowlist),
             # Task 032：只读展示元数据（中文角色名），只含可信主体与审批白名单
             "principals": svc.principal_labels(),
+            "model_provider": svc.model_provider,
             "note": "身份由服务端注入；请求不能自报 principal 或权限",
         }
 

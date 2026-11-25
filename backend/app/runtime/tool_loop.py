@@ -1,33 +1,37 @@
-"""有限轮次工具调用循环（单 Agent + Tools 基线的最小实现）。
+"""用 LangChain Agent 执行领域内模型与工具循环。
 
-职责边界：
-
-- 只负责"问模型 → 执行工具 → 把结果回传 → 直到给出最终答案"这一步；
-- 不做业务计算、不做权限判断（权限在 ToolExecutor）、不做图编排（Task 009）；
-- 一切上限都是显式的：轮次、预算、deadline、单次工具超时。
-
-停止原因必须可见，禁止把"没答完"伪装成成功。
+LangChain 调度模型和工具节点。项目负责可信目标、预算、取证及对外结果契约。
 """
 
 from __future__ import annotations
 
-import itertools
+import asyncio
+import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
+from uuid import uuid4
+
+from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.tools import StructuredTool
+from langgraph.prebuilt.tool_node import ToolCallRequest
+from pydantic import Field
 
 from ..agents.base.contracts import AgentContext, TokenUsage, utcnow
 from ..agents.base.errors import AgentError, ErrorCode
 from ..config.schema import AgentConfig
-from ..llm.model_client import ChatMessage, ChatModelClient, ModelTurn, ToolSpec
+from ..llm.langchain_client import to_langchain_message
+from ..llm.model_client import ChatMessage, ChatModelClient, ModelToolCall, ModelTurn, ToolSpec
 from ..tools.executor import ToolExecutor
 from .budget import Budget
 from .types import Evidence, ToolExecution
 
-__all__ = ["ToolLoopOutcome", "ToolLoopStopReason", "run_tool_loop"]
-
-#: 物理模型请求的全局序号：保证每次真实发送请求都有唯一预算 ID。
-#: 进程内单调递增即可——预算只在单进程内有意义（P0 单进程 Runtime）。
-_REQUEST_SEQ = itertools.count(1)
+ArgumentPolicy = Callable[
+    [str, dict[str, Any]], tuple[dict[str, Any] | None, str | None]
+]
 
 
 class ToolLoopStopReason:
@@ -35,6 +39,7 @@ class ToolLoopStopReason:
     MAX_ROUNDS = "max_rounds"
     BUDGET_EXHAUSTED = "budget_exhausted"
     DEADLINE_EXCEEDED = "deadline_exceeded"
+    MODEL_TIMEOUT = "model_timeout"
     MODEL_ERROR = "model_error"
 
 
@@ -54,6 +59,227 @@ class ToolLoopOutcome:
         return self.stop_reason == ToolLoopStopReason.FINAL_ANSWER
 
 
+class _AgentStopped(Exception):
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+class _ProjectChatModel(BaseChatModel):
+    """Expose the project's real and scripted clients as a LangChain chat model."""
+
+    client: Any = Field(exclude=True, repr=False)
+    specs: tuple[ToolSpec, ...]
+    tool_aliases: dict[str, str]
+    turns: list[ModelTurn] = Field(default_factory=list, exclude=True)
+
+    @property
+    def _llm_type(self) -> str:
+        return self.client.provider
+
+    def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> BaseChatModel:
+        if {tool.name for tool in tools} != {spec.name for spec in self.specs}:
+            raise ValueError("LangChain 工具集与执行授权不一致")
+        return self
+
+    def _generate(self, *args: Any, **kwargs: Any) -> ChatResult:
+        raise NotImplementedError("项目模型客户端只支持异步调用")
+
+    async def _agenerate(
+        self, messages: list[BaseMessage], **kwargs: Any
+    ) -> ChatResult:
+        turn = await self.client.complete(
+            [_to_project_message(message) for message in messages], self.specs
+        )
+        self.turns.append(turn)
+        response = AIMessage(
+            content=turn.text,
+            usage_metadata={
+                "input_tokens": turn.usage.prompt_tokens,
+                "output_tokens": turn.usage.completion_tokens,
+                "total_tokens": turn.usage.total_tokens,
+            } if turn.usage else None,
+            tool_calls=[
+                {
+                    "id": call.call_id,
+                    "name": self.tool_aliases.get(call.name, call.name),
+                    "args": call.arguments,
+                }
+                for call in turn.tool_calls
+            ],
+        )
+        return ChatResult(generations=[ChatGeneration(message=response)])
+
+
+def _to_project_message(message: BaseMessage) -> ChatMessage:
+    if isinstance(message, AIMessage):
+        return ChatMessage(
+            role="assistant",
+            content=message.text,
+            tool_calls=tuple(
+                ModelToolCall(
+                    call_id=call["id"],
+                    name=call["name"],
+                    arguments=call["args"],
+                    arguments_json=_json(call["args"]),
+                )
+                for call in message.tool_calls
+            ),
+        )
+    if isinstance(message, ToolMessage):
+        return ChatMessage(
+            role="tool", content=message.text, tool_call_id=message.tool_call_id
+        )
+    if isinstance(message, SystemMessage):
+        return ChatMessage(role="system", content=message.text)
+    if isinstance(message, HumanMessage):
+        return ChatMessage(role="user", content=message.text)
+    raise TypeError(f"不支持的模型消息类型: {type(message).__name__}")
+
+
+class _Governance(AgentMiddleware):
+    """将一次标准 Agent 调用接入本地预算与受控工具执行。"""
+
+    def __init__(
+        self,
+        model: _ProjectChatModel,
+        executor: ToolExecutor,
+        context: AgentContext,
+        agent_config: AgentConfig | None,
+        budget: Budget,
+        max_rounds: int,
+        prepare_arguments: ArgumentPolicy | None,
+    ) -> None:
+        self.model = model
+        self.executor = executor
+        self.context = context
+        self.agent_config = agent_config
+        self.budget = budget
+        self.max_rounds = max_rounds
+        self.prepare_arguments = prepare_arguments
+        self.executions: list[ToolExecution] = []
+        self.warnings: list[str] = []
+        self.rounds = 0
+        # 保持同一子任务的工具顺序和旧路径的预算语义。
+        self.tool_lock = asyncio.Lock()
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Any],
+    ) -> ModelResponse:
+        deadline = self.context.deadline_at
+        remaining = (deadline - utcnow()).total_seconds() if deadline else None
+        if remaining is not None and remaining <= 0:
+            raise _AgentStopped(ToolLoopStopReason.DEADLINE_EXCEEDED, "调查时限已到")
+        if self.rounds >= self.max_rounds:
+            raise _AgentStopped(
+                ToolLoopStopReason.MAX_ROUNDS, f"达到最大轮次 {self.max_rounds}，未得到最终答案"
+            )
+        call_id = f"mc_{uuid4().hex}"
+        try:
+            await self.budget.reserve_model_call(call_id)
+        except AgentError as exc:
+            raise _AgentStopped(ToolLoopStopReason.BUDGET_EXHAUSTED, str(exc)) from exc
+
+        self.rounds += 1
+        try:
+            async with asyncio.timeout(remaining):
+                response = await handler(request)
+        except TimeoutError as exc:
+            raise _AgentStopped(ToolLoopStopReason.DEADLINE_EXCEEDED, "模型请求超出调查时限") from exc
+        except AgentError as exc:
+            if exc.code is ErrorCode.TIMEOUT:
+                raise _AgentStopped(ToolLoopStopReason.MODEL_TIMEOUT, "模型服务请求超时") from exc
+            raise _AgentStopped(ToolLoopStopReason.MODEL_ERROR, f"模型调用失败: {exc.code.value}") from exc
+        except Exception as exc:
+            raise _AgentStopped(
+                ToolLoopStopReason.MODEL_ERROR, f"模型调用失败: {type(exc).__name__}"
+            ) from exc
+        finally:
+            await self.budget.settle(call_id)
+
+        turn = self.model.turns[-1]
+        if turn.usage is not None and turn.usage.total_tokens:
+            token_id = f"{call_id}_tok"
+            try:
+                await self.budget.reserve_tokens(token_id, turn.usage.total_tokens)
+            except AgentError as exc:
+                await self.budget.record_unbudgeted_tokens(turn.usage.total_tokens)
+                raise _AgentStopped(
+                    ToolLoopStopReason.BUDGET_EXHAUSTED, "token 预算已耗尽，停止继续调用模型"
+                ) from exc
+            await self.budget.settle(token_id)
+
+        call_ids = {call.call_id for call in turn.tool_calls}
+        if turn.invalid_tool_calls or len(call_ids) != len(turn.tool_calls):
+            raise _AgentStopped(ToolLoopStopReason.MODEL_ERROR, "模型返回非法工具调用")
+        if turn.tool_calls and not self.model.specs:
+            raise _AgentStopped(ToolLoopStopReason.MODEL_ERROR, "该 Agent 没有可用工具")
+        if not turn.tool_calls:
+            if (turn.finish_reason or "").lower() in {"length", "max_tokens"}:
+                raise _AgentStopped(ToolLoopStopReason.MODEL_ERROR, "模型输出被截断")
+            if not turn.text.strip():
+                raise _AgentStopped(ToolLoopStopReason.MODEL_ERROR, "模型最终回合没有给出任何回答文本")
+        return response
+
+    async def awrap_tool_call(
+        self, request: ToolCallRequest, handler: Callable[[ToolCallRequest], Any]
+    ) -> ToolMessage:
+        call_id = request.tool_call["id"]
+        call = next(item for item in self.model.turns[-1].tool_calls if item.call_id == call_id)
+        if call.parse_error:
+            self.warnings.append(f"工具 {call.name} 参数不合法: {call.parse_error}")
+            return ToolMessage(
+                content=_error_content(ErrorCode.INVALID_TOOL_ARGUMENTS, call.parse_error),
+                tool_call_id=call_id,
+                status="error",
+            )
+        if request.tool is None:
+            if self.agent_config is None:
+                return ToolMessage(
+                    content=_error_content(ErrorCode.TOOL_NOT_ALLOWED, "本次模型调用不允许使用工具"),
+                    tool_call_id=call_id,
+                    status="error",
+                )
+            # 记下未注册或未授权的尝试。空白名单确保只审计、绝不执行。
+            denied_config = self.agent_config.model_copy(update={"allowed_tools": ()})
+            execution = await self.executor.execute(
+                call.name, call.arguments, context=self.context, agent_config=denied_config
+            )
+            self.executions.append(execution)
+            return ToolMessage(
+                content=_tool_result_content(execution),
+                tool_call_id=call_id,
+                status="error",
+            )
+        async with self.tool_lock:
+            return await handler(request)
+
+    def tool(self, spec: ToolSpec) -> StructuredTool:
+        if self.agent_config is None:
+            raise ValueError("有业务工具的 Agent 必须提供 AgentConfig")
+        config = self.agent_config
+
+        async def invoke(**arguments: Any) -> str:
+            if self.prepare_arguments is not None:
+                prepared, reason = self.prepare_arguments(spec.tool_name, arguments)
+                if prepared is None:
+                    self.warnings.append(f"工具 {spec.name} 调用被拒绝: {reason}")
+                    return _error_content(ErrorCode.INVALID_TOOL_ARGUMENTS, str(reason))
+                arguments = prepared
+            execution = await self.executor.execute(
+                spec.tool_name, arguments, context=self.context, agent_config=config
+            )
+            self.executions.append(execution)
+            return _tool_result_content(execution)
+
+        return StructuredTool(
+            name=spec.name, description=spec.description, args_schema=spec.parameters,
+            coroutine=invoke,
+        )
+
+
 async def run_tool_loop(
     *,
     client: ChatModelClient,
@@ -61,334 +287,71 @@ async def run_tool_loop(
     tools: Sequence[ToolSpec],
     executor: ToolExecutor,
     context: AgentContext,
-    agent_config: AgentConfig,
+    agent_config: AgentConfig | None,
     budget: Budget,
     max_rounds: int,
-    prepare_arguments: Callable[
-        [str, dict[str, Any]], tuple[dict[str, Any] | None, str | None]
-    ]
-    | None = None,
+    prepare_arguments: ArgumentPolicy | None = None,
 ) -> ToolLoopOutcome:
-    """执行有界工具循环。
-
-    `messages` 不会被就地修改（返回的新消息只存在于本次循环）。
-
-    `prepare_arguments(tool_name, args)` 是调用前的**可信约束**钩子（Task 021）：
-    返回 `(最终参数, None)` 表示可执行；返回 `(None, 原因)` 表示拒绝该次调用，
-    原因会作为工具错误回传给模型让它自行纠正。目标/筛选条件因此由装配层决定，
-    而不是由模型自觉遵守。
-    """
-
-    conversation: list[ChatMessage] = list(messages)
-    turns: list[ModelTurn] = []
-    executions: list[ToolExecution] = []
-    evidence: list[Evidence] = []
-    warnings: list[str] = []
-    usage = TokenUsage()
-
-    for round_index in range(1, max_rounds + 1):
-        if _deadline_passed(context):
-            return _outcome(
-                answer=_latest_text(turns),
-                stop_reason=ToolLoopStopReason.DEADLINE_EXCEEDED,
-                turns=turns,
-                executions=executions,
-                evidence=evidence,
-                usage=usage,
-                warnings=tuple(warnings),
-                rounds=round_index - 1,
-            )
-
-        # 预算按"**一次物理模型请求**"计数（Task 021 / N1）：
-        # 加上单调递增的请求序号，绝不能让 BaseAgent 的重试或图补查复用同一个 ID——
-        # 复用会让新的真实请求被当成"已结算"，账本少记、上限失效。
-        agent_scope = context.subtask_id or "root"
-        request_seq = next(_REQUEST_SEQ)
-        model_call_id = (
-            f"mc_{context.run_id or 'norun'}_{agent_scope}_{round_index}_{request_seq}"
+    """Run a LangChain Agent and return the existing project's outcome contract."""
+    model = _ProjectChatModel(
+        client=client, specs=tuple(tools), cache=False,
+        tool_aliases={spec.tool_name: spec.name for spec in tools},
+    )
+    governance = _Governance(
+        model, executor, context, agent_config, budget, max_rounds, prepare_arguments
+    )
+    agent = create_agent(
+        model=model, tools=[governance.tool(spec) for spec in tools],
+        middleware=[governance], checkpointer=False,
+    )
+    try:
+        await agent.ainvoke(
+            {"messages": [to_langchain_message(message) for message in messages]},
+            # Each round has at most a model and a tool node. The budget middleware stops it.
+            config={"recursion_limit": 2 * max_rounds + 8},
         )
-        try:
-            await budget.reserve_model_call(model_call_id)
-        except AgentError as exc:
-            warnings.append(f"模型调用预算不足: {exc.code}")
-            return _outcome(
-                answer=_latest_text(turns),
-                stop_reason=ToolLoopStopReason.BUDGET_EXHAUSTED,
-                turns=turns,
-                executions=executions,
-                evidence=evidence,
-                usage=usage,
-                warnings=tuple(warnings),
-                rounds=round_index - 1,
-            )
+        stop_reason = ToolLoopStopReason.FINAL_ANSWER
+    except _AgentStopped as exc:
+        stop_reason = exc.reason
+        governance.warnings.append(str(exc))
 
-        try:
-            turn = await client.complete(conversation, tools)
-        except AgentError as exc:
-            await budget.settle(model_call_id)
-            warnings.append(f"模型调用失败: {exc.code}: {exc.message}")
-            return _outcome(
-                answer=_latest_text(turns),
-                stop_reason=ToolLoopStopReason.MODEL_ERROR,
-                turns=turns,
-                executions=executions,
-                evidence=evidence,
-                usage=usage,
-                warnings=tuple(warnings),
-                rounds=round_index,
-            )
-        except Exception as exc:  # 客户端实现缺陷也不能让整条工作流崩掉
-            await budget.settle(model_call_id)
-            warnings.append(f"模型调用异常: {type(exc).__name__}: {exc}")
-            return _outcome(
-                answer=_latest_text(turns),
-                stop_reason=ToolLoopStopReason.MODEL_ERROR,
-                turns=turns,
-                executions=executions,
-                evidence=evidence,
-                usage=usage,
-                warnings=tuple(warnings),
-                rounds=round_index,
-            )
-        await budget.settle(model_call_id)
-
-        turns.append(turn)
-        usage = _add_usage(usage, turn.usage)
-        if turn.usage is not None and turn.usage.total_tokens:
-            token_id = f"{model_call_id}_tok"
-            try:
-                await budget.reserve_tokens(token_id, turn.usage.total_tokens)
-                await budget.settle(token_id)
-            except AgentError:
-                # 预留失败说明超限了，但这次响应**已经真实产生** token：
-                # 必须如实记账（超限部分单独标记），否则账本低估真实成本。
-                await budget.record_unbudgeted_tokens(turn.usage.total_tokens)
-                warnings.append("token 预算已耗尽，停止继续调用模型")
-                return _outcome(
-                    answer=turn.text or _latest_text(turns),
-                    stop_reason=ToolLoopStopReason.BUDGET_EXHAUSTED,
-                    turns=turns,
-                    executions=executions,
-                    evidence=evidence,
-                    usage=usage,
-                    warnings=tuple(warnings),
-                    rounds=round_index,
-                )
-
-        if not turn.tool_calls:
-            # Task 016（F6）：没有任何有效调用时，必须先排除"模型想调工具但调用非法"。
-            # 否则空答案会被标成 success / final_answer，等于伪造一次成功回答。
-            if turn.invalid_tool_calls:
-                detail = "; ".join(
-                    f"{item.name or '<无工具名>'}: {item.error}"
-                    for item in turn.invalid_tool_calls
-                )
-                warnings.append(f"模型返回非法工具调用: {detail}")
-                return _outcome(
-                    answer=turn.text,
-                    stop_reason=ToolLoopStopReason.MODEL_ERROR,
-                    turns=turns,
-                    executions=executions,
-                    evidence=evidence,
-                    usage=usage,
-                    warnings=tuple(warnings),
-                    rounds=round_index,
-                )
-            truncated = (turn.finish_reason or "").lower() in {"length", "max_tokens"}
-            if truncated:
-                warnings.append(
-                    f"模型输出被截断（finish_reason={turn.finish_reason}），不能视为完整回答"
-                )
-                return _outcome(
-                    answer=turn.text,
-                    stop_reason=ToolLoopStopReason.MODEL_ERROR,
-                    turns=turns,
-                    executions=executions,
-                    evidence=evidence,
-                    usage=usage,
-                    warnings=tuple(warnings),
-                    rounds=round_index,
-                )
-            if not turn.text.strip():
-                # Task 017（R5）：有工具证据不等于完成了用户问答。只有"确实产出了
-                # 面向用户的文本"才算 final_answer；空文本一律按未完成处理，
-                # 避免空答案 + 13 条证据被标成 success。
-                warnings.append(
-                    "模型最终回合没有给出任何回答文本"
-                    + ("（已执行工具调用，但没有生成结论）" if executions else "")
-                )
-                return _outcome(
-                    answer="",
-                    stop_reason=ToolLoopStopReason.MODEL_ERROR,
-                    turns=turns,
-                    executions=executions,
-                    evidence=evidence,
-                    usage=usage,
-                    warnings=tuple(warnings),
-                    rounds=round_index,
-                )
-            return _outcome(
-                answer=turn.text,
-                stop_reason=ToolLoopStopReason.FINAL_ANSWER,
-                turns=turns,
-                executions=executions,
-                evidence=evidence,
-                usage=usage,
-                warnings=tuple(warnings),
-                rounds=round_index,
-            )
-
-        conversation.append(
-            ChatMessage(role="assistant", content=turn.text, tool_calls=turn.tool_calls)
-        )
-
-        for call in turn.tool_calls:
-            if call.parse_error is not None:
-                # 参数不合法不是异常，而是一次可被模型纠正的失败反馈
-                warnings.append(f"工具 {call.name} 参数不合法: {call.parse_error}")
-                conversation.append(
-                    ChatMessage(
-                        role="tool",
-                        content=_tool_error_content(
-                            call.call_id, ErrorCode.INVALID_TOOL_ARGUMENTS.value, call.parse_error
-                        ),
-                        tool_call_id=call.call_id,
-                    )
-                )
-                continue
-
-            # 模型看到的是 provider 合法名（`lease__lookup`），执行要用内部名（`lease.lookup`）。
-            # 也接受内部名，便于脚本化模型与历史测试直接用原名字。
-            spec = _spec_for(tools, call.name)
-            tool_name = spec.tool_name if spec is not None else call.name
-            arguments = dict(call.arguments)
-            if prepare_arguments is not None:
-                prepared, reason = prepare_arguments(tool_name, arguments)
-                if prepared is None:
-                    # 越界参数不执行：把原因回传，让模型在下一轮自行纠正
-                    warnings.append(f"工具 {call.name} 调用被拒绝: {reason}")
-                    conversation.append(
-                        ChatMessage(
-                            role="tool",
-                            content=_tool_error_content(
-                                call.call_id,
-                                ErrorCode.INVALID_TOOL_ARGUMENTS.value,
-                                str(reason),
-                            ),
-                            tool_call_id=call.call_id,
-                        )
-                    )
-                    continue
-                arguments = prepared
-            execution = await executor.execute(
-                tool_name,
-                arguments,
-                context=context,
-                agent_config=agent_config,
-            )
-            executions.append(execution)
-            evidence.extend(execution.evidence)
-            conversation.append(
-                ChatMessage(
-                    role="tool",
-                    content=_tool_result_content(execution),
-                    tool_call_id=call.call_id,
-                )
-            )
-
-    return _outcome(
-        answer=_latest_text(turns),
-        stop_reason=ToolLoopStopReason.MAX_ROUNDS,
-        turns=turns,
-        executions=executions,
-        evidence=evidence,
-        usage=usage,
-        warnings=tuple([*warnings, f"达到最大轮次 {max_rounds}，未得到最终答案"]),
-        rounds=max_rounds,
-    )
-
-
-def _spec_for(tools: Sequence[ToolSpec], name: str) -> ToolSpec | None:
-    """按暴露名或内部名查工具声明（两者都接受，调用方无需关心映射方向）。"""
-
-    for spec in tools:
-        if spec.name == name or spec.tool_name == name:
-            return spec
-    return None
-
-
-def _deadline_passed(context: AgentContext) -> bool:
-    return context.deadline_at is not None and utcnow() >= context.deadline_at
-
-
-def _latest_text(turns: Sequence[ModelTurn]) -> str:
-    for turn in reversed(turns):
-        if turn.text.strip():
-            return turn.text
-    return ""
-
-
-def _add_usage(left: TokenUsage, right: TokenUsage | None) -> TokenUsage:
-    if right is None:
-        return left
-    return TokenUsage(
-        prompt_tokens=left.prompt_tokens + right.prompt_tokens,
-        completion_tokens=left.completion_tokens + right.completion_tokens,
-        total_tokens=left.total_tokens + right.total_tokens,
-    )
-
-
-def _tool_result_content(execution: ToolExecution) -> str:
-    if execution.ok:
-        payload = {
-            "status": "ok",
-            "tool": execution.tool_name,
-            "call_id": execution.call_id,
-            "data": execution.data,
-            "evidence_ids": [item.evidence_id for item in execution.evidence],
-        }
-    else:
-        error = execution.error
-        payload = {
-            "status": "error",
-            "tool": execution.tool_name,
-            "call_id": execution.call_id,
-            "error_code": error.code.value if error is not None else ErrorCode.INTERNAL_ERROR.value,
-            "message": error.message if error is not None else "",
-        }
-    import json
-
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-
-
-def _tool_error_content(call_id: str, code: str, message: str) -> str:
-    import json
-
-    return json.dumps(
-        {"status": "error", "call_id": call_id, "error_code": code, "message": message},
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-
-
-def _outcome(
-    *,
-    answer: str,
-    stop_reason: str,
-    turns: Sequence[ModelTurn],
-    executions: Sequence[ToolExecution],
-    evidence: Sequence[Evidence],
-    usage: TokenUsage,
-    warnings: tuple[str, ...],
-    rounds: int,
-) -> ToolLoopOutcome:
+    turns = model.turns
+    usages = [turn.usage for turn in turns if turn.usage is not None]
+    answer = turns[-1].text if turns else ""
+    if not answer and stop_reason != ToolLoopStopReason.MODEL_ERROR:
+        answer = next((turn.text for turn in reversed(turns) if turn.text.strip()), "")
     return ToolLoopOutcome(
         answer=answer,
         stop_reason=stop_reason,
         turns=tuple(turns),
-        tool_executions=tuple(executions),
-        evidence=tuple(evidence),
-        usage=usage,
-        warnings=warnings,
-        rounds=rounds,
+        tool_executions=tuple(governance.executions),
+        evidence=tuple(item for call in governance.executions for item in call.evidence),
+        usage=TokenUsage(
+            prompt_tokens=sum(item.prompt_tokens for item in usages),
+            completion_tokens=sum(item.completion_tokens for item in usages),
+            total_tokens=sum(item.total_tokens for item in usages),
+        ),
+        warnings=tuple(governance.warnings),
+        rounds=governance.rounds,
     )
+
+
+def _json(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _error_content(code: ErrorCode, message: str) -> str:
+    return _json({"status": "error", "error_code": code.value, "message": message})
+
+
+def _tool_result_content(execution: ToolExecution) -> str:
+    if execution.ok:
+        return _json({
+            "status": "ok", "tool": execution.tool_name, "call_id": execution.call_id,
+            "data": execution.data, "evidence_ids": [item.evidence_id for item in execution.evidence],
+        })
+    return _json({
+        "status": "error", "tool": execution.tool_name, "call_id": execution.call_id,
+        "error_code": execution.error.code.value if execution.error else ErrorCode.INTERNAL_ERROR.value,
+        "message": execution.error.message if execution.error else "",
+    })
